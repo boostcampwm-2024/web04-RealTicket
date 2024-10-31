@@ -1,0 +1,12 @@
+{
+  "name": "web04-realticket",
+  "version": "1.0.0",
+  "description": "예매 서비스",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
