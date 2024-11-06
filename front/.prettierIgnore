@@ -1,0 +1,7 @@
+**/*.html
+**/*.css
+.gitignore
+.prettierIgnore
+.husky/
+.prettierrc
+**/*.json
