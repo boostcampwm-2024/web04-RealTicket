@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . --fix",
     "preview": "vite preview",
     "prepare": "husky",
+    "lint": "eslint . --fix",
     "prettier": "prettier . -w"
     
   },

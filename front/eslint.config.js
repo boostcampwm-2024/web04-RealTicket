@@ -20,6 +20,7 @@ export default tseslint.config(
       'eslint-plugin-prettier': eslintPluginPrettier,
     },
     rules: {
+      // '@typescript-eslint/no-explicit-any': 'warn',
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
