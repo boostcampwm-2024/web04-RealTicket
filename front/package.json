@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --fix",
     "preview": "vite preview",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prettier": "prettier . -w"
+    
   },
   "dependencies": {
     "react": "^18.3.1",
