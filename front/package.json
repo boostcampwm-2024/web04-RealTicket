@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "prepare": "husky",
-    "lint": "eslint . --fix",
-    "prettier": "prettier . -w"
+    "lint": "eslint --fix",
+    "prettier": "prettier -w"
     
   },
   "dependencies": {
