@@ -7,7 +7,7 @@ const ormConfig: TypeOrmModuleOptions = {
     username: process.env.DATABASE_USERNAME,
     password: process.env.DATABASE_PASSWORD,
     database: process.env.DATABASE_SCHEMA,
-    entities: [__dirname + '/**/*.entity{.ts,.js}'],
+    entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     synchronize: process.env.DATABASE_SYNCHRONIZE === 'true'
 };
 
