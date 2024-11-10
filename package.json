@@ -23,7 +23,18 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/express-session": "^1.18.0",
+    "@types/ioredis": "^4.28.10",
+    "@types/passport": "^1.0.17",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10"
+  },
+  "dependencies": {
+    "@nestjs/passport": "^10.0.3",
+    "connect-redis": "^7.1.1",
+    "express-session": "^1.18.1",
+    "ioredis": "^5.4.1",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0"
   }
 }
