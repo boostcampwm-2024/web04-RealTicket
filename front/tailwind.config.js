@@ -1,7 +1,10 @@
+import { fontFamily } from 'tailwindcss/defaultTheme';
+
+import { colors } from './style/colors.ts';
+import { fontSize } from './style/fontSize.ts';
+
 /** @type {import('tailwindcss').Config} */
-const defaultTheme = require('tailwindcss/defaultTheme');
-const fontSize = require('./style/tailwindConfig/fontSize.tailwind.cjs');
-const colors = require('./style/tailwindConfig/colors.tailwind.cjs');
+
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
@@ -9,7 +12,7 @@ export default {
       colors,
       fontSize,
       fontFamily: {
-        sans: ['pretendard', ...defaultTheme.fontFamily.sans],
+        sans: ['pretendard', ...fontFamily.sans],
       },
     },
   },
