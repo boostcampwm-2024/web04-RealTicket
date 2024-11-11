@@ -24,10 +24,11 @@
     "^next",
     "<THIRD_PARTY_MODULES>",
 
-    "^~/api/(.*)$",
-    "^~/hooks/(.*)$",
-    "^~/components/(.*)$",
-    "^~/utils/(.*)$",
+    "^@/api/(.*)$",
+    "^@/hooks/(.*)$",
+    "^@/components/(.*)$",
+    "^@/pages/(.*)$",
+    "^@/utils/(.*)$",
 
     "^[./]"
   ],
