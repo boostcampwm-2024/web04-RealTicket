@@ -1,5 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import Redis from 'ioredis';
 
 import { UserEntity } from '../../user/entity/user.entity';
@@ -26,13 +27,10 @@ export class AuthService {
 
     // 2. 비밀번호 검증
     //const isPasswordValid = await bcrypt.compare(password, user.login_password);
-    const isPasswordValid = password === user.login_password;
+    const isPasswordValid = bcrypt.compare(password, user.login_password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('비밀번호가 일치하지 않습니다.');
     }
-
-    // 3. Redis에 사용자 정보 캐싱 (비밀번호 제외 가능)
-    await this.redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600); // TTL 설정 (1시간)
     return user; // 사용자 정보 반환
   }
 }
