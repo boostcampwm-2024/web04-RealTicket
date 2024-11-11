@@ -1,5 +1,7 @@
 # RealTicket
 
+[📚팀 노션](https://chestnut-sense-efd.notion.site/RealTicket-12d313ed69ba805cb271cd1f51f8272b?pvs=4)
+
 ## 프로젝트 개요
 
 > 🎟️ “RealTicket”
