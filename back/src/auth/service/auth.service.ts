@@ -2,8 +2,8 @@ import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import Redis from 'ioredis';
 
-import { UserEntity } from '../entity/user.entity';
-import { UserRepository } from '../user/user.repository';
+import { UserEntity } from '../../user/entity/user.entity';
+import { UserRepository } from '../../user/repository/user.repository';
 
 @Injectable()
 export class AuthService {

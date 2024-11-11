@@ -2,13 +2,13 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { UserEntity } from '../entity/user.entity';
+import { UserEntity } from '../user/entity/user.entity';
+import { UserRepository } from '../user/repository/user.repository';
 import { UserModule } from '../user/user.module';
-import { UserRepository } from '../user/user.repository';
 
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
 import { LocalSerializer } from './local.serializer';
+import { AuthService } from './service/auth.service';
+import { AuthController } from './strategy/auth.controller';
 import { LocalStrategy } from './strategy/local.strategy';
 
 @Module({

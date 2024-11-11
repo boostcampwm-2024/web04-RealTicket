@@ -4,13 +4,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthController } from './auth/auth.controller';
 import { AuthModule } from './auth/auth.module';
+import { AuthController } from './auth/strategy/auth.controller';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
-import { UserController } from './user/user.controller';
+import { UserController } from './user/controller/user.controller';
+import { UserService } from './user/service/user.service';
 import { UserModule } from './user/user.module';
-import { UserService } from './user/user.service';
 
 @Module({
   imports: [
