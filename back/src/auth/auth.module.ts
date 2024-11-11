@@ -6,9 +6,9 @@ import { UserEntity } from '../user/entity/user.entity';
 import { UserRepository } from '../user/repository/user.repository';
 import { UserModule } from '../user/user.module';
 
+import { AuthController } from './controller/auth.controller';
 import { LocalSerializer } from './local.serializer';
 import { AuthService } from './service/auth.service';
-import { AuthController } from './strategy/auth.controller';
 import { LocalStrategy } from './strategy/local.strategy';
 
 @Module({

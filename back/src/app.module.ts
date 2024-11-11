@@ -5,7 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { AuthController } from './auth/strategy/auth.controller';
+import { AuthController } from './auth/controller/auth.controller';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
 import { UserController } from './user/controller/user.controller';
