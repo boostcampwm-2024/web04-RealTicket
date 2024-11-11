@@ -1,28 +1,25 @@
 import { ButtonHTMLAttributes } from 'react';
 
+import Slot from '@/components/Slot';
+
 import { VariantProps, cva } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
-import Slot from '@/components/Slot';
+interface IButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
 
-/*
-type
-- default 
-- outline 
-- ghost
+export default function Button({ className, children, intent, size, color, asChild, ...rest }: IButtonProps) {
+  const Element = asChild ? Slot : 'button';
+  return (
+    <Element className={twMerge(buttonVariants({ color, intent, size }), className)} {...rest}>
+      {children}
+    </Element>
+  );
+}
 
-size
-- full
-- fit 
-
-color
-- default 
-- success 
-- primary    
-disabled 
-
-*/
-//hover, disabled 처리 필요
 const buttonVariants = cva(
   'button p-2 flex items-center justify-center gap-x-2 rounded disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50',
   {
@@ -52,17 +49,3 @@ const buttonVariants = cva(
     },
   },
 );
-interface IButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
-
-export default function Button({ className, children, intent, size, color, asChild, ...rest }: IButtonProps) {
-  const Element = asChild ? Slot : 'button';
-  return (
-    <Element className={twMerge(buttonVariants({ color, intent, size }), className)} {...rest}>
-      {children}
-    </Element>
-  );
-}
