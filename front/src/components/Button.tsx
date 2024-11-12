@@ -23,7 +23,7 @@ export default function Button({ className, children, intent, size, color, asChi
 const buttonVariants = cva(
   [
     'button p-2 flex items-center justify-center gap-x-2 rounded',
-    'disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50',
+    'disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50 disabled:cursor-not-allowed',
   ],
   {
     variants: {
