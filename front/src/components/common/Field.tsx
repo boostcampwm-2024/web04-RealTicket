@@ -1,13 +1,6 @@
-/* chakra의 Field 역할*/
 import { PropsWithChildren } from 'react';
 
 import { fieldContext } from '@/context/fieldContext';
-
-/*
-context 로 
-for invalid를 내려준다. 
-
-*/
 
 interface IFieldProps extends PropsWithChildren {
   label: string;

@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes } from 'react';
 
-import Slot from '@/components/Slot';
+import Slot from '@/components/common/Slot';
 
 import { VariantProps, cva } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
