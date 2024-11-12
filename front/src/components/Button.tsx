@@ -21,7 +21,10 @@ export default function Button({ className, children, intent, size, color, asChi
 }
 
 const buttonVariants = cva(
-  'button p-2 flex items-center justify-center gap-x-2 rounded disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50',
+  [
+    'button p-2 flex items-center justify-center gap-x-2 rounded',
+    'disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50',
+  ],
   {
     variants: {
       color: {
@@ -33,7 +36,7 @@ const buttonVariants = cva(
       },
       intent: {
         default: [],
-        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:bg-grayscale-100'],
+        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:bg-surface-hover'],
         ghost: ['bg-transparent', 'border-transparent', 'hover:bg-transparent'],
       },
       size: {
