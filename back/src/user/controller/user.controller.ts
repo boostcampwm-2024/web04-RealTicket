@@ -1,6 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 
+import { SessionAuthGuard } from '../../auth/guard/session.guard';
+import { USER_STATUS } from '../../auth/userStatus.const';
 import { CreateUserDto } from '../dto/userLogin.dto';
 import { UserService } from '../service/user.service';
 
@@ -25,5 +27,11 @@ export class UserController {
     const sessionId = await this.userService.loginUser(createUserDto.login_id, createUserDto.login_password);
     res.cookie('SID', sessionId, { httpOnly: true, secure: true, sameSite: 'none' });
     return { message: '로그인에 성공하셨습니다.' };
+  }
+
+  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @Get('userinfo')
+  async getUserInfo() {
+    return { message: '유저 정보를 조회하였습니다.' };
   }
 }

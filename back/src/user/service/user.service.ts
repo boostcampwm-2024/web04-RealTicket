@@ -37,12 +37,13 @@ export class UserService {
   async loginUser(id: string, password: string): Promise<string | null> {
     console.log('loginUser');
     const user = await this.userRepository.findOne(id);
+    console.log(user);
 
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }
 
-    const checkPasswordValid = bcrypt.compare(password, user.login_password);
+    const checkPasswordValid = await bcrypt.compare(password, user.login_password);
     if (!checkPasswordValid) {
       throw new UnauthorizedException('비밀번호가 일치하지 않습니다.');
     }
