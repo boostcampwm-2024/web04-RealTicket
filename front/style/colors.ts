@@ -10,6 +10,8 @@ export const colors = {
     card: '#f3f4f6ff',
     DEFAULT: '#1f2937ff',
     cancel: '#6b7280ff',
+    sub: '#9ca3afff',
+    hover: '#f3f4f6ff',
   },
   grayscale: {
     50: '#f9fafbff',
@@ -27,6 +29,6 @@ export const colors = {
     display: '#f3f4f6ff',
     disable: '#6b7280ff',
     DEFAULT: '#111827ff',
-    sub: '#374151ff',
+    sub: '#9ca3afff',
   },
 };
