@@ -16,6 +16,9 @@ import { ReservationModule } from './reservation/reservation.module';
 import { ReservationService } from './reservation/reservation.service';
 import { UserController } from './user/user.controller';
 import { UserService } from './user/user.service';
+import { UtilController } from './util/util.controller';
+import { UtilModule } from './util/util.module';
+import { UtilService } from './util/util.service';
 
 @Module({
   imports: [
@@ -24,8 +27,9 @@ import { UserService } from './user/user.service';
     ProgramModule,
     ReservationModule,
     PlaceModule,
+    UtilModule,
   ],
-  controllers: [AppController, UserController, ProgramController, ReservationController],
-  providers: [AppService, UserService, ProgramService, ReservationService, PlaceService],
+  controllers: [AppController, UserController, ProgramController, ReservationController, UtilController],
+  providers: [AppService, UserService, ProgramService, ReservationService, PlaceService, UtilService],
 })
 export class AppModule {}
