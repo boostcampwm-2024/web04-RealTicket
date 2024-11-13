@@ -1,19 +1,20 @@
-import { InputHTMLAttributes } from 'react';
+import { InputHTMLAttributes, forwardRef } from 'react';
 
-import { useFieldContext } from '@/context/fieldContext';
+import { useFieldContext } from '@/contexts/fieldContext';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
 interface IInputProps extends InputHTMLAttributes<HTMLInputElement> {
   isError?: boolean;
 }
-
-export default function Input({ isError, className, ...rest }: IInputProps) {
-  const { isValid } = useFieldContext();
-
+const Input = forwardRef<HTMLInputElement, IInputProps>(function Input({ isError, className, ...rest }, ref) {
+  const { isValid, htmlFor } = useFieldContext();
+  const isNullHtmlFor = htmlFor === '';
   const isErrorStatus = isError || !isValid;
   return (
     <input
+      id={!isNullHtmlFor ? htmlFor : undefined}
+      ref={ref}
       className={twMerge(
         cx(
           'w-full rounded px-4 py-2',
@@ -28,4 +29,5 @@ export default function Input({ isError, className, ...rest }: IInputProps) {
       {...rest}
     />
   );
-}
+});
+export default Input;

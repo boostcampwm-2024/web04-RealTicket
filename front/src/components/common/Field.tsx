@@ -1,6 +1,6 @@
 import { PropsWithChildren } from 'react';
 
-import { fieldContext } from '@/context/fieldContext';
+import { fieldContext } from '@/contexts/fieldContext';
 
 interface IFieldProps extends PropsWithChildren {
   label: string;
@@ -21,15 +21,15 @@ export default function Field({
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex justify-between">
-        <span className="text-heading2">
+        <label htmlFor={label} className="text-heading2">
           {label}
           {isRequired && <span className="text-error">*</span>}
-        </span>
+        </label>
         <span className="mt-auto max-w-[70%] truncate text-caption2 text-error hover:overflow-visible">
           {!isValid && errorMessage}
         </span>
       </div>
-      <fieldContext.Provider value={{ isValid }}>{children}</fieldContext.Provider>
+      <fieldContext.Provider value={{ isValid, htmlFor: label }}>{children}</fieldContext.Provider>
       {isHelpMessage && <span className="text-caption2 text-typo-sub">{helpMessage}</span>}
     </div>
   );
