@@ -1,17 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ProgramRepository } from '../repository/program.repository';
+
+import { PlaceMainPageDto } from '../Dto/placeMainPageDto';
+import { ProgramMainPageDto } from '../Dto/programMainPageDto';
 import { Program } from '../entities/program.entity';
-import { ProgramMainPageDto } from '../dto/programMainPageDto';
-import { PlaceMainPageDto } from '../dto/placeMainPageDto';
+import { ProgramRepository } from '../repository/program.repository';
 
 @Injectable()
 export class ProgramService {
-  constructor(
-    @Inject() private programRepository: ProgramRepository,
-  ) {}
-  
+  constructor(@Inject() private programRepository: ProgramRepository) {}
+
   async findMainPageProgramData() {
-    const programs:Program[] = await this.programRepository.selectAllProgram();
+    const programs: Program[] = await this.programRepository.selectAllProgram();
     const programMainPageDtos = this.#convertProgramListToMainPageDto(programs);
     return programMainPageDtos;
   }
@@ -24,7 +23,7 @@ export class ProgramService {
           ...program,
           place: new PlaceMainPageDto(place),
         });
-      })
+      }),
     );
   }
 

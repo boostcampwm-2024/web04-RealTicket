@@ -1,6 +1,7 @@
 import { Controller, Get, InternalServerErrorException, Param } from '@nestjs/common';
+
+import { ProgramMainPageDto } from '../Dto/programMainPageDto';
 import { ProgramService } from '../service/program.service';
-import { ProgramMainPageDto } from '../dto/programMainPageDto';
 
 @Controller('programs')
 export class ProgramController {
@@ -11,6 +12,7 @@ export class ProgramController {
     try {
       const programs: ProgramMainPageDto[] = await this.programService.findMainPageProgramData();
       return programs;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       throw new InternalServerErrorException('서버 오류 발생');
     }
