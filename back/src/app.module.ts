@@ -4,7 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BookingModule } from './booking/bookin.module';
+import { BookingModule } from './booking/booking.module';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
 import { EventModule } from './event/event.module';

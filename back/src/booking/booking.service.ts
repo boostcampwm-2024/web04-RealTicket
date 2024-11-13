@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { AuthService } from '../auth/service/auth.service';
-import { EventService } from '../event/event.service';
+import { EventService } from '../event/service/event.service';
 
 const OFFSET = 1000 * 60 * 60 * 9;
 
@@ -15,7 +15,7 @@ export class BookingService {
   // 함수 이름 생각하기
   async isAdmission(eventId: number, sid: string) {
     // event_id를 받아서 해당 이벤트가 존재하는지 확인한다.
-    const event = await this.eventService.getEventInfo(eventId);
+    const event = await this.eventService.findSpecificEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
 
     // event시간 확인 오픈 시간 이전인지
