@@ -7,12 +7,13 @@ import { AppService } from './app.service';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
 import { UserModule } from './user/user.module';
-
+import { MockModule } from './mock/mock.module';
 import { PlaceModule } from './place/place.module';
 import { ProgramModule } from './program/program.module';
 import { ReservationModule } from './reservation/reservation.module';
 import { UtilModule } from './util/util.module';
 import { EventModule } from './event/event.module';
+
 @Module({
   imports: [
     TypeOrmModule.forRoot(ormConfig),
@@ -23,6 +24,7 @@ import { EventModule } from './event/event.module';
     UtilModule,
     UserModule,
     EventModule
+    MockModule,
   ],
   controllers: [AppController],
   providers: [AppService],
