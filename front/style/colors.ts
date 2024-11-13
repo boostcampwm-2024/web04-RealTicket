@@ -10,6 +10,8 @@ export const colors = {
     card: '#f3f4f6ff',
     DEFAULT: '#1f2937ff',
     cancel: '#6b7280ff',
+    sub: '#9ca3afff',
+    hover: '#f3f4f6ff',
   },
   grayscale: {
     50: '#f9fafbff',
@@ -23,16 +25,10 @@ export const colors = {
     800: '#1f2937ff',
     900: '#111827ff',
   },
-  text: {
+  typo: {
     display: '#f3f4f6ff',
     disable: '#6b7280ff',
     DEFAULT: '#111827ff',
-    sub: '#374151ff',
-  },
-  border: {
-    DEFAULT: '#111827ff',
-    primary: '#2563ebff',
-    error: '#dc2626ff',
-    success: '#16a34aff',
+    sub: '#9ca3afff',
   },
 };
