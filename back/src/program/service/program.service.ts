@@ -1,17 +1,19 @@
-import { Inject, Injectable } from '@nestjs/common';
-
-import { PlaceMainPageDto } from '../Dto/placeMainPageDto';
-import { ProgramMainPageDto } from '../Dto/programMainPageDto';
-import { Program } from '../entities/program.entity';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ProgramRepository } from '../repository/program.repository';
+import { Program } from '../entities/program.entity';
+import { ProgramMainPageDto } from '../dto/programMainPageDto';
+import { PlaceMainPageDto } from '../dto/placeMainPageDto';
+import { ProgramIdDto } from '../dto/programIdDto';
+import { ProgramSpecificDto } from '../dto/programSpecificDto';
 
 @Injectable()
 export class ProgramService {
   constructor(@Inject() private programRepository: ProgramRepository) {}
 
   async findMainPageProgramData() {
-    const programs: Program[] = await this.programRepository.selectAllProgram();
-    const programMainPageDtos = this.#convertProgramListToMainPageDto(programs);
+    const programs:Program[] = await this.programRepository.selectAllProgram();
+    const programMainPageDtos: ProgramMainPageDto[] = await this.#convertProgramListToMainPageDto(programs);
+
     return programMainPageDtos;
   }
 
@@ -27,7 +29,20 @@ export class ProgramService {
     );
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} program`;
+  async findSpecificProgram({programId}: ProgramIdDto): Promise<ProgramSpecificDto> {
+    const program: Program = await this.programRepository.selectProgram(programId);
+
+    if (!program) throw new NotFoundException(`해당 프로그램[${programId}]는 존재하지 않습니다.`);
+    const programSpecificdto: ProgramSpecificDto = await this.#convertProgramToSpecificDto(program);
+    return programSpecificdto;
+  }
+
+  async #convertProgramToSpecificDto(program: Program): Promise<ProgramSpecificDto> {
+    const [place, events] = await Promise.all([
+      program.place,
+      program.events,
+    ]);
+
+    return new ProgramSpecificDto({ ...program, place, events })
   }
 }

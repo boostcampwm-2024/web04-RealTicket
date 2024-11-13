@@ -9,8 +9,12 @@ export class ProgramRepository {
     @InjectRepository(Program) private ProgramRepository: Repository<Program>
   ) { }
 
-  async selectAllProgram() {
+  async selectAllProgram(): Promise<Program[]> {
     return await this.ProgramRepository.find();
+  }
+
+  async selectProgram(id: number): Promise<Program> {
+    return await this.ProgramRepository.findOne({ where : { id }});
   }
 
 }
