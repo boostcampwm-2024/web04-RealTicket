@@ -1,3 +1,4 @@
+import { Expose } from "class-transformer";
 import { PlaceMainPageDto } from "./placeMainPageDto";
 
 
@@ -14,5 +15,6 @@ export class ProgramMainPageDto {
   name: string;
   genre: string;
   place: PlaceMainPageDto;
+  @Expose({ name: 'profile-url' })
   profileUrl: string;
 }

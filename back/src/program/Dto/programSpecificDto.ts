@@ -1,6 +1,7 @@
 import { Event } from "src/event/entity/event.entity";
 import { EventSpecificProgramDto } from "./eventSpecificProgramDto";
 import { PlaceSpecificProgramDto } from "./placeSpecificProgramDto";
+import { Expose } from "class-transformer";
 
 export class ProgramSpecificDto {
   constructor({id, name, runningTime, genre, actors, place, profileUrl, price, events}) {
@@ -20,10 +21,12 @@ export class ProgramSpecificDto {
   
   id: number;
   name: string;
+  @Expose({ name: 'running-time' })
   runningTime: number;
   genre: string;
   actors: string;
   place: PlaceSpecificProgramDto;
+  @Expose({ name: 'profile-url' })
   profileUrl: string;
   price: number;
   events: EventSpecificProgramDto[];

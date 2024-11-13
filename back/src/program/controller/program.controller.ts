@@ -1,10 +1,11 @@
-import { Controller, Get, InternalServerErrorException, NotFoundException, Param, UsePipes, ValidationPipe } from '@nestjs/common';
+import { ClassSerializerInterceptor, Controller, Get, InternalServerErrorException, NotFoundException, Param, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ProgramService } from '../service/program.service';
 import { ProgramMainPageDto } from '../dto/programMainPageDto';
 import { ProgramIdDto } from '../dto/programIdDto';
 import { ProgramSpecificDto } from '../dto/programSpecificDto';
 
 @Controller('programs')
+@UseInterceptors(ClassSerializerInterceptor)
 export class ProgramController {
   constructor(private readonly programService: ProgramService) {}
 
