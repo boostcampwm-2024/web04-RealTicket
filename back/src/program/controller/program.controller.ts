@@ -1,6 +1,8 @@
-import { Controller, Get, InternalServerErrorException, Param } from '@nestjs/common';
+import { Controller, Get, InternalServerErrorException, NotFoundException, Param, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ProgramService } from '../service/program.service';
 import { ProgramMainPageDto } from '../dto/programMainPageDto';
+import { ProgramIdDto } from '../dto/programIdDto';
+import { ProgramSpecificDto } from '../dto/programSpecificDto';
 
 @Controller('programs')
 export class ProgramController {
@@ -16,8 +18,15 @@ export class ProgramController {
     }
   }
 
-  @Get(':id')
-  findOneProgram(@Param('id') id: number) {
-    return this.programService.findOne(+id);
+  @Get(':programId')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async findOneProgram(@Param() programIdDto: ProgramIdDto) {
+    try {
+      const program: ProgramSpecificDto = await this.programService.findSpecificProgram(programIdDto);
+      return program;
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('서버 오류 발생');
+    }
   }
 }
