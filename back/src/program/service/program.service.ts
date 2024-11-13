@@ -1,17 +1,18 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ProgramRepository } from '../repository/program.repository';
+
+import { PlaceMainPageDto } from '../Dto/placeMainPageDto';
+import { ProgramIdDto } from '../Dto/programIdDto';
+import { ProgramMainPageDto } from '../Dto/programMainPageDto';
+import { ProgramSpecificDto } from '../Dto/programSpecificDto';
 import { Program } from '../entities/program.entity';
-import { ProgramMainPageDto } from '../dto/programMainPageDto';
-import { PlaceMainPageDto } from '../dto/placeMainPageDto';
-import { ProgramIdDto } from '../dto/programIdDto';
-import { ProgramSpecificDto } from '../dto/programSpecificDto';
+import { ProgramRepository } from '../repository/program.repository';
 
 @Injectable()
 export class ProgramService {
   constructor(@Inject() private programRepository: ProgramRepository) {}
 
   async findMainPageProgramData() {
-    const programs:Program[] = await this.programRepository.selectAllProgram();
+    const programs: Program[] = await this.programRepository.selectAllProgram();
     const programMainPageDtos: ProgramMainPageDto[] = await this.#convertProgramListToMainPageDto(programs);
 
     return programMainPageDtos;
@@ -29,7 +30,7 @@ export class ProgramService {
     );
   }
 
-  async findSpecificProgram({programId}: ProgramIdDto): Promise<ProgramSpecificDto> {
+  async findSpecificProgram({ programId }: ProgramIdDto): Promise<ProgramSpecificDto> {
     const program: Program = await this.programRepository.selectProgram(programId);
 
     if (!program) throw new NotFoundException(`해당 프로그램[${programId}]는 존재하지 않습니다.`);
@@ -38,11 +39,8 @@ export class ProgramService {
   }
 
   async #convertProgramToSpecificDto(program: Program): Promise<ProgramSpecificDto> {
-    const [place, events] = await Promise.all([
-      program.place,
-      program.events,
-    ]);
+    const [place, events] = await Promise.all([program.place, program.events]);
 
-    return new ProgramSpecificDto({ ...program, place, events })
+    return new ProgramSpecificDto({ ...program, place, events });
   }
 }

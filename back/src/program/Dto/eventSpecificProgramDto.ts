@@ -1,7 +1,7 @@
-import { Expose } from "class-transformer";
+import { Expose } from 'class-transformer';
 
 export class EventSpecificProgramDto {
-  constructor({id, runningDate}) {
+  constructor({ id, runningDate }) {
     this.id = id;
     this.runningDate = runningDate;
   }

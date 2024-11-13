@@ -1,7 +1,18 @@
-import { ClassSerializerInterceptor, Controller, Get, InternalServerErrorException, NotFoundException, Param, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
-import { EventService } from '../service/event.service';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  InternalServerErrorException,
+  NotFoundException,
+  Param,
+  UseInterceptors,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+
 import { EventIdDto } from '../dto/eventIdDto';
 import { EventSpecificDto } from '../dto/eventSpecificDto';
+import { EventService } from '../service/event.service';
 
 @Controller('event')
 @UseInterceptors(ClassSerializerInterceptor)

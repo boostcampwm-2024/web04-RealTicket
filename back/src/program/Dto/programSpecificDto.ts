@@ -1,10 +1,12 @@
-import { Event } from "src/event/entity/event.entity";
-import { EventSpecificProgramDto } from "./eventSpecificProgramDto";
-import { PlaceSpecificProgramDto } from "./placeSpecificProgramDto";
-import { Expose } from "class-transformer";
+import { Expose } from 'class-transformer';
+
+import { Event } from 'src/event/entity/event.entity';
+
+import { EventSpecificProgramDto } from './eventSpecificProgramDto';
+import { PlaceSpecificProgramDto } from './placeSpecificProgramDto';
 
 export class ProgramSpecificDto {
-  constructor({id, name, runningTime, genre, actors, place, profileUrl, price, events}) {
+  constructor({ id, name, runningTime, genre, actors, place, profileUrl, price, events }) {
     this.id = id;
     this.name = name;
     this.runningTime = runningTime;
@@ -18,7 +20,7 @@ export class ProgramSpecificDto {
       return acc;
     }, []);
   }
-  
+
   id: number;
   name: string;
   @Expose({ name: 'running-time' })

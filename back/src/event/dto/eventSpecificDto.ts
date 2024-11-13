@@ -1,5 +1,6 @@
-import { Expose } from "class-transformer";
-import { placeSpecificEventDto } from "./placeSpecificEventDto";
+import { Expose } from 'class-transformer';
+
+import { placeSpecificEventDto } from './placeSpecificEventDto';
 
 export class EventSpecificDto {
   constructor({ id, name, place, runningTime, runningDate, reservationOpenDate }) {
@@ -10,14 +11,14 @@ export class EventSpecificDto {
     this.runningDate = runningDate;
     this.reservationOpenDate = reservationOpenDate;
   }
-  
+
   id: number;
   name: string;
   place: placeSpecificEventDto;
-  @Expose({ name : 'running-time' })
+  @Expose({ name: 'running-time' })
   runningTime: number;
-  @Expose({ name : 'running-date' })
+  @Expose({ name: 'running-date' })
   runningDate: Date;
-  @Expose({ name : 'reservation-open-date' })
+  @Expose({ name: 'reservation-open-date' })
   reservationOpenDate: Date;
 }

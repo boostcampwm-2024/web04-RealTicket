@@ -1,7 +1,8 @@
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+
 import { Event } from 'src/event/entity/event.entity';
 import { Place } from 'src/place/entity/place.entity';
 import { Reservation } from 'src/reservation/entity/reservation.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
 @Entity({ name: 'Program' })
 export class Program {
@@ -32,7 +33,7 @@ export class Program {
 
   @OneToMany(() => Event, (event) => event.program, { lazy: true })
   events: Promise<Event[]>;
-  
+
   @OneToMany(() => Reservation, (reservation) => reservation.program, { lazy: true })
   reservations: Promise<Reservation[]>;
 }

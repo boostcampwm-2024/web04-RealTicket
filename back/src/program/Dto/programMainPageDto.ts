@@ -1,9 +1,9 @@
-import { Expose } from "class-transformer";
-import { PlaceMainPageDto } from "./placeMainPageDto";
+import { Expose } from 'class-transformer';
 
+import { PlaceMainPageDto } from './placeMainPageDto';
 
 export class ProgramMainPageDto {
-  constructor({id, name, genre, place, profileUrl}) {
+  constructor({ id, name, genre, place, profileUrl }) {
     this.id = id;
     this.name = name;
     this.genre = genre;

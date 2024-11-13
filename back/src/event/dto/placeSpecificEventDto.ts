@@ -3,7 +3,7 @@ export class placeSpecificEventDto {
     this.id = id;
     this.name = name;
   }
-  
+
   id: number;
   name: string;
 }
