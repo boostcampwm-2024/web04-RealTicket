@@ -1,13 +1,18 @@
-import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Reservation } from "src/reservation/entity/reservation.entity";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity('User')
-export class UserEntity extends BaseEntity {
-  @PrimaryGeneratedColumn()
+@Entity({ name : 'User' })
+export class User {
+  @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ type: 'varchar', length: 255, comment: '로그인 ID' })
-  login_id: string;
+  @Column({ type: 'varchar', length: 255, name: 'login_id',})
+  loginId: string;
 
-  @Column({ type: 'varchar', length: 255, comment: '로그인 PW' })
-  login_password: string;
+  @Column({ type: 'varchar', length: 255, name: 'login_password' })
+  loginPassword: string;
+
+  @OneToMany(() => Reservation, (reservation) => reservation.user, { lazy : true })
+  reservations: Promise<Reservation[]>;
 }
+
