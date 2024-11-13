@@ -25,8 +25,5 @@
   "devDependencies": {
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10"
-  },
-  "dependencies": {
-    "tailwind-merge": "^2.5.4"
   }
 }
