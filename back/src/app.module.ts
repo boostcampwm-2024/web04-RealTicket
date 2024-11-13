@@ -12,6 +12,7 @@ import { PlaceModule } from './place/place.module';
 import { ProgramModule } from './program/program.module';
 import { ReservationModule } from './reservation/reservation.module';
 import { UtilModule } from './util/util.module';
+import { EventModule } from './event/event.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UtilModule } from './util/util.module';
     PlaceModule,
     UtilModule,
     UserModule,
+    EventModule
     MockModule,
   ],
   controllers: [AppController],
