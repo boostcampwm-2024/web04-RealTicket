@@ -8,13 +8,12 @@ import { ProgramSpecificDto } from '../dto/programSpecificDto';
 
 @Injectable()
 export class ProgramService {
-  constructor(
-    @Inject() private programRepository: ProgramRepository,
-  ) {}
-  
+  constructor(@Inject() private programRepository: ProgramRepository) {}
+
   async findMainPageProgramData() {
     const programs:Program[] = await this.programRepository.selectAllProgram();
     const programMainPageDtos: ProgramMainPageDto[] = await this.#convertProgramListToMainPageDto(programs);
+
     return programMainPageDtos;
   }
 
@@ -26,7 +25,7 @@ export class ProgramService {
           ...program,
           place: new PlaceMainPageDto(place),
         });
-      })
+      }),
     );
   }
 

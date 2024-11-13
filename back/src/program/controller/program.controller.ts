@@ -4,6 +4,7 @@ import { ProgramMainPageDto } from '../dto/programMainPageDto';
 import { ProgramIdDto } from '../dto/programIdDto';
 import { ProgramSpecificDto } from '../dto/programSpecificDto';
 
+
 @Controller('programs')
 @UseInterceptors(ClassSerializerInterceptor)
 export class ProgramController {
@@ -14,6 +15,7 @@ export class ProgramController {
     try {
       const programs: ProgramMainPageDto[] = await this.programService.findMainPageProgramData();
       return programs;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       throw new InternalServerErrorException('서버 오류 발생');
     }
