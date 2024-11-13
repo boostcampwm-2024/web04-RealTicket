@@ -1,6 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 

@@ -34,35 +34,35 @@ export const fontSize = {
       lineHeight: '1.5rem',
     },
   ],
-  labelLarge: [
+  label1: [
     '1rem',
     {
       fontWeight: 500,
       lineHeight: '1.375rem',
     },
   ],
-  labelBase: [
+  label2: [
     '0.875rem',
     {
       fontWeight: 500,
       lineHeight: '1.375rem',
     },
   ],
-  labelSmall: [
+  label3: [
     '0.75rem',
     {
       fontWeight: 500,
       lineHeight: '1.375rem',
     },
   ],
-  captionBase: [
+  caption1: [
     '0.875rem',
     {
       fontWeight: 400,
       lineHeight: '1.5rem',
     },
   ],
-  captionSmall: [
+  caption2: [
     '0.75rem',
     {
       fontWeight: 400,

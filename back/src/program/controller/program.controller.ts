@@ -1,9 +1,22 @@
-import { Controller, Get, InternalServerErrorException, Param } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  InternalServerErrorException,
+  NotFoundException,
+  Param,
+  UseInterceptors,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 
+import { ProgramIdDto } from '../Dto/programIdDto';
 import { ProgramMainPageDto } from '../Dto/programMainPageDto';
+import { ProgramSpecificDto } from '../Dto/programSpecificDto';
 import { ProgramService } from '../service/program.service';
 
 @Controller('programs')
+@UseInterceptors(ClassSerializerInterceptor)
 export class ProgramController {
   constructor(private readonly programService: ProgramService) {}
 
@@ -18,8 +31,15 @@ export class ProgramController {
     }
   }
 
-  @Get(':id')
-  findOneProgram(@Param('id') id: number) {
-    return this.programService.findOne(+id);
+  @Get(':programId')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async findOneProgram(@Param() programIdDto: ProgramIdDto) {
+    try {
+      const program: ProgramSpecificDto = await this.programService.findSpecificProgram(programIdDto);
+      return program;
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('서버 오류 발생');
+    }
   }
 }
