@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { ProgramController } from './program.controller';
-import { ProgramService } from './program.service';
+import { ProgramService } from '../service/program.service';
 
 describe('ProgramController', () => {
   let controller: ProgramController;
