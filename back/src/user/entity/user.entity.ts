@@ -15,3 +15,4 @@ export class User {
   @OneToMany(() => Reservation, (reservation) => reservation.user, { lazy : true })
   reservations: Promise<Reservation[]>;
 }
+
