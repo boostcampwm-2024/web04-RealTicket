@@ -54,7 +54,7 @@ export default function useForm<T extends Record<string, unknown>>() {
             errors = { ...errors, [key]: 'notValid' };
           }
         });
-        const hasError = Object.keys(errors);
+        const hasError = Object.keys(errors).length > 0;
         if (!hasError) {
           await submit(formData as T);
           setFormState((prevState) => ({ ...prevState, errors: {}, isValid: true }));
