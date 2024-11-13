@@ -1,7 +1,8 @@
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+
 import { Place } from 'src/place/entity/place.entity';
 import { Program } from 'src/program/entities/program.entity';
 import { Reservation } from 'src/reservation/entity/reservation.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
 @Entity({ name: 'Event' })
 export class Event {
@@ -17,7 +18,7 @@ export class Event {
   @Column({ type: 'timestamp', name: 'reservation_close_date' })
   reservationCloseDate: Date;
 
-  @Column({ type : 'json', name: 'seat_status' })
+  @Column({ type: 'json', name: 'seat_status' })
   seatStatus: number[][];
 
   @ManyToOne(() => Program, (program) => program.events, { lazy: true })

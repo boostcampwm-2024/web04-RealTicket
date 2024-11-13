@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+
 import { Place } from './place.entity';
 
 @Entity({ name: 'Section' })

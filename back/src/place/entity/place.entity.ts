@@ -1,6 +1,7 @@
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+
 import { Event } from 'src/event/entity/event.entity';
 import { Program } from 'src/program/entities/program.entity';
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity({ name: 'Place' })
 export class Place {

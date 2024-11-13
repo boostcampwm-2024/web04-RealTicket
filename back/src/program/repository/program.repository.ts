@@ -1,16 +1,14 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Program } from "../entities/program.entity";
-import { Repository } from "typeorm";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
+import { Program } from '../entities/program.entity';
 
 @Injectable()
 export class ProgramRepository {
-  constructor(
-    @InjectRepository(Program) private ProgramRepository: Repository<Program>
-  ) { }
+  constructor(@InjectRepository(Program) private ProgramRepository: Repository<Program>) {}
 
   async selectAllProgram() {
     return await this.ProgramRepository.find();
   }
-
 }
