@@ -4,7 +4,8 @@ import * as bcrypt from 'bcrypt';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
-import { USER_STATUS } from '../../auth/userStatus.const';
+import { USER_STATUS } from '../../auth/const/userStatus.const';
+import { AuthService } from '../../auth/service/auth.service';
 import { CreateUserDto } from '../dto/userLogin.dto';
 import { UserRepository } from '../repository/user.repository';
 
@@ -15,6 +16,7 @@ export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly redisService: RedisService,
+    private readonly authService: AuthService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -55,8 +57,15 @@ export class UserService {
     };
     const sessionId = uuidv4();
     // TODO
-    // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같ㅇ름
+    // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
     await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
     return sessionId;
+  }
+
+  async logoutUser(sid: string) {
+    if ((await this.authService.removeSession(sid)) > 0) {
+      return { message: '로그아웃 되었습니다.' };
+    }
+    throw new UnauthorizedException('로그아웃에 실패했습니다.');
   }
 }

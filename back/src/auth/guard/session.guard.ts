@@ -1,8 +1,10 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import Redis from 'ioredis';
 
-export function SessionAuthGuard(user_status: string) {
+import { USER_LEVEL } from '../const/userStatus.const';
+
+export function SessionAuthGuard(userStatus: string) {
   @Injectable()
   class SessionGuard {
     readonly redis: Redis;
@@ -15,12 +17,16 @@ export function SessionAuthGuard(user_status: string) {
       const request = context.switchToHttp().getRequest();
       const sessionId = getSid(request);
       const session = JSON.parse(await this.redis.get(sessionId));
+      this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + 3600);
+
       // TODO
-      // user_status, target_event를 비교하여 접근 허용 여부를 판단
-      if (session && session.user_status === user_status) {
+      // userStatus, target_event를 비교하여 접근 허용 여부를 판단
+      if (session && USER_LEVEL[session.user_status] >= USER_LEVEL[userStatus]) {
         return true;
       } else if (!session) {
-        throw new UnauthorizedException('접근권한이 없습니다.');
+        throw new ForbiddenException('접근 권한이 없습니다.');
+      } else if (USER_LEVEL[session.user_status] <= USER_LEVEL[userStatus]) {
+        throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
       } else {
         throw new UnauthorizedException('세션이 만료되었습니다.');
       }
@@ -31,12 +37,15 @@ export function SessionAuthGuard(user_status: string) {
 }
 
 function getSid(request: any) {
-  const SID: string = request.headers.cookie
-    .split(';')
-    .map((e: string) => {
-      return e.trim().split('=');
-    })
-    .find((e: Array<string>) => e[0] === 'SID')[1];
+  if (request.headers.cookie) {
+    const SID: string = request.headers.cookie
+      .split(';')
+      .map((e: string) => {
+        return e.trim().split('=');
+      })
+      .find((e: Array<string>) => e[0] === 'SID')[1];
 
-  return SID;
+    return SID;
+  }
+  return null;
 }

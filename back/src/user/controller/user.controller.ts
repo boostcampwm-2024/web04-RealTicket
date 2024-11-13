@@ -1,14 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 
+import { USER_STATUS } from '../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../auth/guard/session.guard';
-import { USER_STATUS } from '../../auth/userStatus.const';
+import { AuthService } from '../../auth/service/auth.service';
 import { CreateUserDto } from '../dto/userLogin.dto';
 import { UserService } from '../service/user.service';
 
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+  ) {}
 
   @HttpCode(HttpStatus.CREATED)
   @Post('signup')
@@ -31,7 +35,17 @@ export class UserController {
 
   @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
   @Get('userinfo')
-  async getUserInfo() {
-    return { message: '유저 정보를 조회하였습니다.' };
+  async getUserInfo(@Req() req: Request) {
+    const sid = req.cookies['SID'];
+    console.log('SID:', sid);
+    await this.authService.setUserStatusAdmin(sid);
+    return { message: 'User information retrieved successfully.' };
+  }
+
+  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @Post('logout')
+  async getUserLogout(@Req() req: Request) {
+    const sid = req.cookies['SID'];
+    return await this.userService.logoutUser(sid);
   }
 }
