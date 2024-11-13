@@ -9,7 +9,7 @@ import ormConfig from './config/typeOrmConfig';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [TypeOrmModule.forRoot(ormConfig), RedisModule.forRoot(redisConfig), UserModule, RedisModule],
+  imports: [TypeOrmModule.forRoot(ormConfig), RedisModule.forRoot(redisConfig), UserModule],
   controllers: [AppController],
   providers: [AppService],
 })
