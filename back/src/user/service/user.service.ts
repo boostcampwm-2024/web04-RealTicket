@@ -45,13 +45,13 @@ export class UserService {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }
 
-    const checkPasswordValid = await bcrypt.compare(password, user.login_password);
+    const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
     if (!checkPasswordValid) {
       throw new UnauthorizedException('비밀번호가 일치하지 않습니다.');
     }
     const cachedUserInfo = {
       id: user.id,
-      login_id: user.login_id,
+      login_id: user.loginId,
       user_status: USER_STATUS.LOGIN,
       target_event: null,
     };
