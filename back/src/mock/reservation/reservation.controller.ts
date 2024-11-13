@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, Sse } from '@nestjs/common';
+import { Observable } from 'rxjs';
 
 import { ReservationService } from './reservation.service';
 
@@ -9,5 +10,10 @@ export class ReservationController {
   @Get()
   getReservations() {
     return this.reservationService.getReservations();
+  }
+
+  @Sse(':eventId')
+  getReservationStatusByEventId(@Param('eventId') eventId: number): Observable<MessageEvent> {
+    return this.reservationService.getReservationStatusByEventId(eventId);
   }
 }
