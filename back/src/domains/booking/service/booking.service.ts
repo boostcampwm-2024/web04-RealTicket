@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-import { AuthService } from '../../auth/service/auth.service';
-import { EventService } from '../event/service/event.service';
+import { AuthService } from '../../../auth/service/auth.service';
+import { EventService } from '../../event/service/event.service';
 
 const OFFSET = 1000 * 60 * 60 * 9;
 

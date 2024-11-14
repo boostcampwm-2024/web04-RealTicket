@@ -1,9 +1,8 @@
 import { Controller, Get, HttpStatus, Param, ParseIntPipe, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 
-import { SessionAuthGuard } from '../../auth/guard/session.guard';
-
-import { BookingService } from './booking.service';
+import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { BookingService } from '../service/booking.service';
 
 @Controller('booking')
 export class BookingController {

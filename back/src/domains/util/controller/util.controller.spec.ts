@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { UtilService } from '../service/util.service';
+
 import { UtilController } from './util.controller';
-import { UtilService } from './util.service';
 
 describe('UtilController', () => {
   let controller: UtilController;
