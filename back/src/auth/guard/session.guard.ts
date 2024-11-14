@@ -2,9 +2,9 @@ import { RedisService } from '@liaoliaots/nestjs-redis';
 import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import Redis from 'ioredis';
 
-import { USER_LEVEL } from '../const/userStatus.const';
+import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
 
-export function SessionAuthGuard(userStatus: string) {
+export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
   @Injectable()
   class SessionGuard {
     readonly redis: Redis;
@@ -18,7 +18,6 @@ export function SessionAuthGuard(userStatus: string) {
       const sessionId = getSid(request);
       const session = JSON.parse(await this.redis.get(sessionId));
       this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + 3600);
-
       // TODO
       // userStatus, target_event를 비교하여 접근 허용 여부를 판단
       if (session && USER_LEVEL[session.user_status] >= USER_LEVEL[userStatus]) {

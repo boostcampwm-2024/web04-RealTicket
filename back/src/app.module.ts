@@ -6,24 +6,30 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
-import { UserModule } from './user/user.module';
+import { BookingModule } from './domains/booking/booking.module';
+import { EventModule } from './domains/event/event.module';
+import { PlaceModule } from './domains/place/place.module';
+import { ProgramModule } from './domains/program/program.module';
+import { ReservationModule } from './domains/reservation/reservation.module';
+import { UserModule } from './domains/user/user.module';
+import { UtilModule } from './domains/util/util.module';
 import { MockModule } from './mock/mock.module';
-import { PlaceModule } from './place/place.module';
-import { ProgramModule } from './program/program.module';
-import { ReservationModule } from './reservation/reservation.module';
-import { UtilModule } from './util/util.module';
-import { EventModule } from './event/event.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(ormConfig),
-    RedisModule.forRoot(redisConfig),
-    ProgramModule,
-    ReservationModule,
-    PlaceModule,
-    UtilModule,
-    UserModule,
-    EventModule
+    ...(process.env.MOCK_MODE !== 'true'
+      ? [
+          TypeOrmModule.forRoot(ormConfig),
+          RedisModule.forRoot(redisConfig),
+          ProgramModule,
+          ReservationModule,
+          PlaceModule,
+          UtilModule,
+          UserModule,
+          BookingModule,
+          EventModule,
+        ]
+      : []),
     MockModule,
   ],
   controllers: [AppController],
