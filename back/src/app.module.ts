@@ -12,7 +12,6 @@ import { PlaceModule } from './domains/place/place.module';
 import { ProgramModule } from './domains/program/program.module';
 import { ReservationModule } from './domains/reservation/reservation.module';
 import { UserModule } from './domains/user/user.module';
-import { UtilModule } from './domains/util/util.module';
 import { MockModule } from './mock/mock.module';
 
 @Module({
@@ -24,7 +23,6 @@ import { MockModule } from './mock/mock.module';
           ProgramModule,
           ReservationModule,
           PlaceModule,
-          UtilModule,
           UserModule,
           BookingModule,
           EventModule,
