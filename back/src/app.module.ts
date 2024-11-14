@@ -4,16 +4,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BookingModule } from './booking/booking.module';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
-import { EventModule } from './event/event.module';
+import { BookingModule } from './domains/booking/booking.module';
+import { EventModule } from './domains/event/event.module';
+import { PlaceModule } from './domains/place/place.module';
+import { ProgramModule } from './domains/program/program.module';
+import { ReservationModule } from './domains/reservation/reservation.module';
+import { UserModule } from './domains/user/user.module';
+import { UtilModule } from './domains/util/util.module';
 import { MockModule } from './mock/mock.module';
-import { PlaceModule } from './place/place.module';
-import { ProgramModule } from './program/program.module';
-import { ReservationModule } from './reservation/reservation.module';
-import { UserModule } from './user/user.module';
-import { UtilModule } from './util/util.module';
 
 @Module({
   imports: [
