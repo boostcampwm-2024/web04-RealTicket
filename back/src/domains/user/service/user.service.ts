@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
 import { CreateUserDto } from '../dto/userLogin.dto';
+import { User } from '../entity/user.entity';
 import { UserRepository } from '../repository/user.repository';
 
 @Injectable()
@@ -24,9 +25,9 @@ export class UserService {
   async registerUser(createUserDto: CreateUserDto) {
     const { login_id, login_password } = createUserDto;
     const hashedPassword = await this.hashingPassword(login_password);
-    const newUser: object = {
-      login_id: login_id,
-      login_password: hashedPassword,
+    const newUser: Partial<User> = {
+      loginId: login_id,
+      loginPassword: hashedPassword,
     };
     return await this.userRepository.createUser(newUser);
   }
