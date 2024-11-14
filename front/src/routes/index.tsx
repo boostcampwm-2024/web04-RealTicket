@@ -1,8 +1,10 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 
-import Layout from '@/layout/Layout';
-import DetailPage from '@/pages/DetailPage';
+import EventDetailPage from '@/pages/EventDetailPage';
 import MainPage from '@/pages/MainPage';
+import ProgramDetailPage from '@/pages/ProgramDetailPage';
+
+import Layout from '@/layout/Layout';
 
 const router = createBrowserRouter([
   {
@@ -11,8 +13,9 @@ const router = createBrowserRouter([
     errorElement: <div>notFound</div>,
     children: [
       { path: '', element: <Navigate to="programs" /> },
-      { path: '/programs', element: <MainPage></MainPage> },
-      { path: '/programs/:programId', element: <DetailPage></DetailPage> },
+      { path: '/programs', element: <MainPage /> },
+      { path: '/programs/:programId', element: <ProgramDetailPage /> },
+      { path: '/events/:eventId/', element: <EventDetailPage /> },
     ],
   },
 ]);
