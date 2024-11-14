@@ -17,15 +17,19 @@ import { MockModule } from './mock/mock.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(ormConfig),
-    RedisModule.forRoot(redisConfig),
-    ProgramModule,
-    ReservationModule,
-    PlaceModule,
-    UtilModule,
-    UserModule,
-    BookingModule,
-    EventModule,
+    ...(process.env.MOCK_MODE !== 'true'
+      ? [
+          TypeOrmModule.forRoot(ormConfig),
+          RedisModule.forRoot(redisConfig),
+          ProgramModule,
+          ReservationModule,
+          PlaceModule,
+          UtilModule,
+          UserModule,
+          BookingModule,
+          EventModule,
+        ]
+      : []),
     MockModule,
   ],
   controllers: [AppController],
