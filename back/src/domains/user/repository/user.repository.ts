@@ -11,7 +11,7 @@ export class UserRepository {
     this.userRepository = this.dataSource.getRepository(User);
   }
 
-  async createUser(user: object) {
+  async createUser(user: Partial<User>) {
     return this.userRepository.save(user);
   }
 
