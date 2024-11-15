@@ -38,10 +38,7 @@ export class UserService {
   }
 
   async loginUser(id: string, password: string): Promise<string | null> {
-    console.log('loginUser');
     const user = await this.userRepository.findOne(id);
-    console.log(user);
-
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }
