@@ -7,6 +7,7 @@ import './config/setEnviorment';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/setupSwagger';
 import { winstonLoggerConfig } from './util/winstonlogger.config';
+import { loggerMiddleware } from './util/winstonlogger.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -19,6 +20,7 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  app.use(loggerMiddleware(winstonLoggerConfig));
   await app.listen(process.env.PORT ?? 8080);
 }
 
