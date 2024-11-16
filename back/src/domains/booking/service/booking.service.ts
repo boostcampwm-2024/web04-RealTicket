@@ -3,6 +3,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
 
+import { InBookingService } from './in-booking.service';
+
 const OFFSET = 1000 * 60 * 60 * 9;
 
 @Injectable()
@@ -10,6 +12,7 @@ export class BookingService {
   constructor(
     private readonly eventService: EventService,
     private readonly authService: AuthService,
+    private readonly inBookingService: InBookingService,
   ) {}
 
   // 함수 이름 생각하기
@@ -28,30 +31,26 @@ export class BookingService {
       throw new BadRequestException('이미 예약 마감된 이벤트입니다.');
     }
 
-    //TODO
-    // 입장이 가능하면 user의 상태를 seating room으로 변경하기
-    // 좌석 선택
-    if (await this.isAvailableSeatingQueue()) {
-      await this.authService.setUserStatusSelectingSeat(sid);
-      return {
-        'waiting-status': true,
-        'entering-status': false,
-      };
-    }
-    // TODO
-    // 입장이 불가능하면 user의 상태를 waiting room으로 변경하기
-    // 대기큐로 입장
-    await this.authService.setUserStatusWaiting(sid);
-    return {
-      'waiting-status': false,
-      'entering-status': true,
-    };
+    await this.authService.setUserEventTarget(sid, eventId);
+
+    const result = await this.tryToEnter(sid);
+    return result;
   }
 
-  // TODO
-  // seating room의 상태를 확인하고, 입장이 가능한지 확인하는 로직필요
-  async isAvailableSeatingQueue() {
-    // seating room의 상태를 확인하고, 입장이 가능한지 확인하는 함수
-    return false;
+  private async tryToEnter(sid: string) {
+    // 입장이 성공하면 user의 상태를 seating room으로 변경하기
+    if (await this.inBookingService.insertInBooking(sid)) {
+      await this.authService.setUserStatusSelectingSeat(sid);
+      return {
+        'waiting-status': false,
+        'entering-status': true,
+      };
+    }
+    // 입장이 실패하면 user의 상태를 waiting room으로 변경하기
+    await this.authService.setUserStatusWaiting(sid);
+    return {
+      'waiting-status': true,
+      'entering-status': false,
+    };
   }
 }
