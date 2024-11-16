@@ -12,6 +12,14 @@ export class AuthService {
     this.redis = this.redisService.getOrThrow();
   }
 
+  async getUserIdFromSession(sid: string): Promise<number | null> {
+    const session = JSON.parse(await this.redis.get(sid));
+    if (!session) return null;
+    const userId = session.id;
+    if (!userId) return null;
+    return userId;
+  }
+
   async setUserStatusLogin(sid: string) {
     const session = JSON.parse(await this.redis.get(sid));
     this.redis.set(sid, JSON.stringify({ ...session, user_status: USER_STATUS.LOGIN }));
