@@ -23,6 +23,10 @@ export class UserRepository {
     return this.userRepository.findOne({ where: { loginId: id } });
   }
 
+  async findById(id: number): Promise<User> {
+    return this.userRepository.findOne({ where: { id: id } });
+  }
+
   findOneOrFail({ where }) {
     if (where) {
       return where.id;

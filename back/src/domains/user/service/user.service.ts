@@ -22,6 +22,11 @@ export class UserService {
     this.redis = this.redisService.getOrThrow();
   }
 
+  async getUser(userId: number) {
+    const user = await this.userRepository.findById(userId);
+    return user;
+  }
+
   async registerUser(createUserDto: CreateUserDto) {
     const { login_id, login_password } = createUserDto;
     const hashedPassword = await this.hashingPassword(login_password);
