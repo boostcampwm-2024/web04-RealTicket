@@ -1,5 +1,5 @@
 import { RedisModule } from '@liaoliaots/nestjs-redis';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
@@ -13,6 +13,8 @@ import { ProgramModule } from './domains/program/program.module';
 import { ReservationModule } from './domains/reservation/reservation.module';
 import { UserModule } from './domains/user/user.module';
 import { MockModule } from './mock/mock.module';
+import { UserDecoratorMiddleware } from './util/user-injection/user.decorator.middleware';
+import { UserDecoratorModule } from './util/user-injection/user.decorator.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { MockModule } from './mock/mock.module';
           UserModule,
           BookingModule,
           EventModule,
+          UserDecoratorModule,
         ]
       : []),
     MockModule,
@@ -33,4 +36,8 @@ import { MockModule } from './mock/mock.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(UserDecoratorMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}
