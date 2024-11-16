@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 import { AuthService } from 'src/auth/service/auth.service';
+import { User } from 'src/domains/user/entity/user.entity';
 import { UserService } from 'src/domains/user/service/user.service';
+
+import { UserParamDto } from './userParamDto';
 
 @Injectable()
 export class UserDecoratorService {
@@ -17,7 +20,7 @@ export class UserDecoratorService {
 
     if (!userId) return null;
 
-    const user = await this.userService.getUser(userId);
-    return user;
+    const user: User = await this.userService.getUser(userId);
+    return new UserParamDto(user);
   }
 }
