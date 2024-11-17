@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes } from 'react';
+import { ButtonHTMLAttributes, ForwardedRef, forwardRef } from 'react';
 
 import Slot from '@/components/common/Slot';
 
@@ -11,18 +11,22 @@ interface IButtonProps
   asChild?: boolean;
 }
 
-export default function Button({ className, children, intent, size, color, asChild, ...rest }: IButtonProps) {
+const Button = forwardRef(function Button(
+  { className, children, intent, size, color, asChild, ...rest }: IButtonProps,
+  ref: ForwardedRef<HTMLButtonElement>,
+) {
   const Element = asChild ? Slot : 'button';
   return (
-    <Element className={twMerge(buttonVariants({ color, intent, size }), className)} {...rest}>
+    <Element className={twMerge(buttonVariants({ color, intent, size }), className)} ref={ref} {...rest}>
       {children}
     </Element>
   );
-}
+});
 
+export default Button;
 const buttonVariants = cva(
   [
-    'button p-2 flex items-center justify-center gap-x-2 rounded',
+    'button p-2 flex items-center justify-center gap-x-2 rounded relative overflow-visible',
     'disabled:bg-surface-disabled disabled:border-surface-disabled disabled:opacity-50 disabled:cursor-not-allowed',
   ],
   {
@@ -36,8 +40,8 @@ const buttonVariants = cva(
       },
       intent: {
         default: [],
-        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:bg-surface-hover'],
-        ghost: ['bg-transparent', 'border-transparent', 'hover:bg-transparent'],
+        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:opacity-60'],
+        ghost: ['bg-transparent', 'border-transparent', 'hover:bg-transparent hover:opacity-60'],
       },
       size: {
         full: ['w-full'],

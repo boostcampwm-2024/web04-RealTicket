@@ -1,0 +1,10 @@
+export { default as Check } from '@/assets/icons/check.svg?react';
+export { default as DownArrow } from '@/assets/icons/down-arrow.svg?react';
+export { default as FileX } from '@/assets/icons/fie-x.svg?react';
+export { default as Home } from '@/assets/icons/home.svg?react';
+export { default as Loading } from '@/assets/icons/loading.svg?react';
+export { default as LogOut } from '@/assets/icons/log-out.svg?react';
+export { default as Tickets } from '@/assets/icons/tickets.svg?react';
+export { default as Trash } from '@/assets/icons/trash.svg?react';
+export { default as UpArrow } from '@/assets/icons/up-arrow.svg?react';
+export { default as User } from '@/assets/icons/user.svg?react';
