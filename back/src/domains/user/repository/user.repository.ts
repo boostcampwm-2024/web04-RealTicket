@@ -27,6 +27,10 @@ export class UserRepository {
     return this.userRepository.findOne({ where: { id: id } });
   }
 
+  async findByLoginId(loginId: string): Promise<User> {
+    return this.userRepository.findOne({ where: { loginId } });
+  }
+
   findOneOrFail({ where }) {
     if (where) {
       return where.id;

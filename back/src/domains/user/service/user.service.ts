@@ -1,17 +1,25 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
-import { CreateUserDto } from '../dto/userLogin.dto';
+import { UserCreateDto } from '../dto/userCreate.dto';
+import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { User } from '../entity/user.entity';
 import { UserRepository } from '../repository/user.repository';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
   private readonly redis: Redis;
 
   constructor(
@@ -23,18 +31,27 @@ export class UserService {
   }
 
   async getUser(userId: number) {
-    const user = await this.userRepository.findById(userId);
-    return user;
+    return await this.userRepository.findById(userId);
   }
 
-  async registerUser(createUserDto: CreateUserDto) {
-    const { login_id, login_password } = createUserDto;
-    const hashedPassword = await this.hashingPassword(login_password);
-    const newUser: Partial<User> = {
-      loginId: login_id,
-      loginPassword: hashedPassword,
-    };
-    return await this.userRepository.createUser(newUser);
+  async registerUser(userCreateDto: UserCreateDto) {
+    if (await this.userRepository.findByLoginId(userCreateDto.loginId)) {
+      throw new ConflictException('이미 존재하는 사용자입니다.');
+    }
+
+    try {
+      const { loginId, loginPassword } = userCreateDto;
+      const hashedPassword = await this.hashingPassword(loginPassword);
+      const newUser: Partial<User> = {
+        loginId: loginId,
+        loginPassword: hashedPassword,
+      };
+      await this.userRepository.createUser(newUser);
+      return { message: '회원가입이 성공적으로 완료되었습니다.' };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('회원가입에 실패하였습니다.');
+    }
   }
 
   async hashingPassword(password: string) {
@@ -65,10 +82,27 @@ export class UserService {
     return sessionId;
   }
 
-  async logoutUser(sid: string) {
-    if ((await this.authService.removeSession(sid)) > 0) {
-      return { message: '로그아웃 되었습니다.' };
+  async isAvailableLoginId(userLoginIdCheckDto: UserLoginIdCheckDto) {
+    const User = await this.userRepository.findByLoginId(userLoginIdCheckDto.loginId);
+    if (User) {
+      return {
+        available: false,
+      };
+    } else {
+      return {
+        available: true,
+      };
     }
-    throw new UnauthorizedException('로그아웃에 실패했습니다.');
+  }
+
+  async logoutUser(sid: string) {
+    try {
+      if ((await this.authService.removeSession(sid)) > 0) {
+        return { message: '로그아웃 되었습니다.' };
+      }
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('로그아웃에 실패하였습니다.');
+    }
   }
 }

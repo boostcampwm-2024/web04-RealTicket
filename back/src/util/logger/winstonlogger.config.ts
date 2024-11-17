@@ -1,8 +1,10 @@
+import * as path from 'node:path';
+
 import { utilities as nestWinstonModuleUtilities, WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import winstonDaily from 'winston-daily-rotate-file';
 
-const logDir = __dirname + '/../../logs';
+const logDir = path.join(__dirname, '../../../logs');
 
 const dailyOptions = (level: string) => {
   return {
