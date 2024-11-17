@@ -1,6 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import { PlaceRepository } from 'src/domains/place/repository/place.repository';
+
 import { PlaceMainPageDto } from '../dto/placeMainPageDto';
+import { ProgramCreationDto } from '../dto/programCreationDto';
 import { ProgramIdDto } from '../dto/programIdDto';
 import { ProgramMainPageDto } from '../dto/programMainPageDto';
 import { ProgramSpecificDto } from '../dto/programSpecificDto';
@@ -9,7 +12,10 @@ import { ProgramRepository } from '../repository/program.repository';
 
 @Injectable()
 export class ProgramService {
-  constructor(@Inject() private programRepository: ProgramRepository) {}
+  constructor(
+    @Inject() private programRepository: ProgramRepository,
+    @Inject() private placeRepository: PlaceRepository,
+  ) {}
 
   async findMainPageProgramData() {
     const programs: Program[] = await this.programRepository.selectAllProgram();
@@ -42,5 +48,17 @@ export class ProgramService {
     const [place, events] = await Promise.all([program.place, program.events]);
 
     return new ProgramSpecificDto({ ...program, place, events });
+  }
+
+  async create(programCreationDto: ProgramCreationDto): Promise<void> {
+    const place = await this.placeRepository.selectPlace(programCreationDto.placeId);
+    if (!place) throw new NotFoundException(`해당 장소[${programCreationDto.placeId}]가 없습니다.`);
+
+    await this.programRepository.storeProgram({ ...programCreationDto, place });
+  }
+
+  async delete({ programId }: ProgramIdDto) {
+    const result = await this.programRepository.deleteProgram(programId);
+    if (!result.affected) throw new NotFoundException(`해당 프로그램[${programId}]가 없습니다.`);
   }
 }
