@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserCreateDto } from '../dto/userCreate.dto';
+import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { User } from '../entity/user.entity';
 import { UserRepository } from '../repository/user.repository';
 
@@ -80,6 +81,19 @@ export class UserService {
     // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
     await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
     return sessionId;
+  }
+
+  async isAvailableLoginId(userLoginIdCheckDto: UserLoginIdCheckDto) {
+    const User = await this.userRepository.findByLoginId(userLoginIdCheckDto.loginId);
+    if (User) {
+      return {
+        available: false,
+      };
+    } else {
+      return {
+        available: true,
+      };
+    }
   }
 
   async logoutUser(sid: string) {

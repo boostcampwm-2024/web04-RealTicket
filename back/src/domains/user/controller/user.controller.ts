@@ -18,6 +18,7 @@ import { AuthService } from '../../../auth/service/auth.service';
 import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
+import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { UserService } from '../service/user.service';
 
 @Controller('user')
@@ -43,6 +44,11 @@ export class UserController {
     return { message: '로그인에 성공하셨습니다.' };
   }
 
+  @UseInterceptors(TransformInterceptor)
+  @Post('checkid')
+  async checkInfo(@Body() userLoginIdCheckDto: UserLoginIdCheckDto) {
+    return await this.userService.isAvailableLoginId(userLoginIdCheckDto);
+  }
   // 테스트용 함수 삭제할예정
   @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
   @Get('userinfo')
