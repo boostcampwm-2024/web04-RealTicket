@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   ClassSerializerInterceptor,
+  ConflictException,
   Controller,
+  Delete,
   Get,
   InternalServerErrorException,
   NotFoundException,
@@ -15,6 +17,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -88,14 +91,34 @@ export class ProgramController {
   })
   @ApiCreatedResponse({ description: '프로그램 추가 성공' })
   @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요' })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청' })
+  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
   @ApiNotFoundResponse({ description: '장소가 존재하지 않음', type: Error })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createProgram(@Body() programCreationDto: ProgramCreationDto) {
     try {
       await this.programService.create(programCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException || NotFoundException) throw error;
+      throw new InternalServerErrorException('서버 오류 발생');
+    }
+  }
+
+  @Delete(':programId')
+  @ApiOperation({ summary: '프로그램 삭제[관리자]', description: 'id값이 일치하는 프로그램을 삭제한다.' })
+  @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
+  @ApiOkResponse({ description: '프로그램 삭제 성공' })
+  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
+  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
+  @ApiNotFoundResponse({ description: 'id가 일치하는 프로그램 미존재', type: Error })
+  @ApiConflictResponse({ description: '관련 이벤트가 존재해 프로그램 삭제 불가', type: Error })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  async deleteProgram(@Param() programIdDto: ProgramIdDto) {
+    try {
+      await this.programService.delete(programIdDto);
+    } catch (error) {
+      if (error instanceof NotFoundException || ConflictException) throw error;
       throw new InternalServerErrorException('서버 오류 발생');
     }
   }

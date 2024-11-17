@@ -56,4 +56,9 @@ export class ProgramService {
 
     await this.programRepository.storeProgram({ ...programCreationDto, place });
   }
+
+  async delete({ programId }: ProgramIdDto) {
+    const result = await this.programRepository.deleteProgram(programId);
+    if (!result.affected) throw new NotFoundException(`해당 프로그램[${programId}]가 없습니다.`);
+  }
 }
