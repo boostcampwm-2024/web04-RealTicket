@@ -40,12 +40,14 @@ export class InBookingService {
     }
   }
 
-  async setBookingAmount(sid: string, amount: number): Promise<void> {
+  async setBookingAmount(sid: string, amount: number): Promise<number> {
     const eventId = await this.getTargetEventId(sid);
     const session = await this.getSession(eventId, sid);
 
     session.bookingAmount = amount;
     await this.setSession(eventId, session);
+
+    return amount;
   }
 
   async getBookingAmount(sid: string): Promise<number> {
