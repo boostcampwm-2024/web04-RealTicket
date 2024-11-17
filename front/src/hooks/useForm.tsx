@@ -8,7 +8,13 @@ interface IFormState {
   isSubmitting: boolean;
   isValid: boolean;
 }
-type Validate = (value: string) => null | string;
+export type Validate = ({
+  value,
+  formData,
+}: {
+  value: string;
+  formData: Record<string, string>;
+}) => null | string;
 interface IResisterConfig {
   validate: Validate;
 }
@@ -39,7 +45,7 @@ export default function useForm<T extends Record<string, unknown>>() {
   };
 
   const handleSubmit = (submit: (data: T) => Promise<void>) => {
-    const formData: Record<string, unknown> = {};
+    const formData: Record<string, string> = {};
     return async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setFormState({ ...formState, isSubmitting: true });
@@ -50,7 +56,10 @@ export default function useForm<T extends Record<string, unknown>>() {
         itemList.forEach((element, key) => {
           const itemValue = (element as HTMLInputElement).value;
           formData[key] = itemValue;
-          const validationResult = itemValidationListRef.current[key](itemValue);
+        });
+        itemList.forEach((_, key) => {
+          const itemValue = formData[key];
+          const validationResult = itemValidationListRef.current[key]({ value: itemValue, formData });
           if (validationResult) {
             errors = { ...errors, [key]: validationResult };
           }
