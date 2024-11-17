@@ -12,6 +12,7 @@ export const colors = {
     cancel: '#6b7280ff',
     sub: '#9ca3afff',
     hover: '#f3f4f6ff',
+    cardBorder: '#d1d5dbff',
   },
   grayscale: {
     50: '#f9fafbff',
