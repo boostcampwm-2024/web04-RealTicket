@@ -1,10 +1,23 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { AuthService } from '../../../auth/service/auth.service';
-import { CreateUserDto } from '../dto/userLogin.dto';
+import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
+import { UserCreateDto } from '../dto/userCreate.dto';
+import { UserLoginDto } from '../dto/userLogin.dto';
 import { UserService } from '../service/user.service';
 
 @Controller('user')
@@ -14,30 +27,27 @@ export class UserController {
     private readonly authService: AuthService,
   ) {}
 
+  @UseInterceptors(TransformInterceptor)
   @HttpCode(HttpStatus.CREATED)
   @Post('signup')
-  async signup(@Body() createUserDto: CreateUserDto) {
-    try {
-      await this.userService.registerUser(createUserDto);
-      return { message: '회원가입이 성공적으로 완료되었습니다.' };
-    } catch (err) {
-      console.log(err);
-      return { message: '회원가입을 실패했습니다.' };
-    }
+  async signup(@Body() createUserDto: UserCreateDto) {
+    await this.userService.registerUser(createUserDto);
+    return { message: '회원가입이 성공적으로 완료되었습니다.' };
   }
 
+  @UseInterceptors(TransformInterceptor)
   @Post('signin')
-  async signin(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
-    const sessionId = await this.userService.loginUser(createUserDto.login_id, createUserDto.login_password);
-    res.cookie('SID', sessionId, { httpOnly: true, secure: true, sameSite: 'none' });
+  async signin(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
+    const sessionId = await this.userService.loginUser(userLoginDto.loginId, userLoginDto.loginPassword);
+    res.cookie('SID', sessionId, { httpOnly: true, secure: true });
     return { message: '로그인에 성공하셨습니다.' };
   }
 
+  // 테스트용 함수 삭제할예정
   @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
   @Get('userinfo')
   async getUserInfo(@Req() req: Request) {
     const sid = req.cookies['SID'];
-    console.log('SID:', sid);
     await this.authService.setUserStatusAdmin(sid);
     return { message: 'User information retrieved successfully.' };
   }

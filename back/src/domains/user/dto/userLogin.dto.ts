@@ -1,10 +1,10 @@
 import { IsString } from 'class-validator';
 
-export class CreateUserDto {
+export class UserLoginDto {
   @IsString()
-  readonly login_id: string;
+  readonly loginId: string;
 
   @IsString()
   //@Matches(/^[A-Za-z\d!@#$%^&*()]{8,12}/)
-  readonly login_password: string;
+  readonly loginPassword: string;
 }
