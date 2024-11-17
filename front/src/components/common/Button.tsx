@@ -40,8 +40,8 @@ const buttonVariants = cva(
       },
       intent: {
         default: [],
-        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:bg-surface-hover'],
-        ghost: ['bg-transparent', 'border-transparent', 'hover:bg-transparent'],
+        outline: ['bg-transparent', 'border', 'hover:bg-transparent', 'hover:opacity-60'],
+        ghost: ['bg-transparent', 'border-transparent', 'hover:bg-transparent hover:opacity-60'],
       },
       size: {
         full: ['w-full'],

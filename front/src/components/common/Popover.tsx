@@ -89,12 +89,22 @@ const Content = ({ children }: IContent) => {
   const { isOpen, triggerRef } = usePopoverContext();
   const hasButtonRef = triggerRef && triggerRef.current;
   const canOpen = isOpen && hasButtonRef;
+  //TODO 타입 정리필요, 상수 정리
+  const { top, height } = triggerRef!.current!.getBoundingClientRect();
+
   return (
     <>
       {canOpen &&
         createPortal(
-          <div className="absolute right-0 top-full z-[999] mt-4 cursor-default">{children}</div>,
-          triggerRef.current!,
+          <div
+            className="fixed z-[999] cursor-default"
+            style={{
+              top: top + height + 24,
+              right: 32,
+            }}>
+            {children}
+          </div>,
+          document.body,
         )}
     </>
   );
