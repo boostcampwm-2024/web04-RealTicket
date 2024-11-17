@@ -4,20 +4,21 @@ import { FormEvent, useRef, useState } from 'react';
 TODO 훅 테스트 , FormState는 reducer 사용하기 
    */
 interface IFormState {
-  errors: null | Record<string, string>;
+  errors: Record<string, string>;
   isSubmitting: boolean;
   isValid: boolean;
 }
+type Validate = (value: string) => null | string;
 interface IResisterConfig {
-  validate: (value: unknown) => boolean;
+  validate: Validate;
 }
 export default function useForm<T extends Record<string, unknown>>() {
   const itemRefListRef = useRef<null | Map<string, HTMLElement>>(null);
-  const itemValidationListRef = useRef<Record<string, (value: string) => boolean>>({});
+  const itemValidationListRef = useRef<Record<string, Validate>>({});
   const [formState, setFormState] = useState<IFormState>({
-    errors: null,
+    errors: {},
     isSubmitting: false,
-    isValid: true,
+    isValid: false,
   });
 
   const getMap = () => {
@@ -49,9 +50,9 @@ export default function useForm<T extends Record<string, unknown>>() {
         itemList.forEach((element, key) => {
           const itemValue = (element as HTMLInputElement).value;
           formData[key] = itemValue;
-          const isItemValid = itemValidationListRef.current[key](itemValue);
-          if (!isItemValid) {
-            errors = { ...errors, [key]: 'notValid' };
+          const validationResult = itemValidationListRef.current[key](itemValue);
+          if (validationResult) {
+            errors = { ...errors, [key]: validationResult };
           }
         });
         const hasError = Object.keys(errors).length > 0;
