@@ -15,4 +15,9 @@ export class ProgramRepository {
   async selectProgram(id: number): Promise<Program> {
     return await this.ProgramRepository.findOne({ where: { id } });
   }
+
+  async storeProgram(data: any) {
+    const program = this.ProgramRepository.create(data);
+    return this.ProgramRepository.save(program);
+  }
 }
