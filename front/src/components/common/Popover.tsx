@@ -1,4 +1,13 @@
-import { MouseEvent, ReactElement, ReactNode, createContext, useContext, useId, useState } from 'react';
+import {
+  MouseEvent,
+  MutableRefObject,
+  ReactElement,
+  ReactNode,
+  createContext,
+  useContext,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 interface IPopoverContextValue {
@@ -6,7 +15,8 @@ interface IPopoverContextValue {
   closePopover: () => void;
   openPopover: () => void;
   togglePopover: () => void;
-  popoverId: string | null;
+
+  triggerRef: null | MutableRefObject<HTMLButtonElement | null>;
 }
 interface IRootProps {
   children: ReactNode;
@@ -17,13 +27,15 @@ const POPOVER_CONTEXT_DEFAULT_VALUE = {
   closePopover: () => {},
   openPopover: () => {},
   togglePopover: () => {},
-  popoverId: null,
+
+  triggerRef: null,
 };
 const PopoverContext = createContext<IPopoverContextValue>(POPOVER_CONTEXT_DEFAULT_VALUE);
 const usePopoverContext = () => useContext(PopoverContext);
 const Root = ({ children }: IRootProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const popoverId = useId();
+  const triggerRef = useRef(null);
+
   const openPopover = () => {
     setIsOpen(true);
   };
@@ -34,38 +46,36 @@ const Root = ({ children }: IRootProps) => {
     setIsOpen((prev) => !prev);
   };
   return (
-    <PopoverContext.Provider value={{ isOpen, openPopover, closePopover, togglePopover, popoverId }}>
+    <PopoverContext.Provider value={{ isOpen, openPopover, closePopover, togglePopover, triggerRef }}>
       {children}
     </PopoverContext.Provider>
   );
 };
 interface ITriggerProps {
-  render: (togglePopover: () => void) => ReactElement;
+  render: (togglePopover: () => void, ref: MutableRefObject<HTMLButtonElement>) => ReactElement;
 }
 const Trigger = ({ render }: ITriggerProps) => {
-  const { togglePopover, popoverId } = usePopoverContext();
-  return (
-    <>
-      {render(togglePopover)}
-      <div className="relative" id={popoverId!}></div>
-    </>
-  );
+  const { togglePopover, triggerRef } = usePopoverContext();
+  return <>{render(togglePopover, triggerRef as MutableRefObject<HTMLButtonElement>)}</>;
 };
 interface IOverlayProps {
   children: ReactNode;
 }
 const Overlay = ({ children }: IOverlayProps) => {
   const { isOpen, closePopover } = usePopoverContext();
+  const overlayRef = useRef(null);
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    if (target.classList.contains('overlay')) {
+    const isOverlay = overlayRef && overlayRef.current;
+    const isEqual = isOverlay && target === overlayRef.current;
+    if (isEqual) {
       closePopover();
     }
   };
   return (
     <>
       {isOpen && (
-        <div className="overlay fixed h-full w-full" onClick={handleClick}>
+        <div ref={overlayRef} className="fixed h-full w-full" onClick={handleClick}>
           {children}
         </div>
       )}
@@ -76,10 +86,18 @@ interface IContent {
   children: ReactNode;
 }
 const Content = ({ children }: IContent) => {
-  const { popoverId } = usePopoverContext();
-  console.log(popoverId);
-  const $portalElement = document.getElementById(popoverId!);
-  return <>{$portalElement && createPortal(children, $portalElement)}</>;
+  const { isOpen, triggerRef } = usePopoverContext();
+  const hasButtonRef = triggerRef && triggerRef.current;
+  const canOpen = isOpen && hasButtonRef;
+  return (
+    <>
+      {canOpen &&
+        createPortal(
+          <div className="absolute right-0 top-full z-[999] mt-4 cursor-default">{children}</div>,
+          triggerRef.current!,
+        )}
+    </>
+  );
 };
 
 const Popover = { Root, Overlay, Trigger, Content };
