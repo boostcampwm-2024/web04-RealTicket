@@ -1,6 +1,6 @@
 import { PropsWithChildren } from 'react';
 
-import { fieldContext } from '@/contexts/fieldContext';
+import { FieldContext } from '@/contexts/FieldContext';
 
 interface IFieldProps extends PropsWithChildren {
   label: string;
@@ -29,7 +29,7 @@ export default function Field({
           {!isValid && errorMessage}
         </span>
       </div>
-      <fieldContext.Provider value={{ isValid, htmlFor: label }}>{children}</fieldContext.Provider>
+      <FieldContext.Provider value={{ isValid, htmlFor: label }}>{children}</FieldContext.Provider>
       {isHelpMessage && <span className="text-caption2 text-typo-sub">{helpMessage}</span>}
     </div>
   );
