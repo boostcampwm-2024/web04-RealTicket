@@ -47,7 +47,6 @@ export class UserService {
         loginPassword: hashedPassword,
       };
       await this.userRepository.createUser(newUser);
-      this.logger.log('회원가입이 성공적으로 완료되었습니다.');
       return { message: '회원가입이 성공적으로 완료되었습니다.' };
     } catch (err) {
       this.logger.error(err);
