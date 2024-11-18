@@ -1,8 +1,11 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 
+import AdminPage from '@/pages/AdminPage';
 import EventDetailPage from '@/pages/EventDetailPage';
 import MainPage from '@/pages/MainPage';
 import ProgramDetailPage from '@/pages/ProgramDetailPage';
+import SignInPage from '@/pages/SignInPage';
+import SignUpPage from '@/pages/SignUpPage';
 
 import Layout from '@/layout/Layout';
 
@@ -16,6 +19,9 @@ const router = createBrowserRouter([
       { path: '/programs', element: <MainPage /> },
       { path: '/programs/:programId', element: <ProgramDetailPage /> },
       { path: '/events/:eventId/', element: <EventDetailPage /> },
+      { path: '/signIn', element: <SignInPage /> },
+      { path: '/signUp', element: <SignUpPage /> },
+      { path: '/admin', element: <AdminPage /> },
     ],
   },
 ]);

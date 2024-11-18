@@ -4,20 +4,27 @@ import { FormEvent, useRef, useState } from 'react';
 TODO 훅 테스트 , FormState는 reducer 사용하기 
    */
 interface IFormState {
-  errors: null | Record<string, string>;
+  errors: Record<string, string>;
   isSubmitting: boolean;
   isValid: boolean;
 }
+export type Validate = ({
+  value,
+  formData,
+}: {
+  value: string;
+  formData: Record<string, string>;
+}) => null | string;
 interface IResisterConfig {
-  validate: (value: unknown) => boolean;
+  validate: Validate;
 }
 export default function useForm<T extends Record<string, unknown>>() {
   const itemRefListRef = useRef<null | Map<string, HTMLElement>>(null);
-  const itemValidationListRef = useRef<Record<string, (value: string) => boolean>>({});
+  const itemValidationListRef = useRef<Record<string, Validate>>({});
   const [formState, setFormState] = useState<IFormState>({
-    errors: null,
+    errors: {},
     isSubmitting: false,
-    isValid: true,
+    isValid: false,
   });
 
   const getMap = () => {
@@ -38,7 +45,7 @@ export default function useForm<T extends Record<string, unknown>>() {
   };
 
   const handleSubmit = (submit: (data: T) => Promise<void>) => {
-    const formData: Record<string, unknown> = {};
+    const formData: Record<string, string> = {};
     return async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setFormState({ ...formState, isSubmitting: true });
@@ -49,9 +56,12 @@ export default function useForm<T extends Record<string, unknown>>() {
         itemList.forEach((element, key) => {
           const itemValue = (element as HTMLInputElement).value;
           formData[key] = itemValue;
-          const isItemValid = itemValidationListRef.current[key](itemValue);
-          if (!isItemValid) {
-            errors = { ...errors, [key]: 'notValid' };
+        });
+        itemList.forEach((_, key) => {
+          const itemValue = formData[key];
+          const validationResult = itemValidationListRef.current[key]({ value: itemValue, formData });
+          if (validationResult) {
+            errors = { ...errors, [key]: validationResult };
           }
         });
         const hasError = Object.keys(errors).length > 0;

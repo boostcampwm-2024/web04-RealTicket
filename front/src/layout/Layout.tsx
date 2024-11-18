@@ -6,7 +6,9 @@ export default function Layout() {
   return (
     <>
       <Navbar />
-      <Outlet />
+      <div className="mx-auto flex h-[calc(100vh-72px)] max-w-[1010px] items-center">
+        <Outlet />
+      </div>
     </>
   );
 }
