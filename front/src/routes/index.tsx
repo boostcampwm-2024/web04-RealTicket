@@ -2,8 +2,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 
 import AdminPage from '@/pages/AdminPage';
 import EventDetailPage from '@/pages/EventDetailPage';
-import MainPage from '@/pages/MainPage';
 import ProgramDetailPage from '@/pages/ProgramDetailPage';
+import ProgramsPage from '@/pages/ProgramsPage';
 import SignInPage from '@/pages/SignInPage';
 import SignUpPage from '@/pages/SignUpPage';
 
@@ -16,7 +16,7 @@ const router = createBrowserRouter([
     errorElement: <div>notFound</div>,
     children: [
       { path: '', element: <Navigate to="programs" /> },
-      { path: '/programs', element: <MainPage /> },
+      { path: '/programs', element: <ProgramsPage /> },
       { path: '/programs/:programId', element: <ProgramDetailPage /> },
       { path: '/events/:eventId/', element: <EventDetailPage /> },
       { path: '/signIn', element: <SignInPage /> },

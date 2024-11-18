@@ -6,7 +6,7 @@ import router from '@/routes/index.tsx';
 function App() {
   return (
     <AuthProvider>
-      <RouterProvider router={router} />;
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }

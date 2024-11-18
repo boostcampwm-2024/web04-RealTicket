@@ -12,7 +12,7 @@ import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 400;
 
-const isSignIn = true;
+const isSignIn = false;
 const userId = 'test112';
 
 const reservations = [
@@ -31,6 +31,7 @@ const reservations = [
     seats: ['B구역 2행 3열', 'C구역 10행 15열', 'I구역 3행 17열'],
   },
 ];
+//TODO url 상수화
 export default function Navbar() {
   // const { isSignIn } = useAuthContext();
 
