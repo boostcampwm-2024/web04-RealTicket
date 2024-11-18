@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -13,6 +14,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -22,7 +24,6 @@ import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
-import { AuthService } from '../../../auth/service/auth.service';
 import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
@@ -32,10 +33,7 @@ import { UserService } from '../service/user.service';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly authService: AuthService,
-  ) {}
+  constructor(private readonly userService: UserService) {}
 
   @ApiOperation({ summary: '회원가입', description: 'id, password를 받아 회원가입 요청을 처리한다.' })
   @ApiBody({
@@ -71,14 +69,18 @@ export class UserController {
       },
     },
   })
-  @ApiOkResponse({ description: '로그인 성공' })
+  @ApiOkResponse({ description: '로그인 성공', example: { login_id: 'test' } })
   @ApiUnauthorizedResponse({ description: '로그인 실패 또는 등록되지 않은 사용자' })
   @UseInterceptors(TransformInterceptor)
   @Post('signin')
   async signin(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
-    const sessionId = await this.userService.loginUser(userLoginDto.loginId, userLoginDto.loginPassword);
+    const { sessionId, userInfo } = await this.userService.loginUser(
+      userLoginDto.loginId,
+      userLoginDto.loginPassword,
+    );
     res.cookie('SID', sessionId, { httpOnly: true, secure: true });
-    return { message: '로그인에 성공하셨습니다.' };
+
+    return userInfo;
   }
 
   @ApiOperation({ summary: '아이디 중복 체크', description: 'id 중복 체크 요청을 처리한다.' })
@@ -92,7 +94,7 @@ export class UserController {
       },
     },
   })
-  @ApiOkResponse({ description: '사용 가능한 id' })
+  @ApiOkResponse({ description: '사용 가능한 id', example: { available: false } })
   @UseInterceptors(TransformInterceptor)
   @Post('checkid')
   async checkInfo(@Body() userLoginIdCheckDto: UserLoginIdCheckDto) {
@@ -107,5 +109,14 @@ export class UserController {
   async getUserLogout(@Req() req: Request) {
     const sid = req.cookies['SID'];
     return await this.userService.logoutUser(sid);
+  }
+
+  @ApiOperation({ summary: '사용자 정보', description: '사용자 정보 요청을 처리한다. 사용자 ID를 불러온다.' })
+  @ApiOkResponse({ description: '사용자 정보 조회 성공', example: { login_id: 'test' } })
+  @ApiInternalServerErrorResponse({ description: '사용자 정보를 불러오는데 실패하였습니다.' })
+  @Get()
+  @UseGuards(SessionAuthGuard())
+  async getUserInfo(@Req() req: Request) {
+    return await this.userService.getUserInfo(req.cookies['SID']);
   }
 }

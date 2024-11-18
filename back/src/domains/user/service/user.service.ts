@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserCreateDto } from '../dto/userCreate.dto';
+import { UserInfoDto } from '../dto/userInfo.dto';
 import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { User } from '../entity/user.entity';
 import { UserRepository } from '../repository/user.repository';
@@ -59,7 +60,7 @@ export class UserService {
     return await bcrypt.hash(password, saltRound);
   }
 
-  async loginUser(id: string, password: string): Promise<string | null> {
+  async loginUser(id: string, password: string) {
     const user = await this.userRepository.findOne(id);
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
@@ -71,15 +72,17 @@ export class UserService {
     }
     const cachedUserInfo = {
       id: user.id,
-      login_id: user.loginId,
-      user_status: USER_STATUS.LOGIN,
-      target_event: null,
+      loginId: user.loginId,
+      userStatus: USER_STATUS.LOGIN,
+      targetEvent: null,
     };
     const sessionId = uuidv4();
+    const userInfoDto: UserInfoDto = new UserInfoDto();
+    userInfoDto.loginId = user.loginId;
     // TODO
     // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
     await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
-    return sessionId;
+    return { sessionId: sessionId, userInfo: userInfoDto };
   }
 
   async isAvailableLoginId(userLoginIdCheckDto: UserLoginIdCheckDto) {
@@ -92,6 +95,19 @@ export class UserService {
       return {
         available: true,
       };
+    }
+  }
+
+  async getUserInfo(sid: string) {
+    try {
+      const userInfo = JSON.parse(await this.redis.get(sid));
+      const userInfoDto: UserInfoDto = new UserInfoDto();
+      userInfoDto.loginId = userInfo.loginId;
+      userInfoDto.loginId = userInfo.loginId;
+      return userInfoDto;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('사용자 정보를 불러오는데 실패하였습니다.');
     }
   }
 
