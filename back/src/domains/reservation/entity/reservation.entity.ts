@@ -1,8 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 import { Event } from 'src/domains/event/entity/event.entity';
 import { Program } from 'src/domains/program/entities/program.entity';
 import { User } from 'src/domains/user/entity/user.entity';
+
+import { ReservedSeat } from './reservedSeat.entity';
 
 @Entity({ name: 'Reservation' })
 export class Reservation {
@@ -18,8 +20,8 @@ export class Reservation {
   @Column({ type: 'int', name: 'amount' })
   amount: number;
 
-  @Column({ type: 'json', name: 'seats' })
-  seats: string[];
+  @OneToMany(() => ReservedSeat, (reservedSeat) => reservedSeat.reservation, { lazy: true })
+  reservedSeats: Promise<ReservedSeat[]>;
 
   @ManyToOne(() => Program, (program) => program.reservations, { lazy: true })
   @JoinColumn({ name: 'program_id', referencedColumnName: 'id' })
