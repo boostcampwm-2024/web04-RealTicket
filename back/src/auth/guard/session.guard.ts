@@ -24,7 +24,11 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
         return true;
       } else if (!session) {
         throw new ForbiddenException('접근 권한이 없습니다.');
-      } else if (USER_LEVEL[session.user_status] <= USER_LEVEL[userStatus]) {
+      } else if (USER_LEVEL[session.userStatus] < USER_LEVEL[userStatus]) {
+        console.log(session);
+        console.log(`session.userStatus : ${session.userStatus}`);
+        console.log(`USER_LEVEL[session.userStatus] : ${USER_LEVEL[session.userStatus]}`);
+        console.log(`USER_LEVEL[userStatus] : ${USER_LEVEL[userStatus]}`);
         throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
       } else {
         throw new UnauthorizedException('세션이 만료되었습니다.');
