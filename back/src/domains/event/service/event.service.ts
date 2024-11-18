@@ -1,5 +1,10 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import { Place } from 'src/domains/place/entity/place.entity';
+import { Program } from 'src/domains/program/entities/program.entity';
+import { ProgramRepository } from 'src/domains/program/repository/program.repository';
+
+import { EventCreationDto } from '../dto/eventCreationDto';
 import { EventIdDto } from '../dto/eventIdDto';
 import { EventSpecificDto } from '../dto/eventSpecificDto';
 import { Event } from '../entity/event.entity';
@@ -7,7 +12,10 @@ import { EventRepository } from '../repository/event.reposiotry';
 
 @Injectable()
 export class EventService {
-  constructor(@Inject() private readonly eventRepository: EventRepository) {}
+  constructor(
+    @Inject() private readonly eventRepository: EventRepository,
+    @Inject() private readonly programRepository: ProgramRepository,
+  ) {}
 
   async findSpecificEvent({ eventId }: EventIdDto): Promise<EventSpecificDto> {
     const event: Event = await this.eventRepository.selectEvent(eventId);
@@ -24,5 +32,36 @@ export class EventService {
       runningTime: program.runningTime,
       place,
     });
+  }
+
+  async create(eventCreationDto: EventCreationDto): Promise<void> {
+    this.validateEventDate(eventCreationDto);
+    const program: Program = await this.programRepository.selectProgram(eventCreationDto.programId);
+    if (!program) throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]가 없습니다.`);
+    const place: Place = await program.place;
+    if (!program.place)
+      throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]의 장소가 없습니다.`);
+
+    await this.eventRepository.storeEvent({ ...eventCreationDto, program, place });
+  }
+
+  private validateEventDate({
+    runningDate,
+    reservationOpenDate,
+    reservationCloseDate,
+  }: {
+    runningDate: Date;
+    reservationOpenDate: Date;
+    reservationCloseDate: Date;
+  }) {
+    if (reservationOpenDate < reservationCloseDate && reservationCloseDate <= runningDate) {
+      return;
+    }
+    throw new BadRequestException('에약오픈일자 < 예약마감일자 <= 시작날짜 형식이어야 합니다.');
+  }
+
+  async delete({ eventId }: EventIdDto) {
+    const result = await this.eventRepository.deleteProgram(eventId);
+    if (!result.affected) throw new NotFoundException(`해당 이벤트[${eventId}]가 없습니다.`);
   }
 }
