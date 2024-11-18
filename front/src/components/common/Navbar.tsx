@@ -6,13 +6,13 @@ import Icon from '@/components/common/Icon';
 import Popover from '@/components/common/Popover';
 import Separator from '@/components/common/Separator.tsx';
 
-import { getDate } from '@/utils/getDate.ts';
+import { getDate, getTime } from '@/utils/date';
 
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 400;
 
-const isSignIn = false;
+const isSignIn = true;
 const userId = 'test112';
 
 const reservations = [
@@ -107,7 +107,9 @@ function ReservationCard({ id, name, runningDate, place, seats }: IReservation) 
       <div className="flex max-w-[calc(100%-64px)] flex-col gap-6 text-left">
         <h3 className="truncate text-display1">{name}</h3>
         <div className="">
-          <div className="truncate text-display1">{getDate(Number(runningDate))}</div>
+          <div className="truncate text-display1">
+            {getDate(Number(runningDate)) + getTime(Number(runningDate))}
+          </div>
           <div className="truncate text-display1 hover:overflow-visible hover:text-clip">{`공연장 : ${place}`}</div>
         </div>
         <div>
