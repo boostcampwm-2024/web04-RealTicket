@@ -1,15 +1,17 @@
 import { cx } from 'class-variance-authority';
+import { twMerge } from 'tailwind-merge';
 
 interface ISeparatorProps {
   direction: 'col' | 'row';
+  className?: string;
 }
 
-export default function Separator({ direction }: ISeparatorProps) {
+export default function Separator({ className, direction }: ISeparatorProps) {
   return (
     <div
-      className={cx(
-        direction === 'row' ? 'min-h-[1px] w-full' : 'h-full min-w-[1px]',
-        'flex-grow bg-surface-cardBorder',
+      className={twMerge(
+        cx(direction === 'row' ? 'h-[1px] w-full' : 'w-[1px]', 'bg-surface-cardBorder'),
+        className,
       )}></div>
   );
 }
