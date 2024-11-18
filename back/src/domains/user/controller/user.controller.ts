@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -107,5 +108,11 @@ export class UserController {
   async getUserLogout(@Req() req: Request) {
     const sid = req.cookies['SID'];
     return await this.userService.logoutUser(sid);
+  }
+
+  @Get()
+  @UseGuards(SessionAuthGuard())
+  async getUserInfo(@Req() req: Request) {
+    return await this.userService.getUserInfo(req.cookies['SID']);
   }
 }

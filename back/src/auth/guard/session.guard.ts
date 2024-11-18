@@ -20,7 +20,7 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
       this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + 3600);
       // TODO
       // userStatus, target_event를 비교하여 접근 허용 여부를 판단
-      if (session && USER_LEVEL[session.user_status] >= USER_LEVEL[userStatus]) {
+      if (session && USER_LEVEL[session.userStatus] >= USER_LEVEL[userStatus]) {
         return true;
       } else if (!session) {
         throw new ForbiddenException('접근 권한이 없습니다.');

@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserCreateDto } from '../dto/userCreate.dto';
+import { UserInfoDto } from '../dto/userInfo.dto';
 import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { User } from '../entity/user.entity';
 import { UserRepository } from '../repository/user.repository';
@@ -71,9 +72,9 @@ export class UserService {
     }
     const cachedUserInfo = {
       id: user.id,
-      login_id: user.loginId,
-      user_status: USER_STATUS.LOGIN,
-      target_event: null,
+      loginId: user.loginId,
+      userStatus: USER_STATUS.LOGIN,
+      targetEvent: null,
     };
     const sessionId = uuidv4();
     // TODO
@@ -92,6 +93,19 @@ export class UserService {
       return {
         available: true,
       };
+    }
+  }
+
+  async getUserInfo(sid: string) {
+    try {
+      const userInfo = JSON.parse(await this.redis.get(sid));
+      const userInfoDto: UserInfoDto = new UserInfoDto();
+      userInfoDto.loginId = userInfo.loginId;
+      userInfoDto.loginId = userInfo.loginId;
+      return userInfoDto;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('사용자 정보를 불러오는데 실패하였습니다.');
     }
   }
 
