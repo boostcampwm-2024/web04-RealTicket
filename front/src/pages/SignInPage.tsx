@@ -1,4 +1,4 @@
-import useForm from '@/hooks/useForm';
+import useForm, { Validate } from '@/hooks/useForm';
 
 import Button from '@/components/common/Button';
 import Field from '@/components/common/Field';
@@ -58,7 +58,7 @@ export default function SignInPage() {
   );
 }
 
-const lengthValidate = (value: string) => {
+const lengthValidate: Validate = ({ value }) => {
   const isRightLength = value.length >= 4 && value.length <= 12;
   if (!isRightLength) return '최소 4자리, 최대 12자리 입니다.';
   return null;

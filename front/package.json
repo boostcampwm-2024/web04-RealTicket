@@ -7,7 +7,6 @@
     "dev": "vite --port 3000",
     "build": "tsc -b && vite build",
     "start": "vite preview --port 3000 --host",
-    "prepare": "husky",
     "lint": "eslint --fix",
     "prettier": "prettier -w"
   },

@@ -15,6 +15,7 @@ export default function SignUpPage() {
     console.log(data);
   };
   const is = false;
+  //TODO Id 중복 체크 필
   return (
     <div className="mx-auto flex">
       <form
