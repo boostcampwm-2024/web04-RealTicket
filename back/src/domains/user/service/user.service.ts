@@ -60,7 +60,7 @@ export class UserService {
     return await bcrypt.hash(password, saltRound);
   }
 
-  async loginUser(id: string, password: string): Promise<string | null> {
+  async loginUser(id: string, password: string) {
     const user = await this.userRepository.findOne(id);
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
@@ -77,10 +77,12 @@ export class UserService {
       targetEvent: null,
     };
     const sessionId = uuidv4();
+    const userInfoDto: UserInfoDto = new UserInfoDto();
+    userInfoDto.loginId = user.loginId;
     // TODO
     // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
     await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
-    return sessionId;
+    return { sessionId: sessionId, userInfo: userInfoDto };
   }
 
   async isAvailableLoginId(userLoginIdCheckDto: UserLoginIdCheckDto) {
