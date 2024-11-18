@@ -11,4 +11,9 @@ export class EventRepository {
   async selectEvent(id: number): Promise<Event> {
     return await this.EventRepository.findOne({ where: { id } });
   }
+
+  async storeEvent(data: any) {
+    const event = this.EventRepository.create(data);
+    return this.EventRepository.save(event);
+  }
 }

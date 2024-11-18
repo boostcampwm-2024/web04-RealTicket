@@ -18,9 +18,6 @@ export class Event {
   @Column({ type: 'timestamp', name: 'reservation_close_date' })
   reservationCloseDate: Date;
 
-  @Column({ type: 'json', name: 'seat_status' })
-  seatStatus: number[][];
-
   @ManyToOne(() => Program, (program) => program.events, { lazy: true })
   @JoinColumn({ name: 'program_id', referencedColumnName: 'id' })
   program: Promise<Program>;
