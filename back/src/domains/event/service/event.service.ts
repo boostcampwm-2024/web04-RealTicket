@@ -59,4 +59,9 @@ export class EventService {
     }
     throw new BadRequestException('에약오픈일자 < 예약마감일자 <= 시작날짜 형식이어야 합니다.');
   }
+
+  async delete({ eventId }: EventIdDto) {
+    const result = await this.eventRepository.deleteProgram(eventId);
+    if (!result.affected) throw new NotFoundException(`해당 이벤트[${eventId}]가 없습니다.`);
+  }
 }

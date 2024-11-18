@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   ClassSerializerInterceptor,
+  ConflictException,
   Controller,
+  Delete,
   Get,
   InternalServerErrorException,
   NotFoundException,
@@ -15,6 +17,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -84,6 +87,25 @@ export class EventController {
       await this.eventService.create(eventCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException || NotFoundException) throw error;
+      throw new InternalServerErrorException('서버 오류 발생');
+    }
+  }
+
+  @Delete(':eventId')
+  @ApiOperation({ summary: '이벤트 삭제[관리자]', description: 'id값이 일치하는 이벤트를 삭제한다.' })
+  @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
+  @ApiOkResponse({ description: '이벤트 삭제 성공' })
+  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
+  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
+  @ApiNotFoundResponse({ description: 'id가 일치하는 이벤트 미존재', type: Error })
+  @ApiConflictResponse({ description: '참조하는 엔티티가 존재해 프로그램 삭제 불가', type: Error })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  async deleteProgram(@Param() eventIdDto: EventIdDto) {
+    try {
+      await this.eventService.delete(eventIdDto);
+    } catch (error) {
+      if (error instanceof NotFoundException || ConflictException) throw error;
       throw new InternalServerErrorException('서버 오류 발생');
     }
   }
