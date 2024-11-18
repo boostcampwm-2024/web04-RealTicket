@@ -1,7 +1,4 @@
-import { Expose } from 'class-transformer';
-
 export class layoutDto {
-  @Expose({ name: 'overview' })
-  overviewSvg: string;
+  overview: string;
   sections: any[];
 }
