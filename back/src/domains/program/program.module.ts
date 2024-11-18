@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { PlaceModule } from '../place/place.module';
@@ -9,8 +9,9 @@ import { ProgramRepository } from './repository/program.repository';
 import { ProgramService } from './service/program.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Program]), PlaceModule],
+  imports: [TypeOrmModule.forFeature([Program]), forwardRef(() => PlaceModule)],
   controllers: [ProgramController],
   providers: [ProgramService, ProgramRepository],
+  exports: [ProgramRepository],
 })
 export class ProgramModule {}
