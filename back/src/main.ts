@@ -5,8 +5,8 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/setupSwagger';
 import { TransformInterceptor } from './util/convention-transformer/transformer.interceptor';
-import { winstonLoggerConfig } from './util/winstonlogger.config';
-import { loggerMiddleware } from './util/winstonlogger.middleware';
+import { winstonLoggerConfig } from './util/logger/winstonlogger.config';
+import { loggerMiddleware } from './util/logger/winstonlogger.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
