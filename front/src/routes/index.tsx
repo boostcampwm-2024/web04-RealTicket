@@ -4,11 +4,13 @@ import AdminPage from '@/pages/AdminPage';
 import EventDetailPage from '@/pages/EventDetailPage';
 import ProgramDetailPage from '@/pages/ProgramDetailPage';
 import ProgramsPage from '@/pages/ProgramsPage';
+import ReservationWaitingPage from '@/pages/ReservationWaitingPage';
 import SignInPage from '@/pages/SignInPage';
 import SignUpPage from '@/pages/SignUpPage';
 
 import Layout from '@/layout/Layout';
 
+//TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정,
 const router = createBrowserRouter([
   {
     path: '/',
@@ -22,6 +24,7 @@ const router = createBrowserRouter([
       { path: '/signIn', element: <SignInPage /> },
       { path: '/signUp', element: <SignUpPage /> },
       { path: '/admin', element: <AdminPage /> },
+      { path: '/events/:eventId/waiting', element: <ReservationWaitingPage /> },
     ],
   },
 ]);
