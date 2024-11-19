@@ -9,6 +9,7 @@
     "start": "vite preview --port 3000 --host",
     "lint": "eslint --fix",
     "prettier": "prettier -w"
+    ,"tsc" : "tsc -b"
   },
   "dependencies": {
     "axios": "^1.7.7",

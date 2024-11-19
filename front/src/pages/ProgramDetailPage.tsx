@@ -212,6 +212,7 @@ interface Event {
   runningDate: Date;
   reservationOpenDate: Date;
   reservationCloseDate: Date;
+  actors: string;
 }
 interface Program {
   id: number;
