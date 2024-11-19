@@ -1,6 +1,7 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import {
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -12,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
+import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserInfoDto } from '../dto/userInfo.dto';
 import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
@@ -24,9 +26,9 @@ export class UserService {
   private readonly redis: Redis;
 
   constructor(
-    private readonly userRepository: UserRepository,
-    private readonly redisService: RedisService,
-    private readonly authService: AuthService,
+    @Inject() private readonly userRepository: UserRepository,
+    @Inject() private readonly redisService: RedisService,
+    @Inject() private readonly authService: AuthService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -35,7 +37,7 @@ export class UserService {
     return await this.userRepository.findById(userId);
   }
 
-  async registerUser(userCreateDto: UserCreateDto) {
+  async registerUser(userCreateDto: UserCreateDto, role: string = USER_ROLE.USER) {
     if (await this.userRepository.findByLoginId(userCreateDto.loginId)) {
       throw new ConflictException('이미 존재하는 사용자입니다.');
     }
@@ -46,6 +48,7 @@ export class UserService {
       const newUser: Partial<User> = {
         loginId: loginId,
         loginPassword: hashedPassword,
+        role: role,
       };
       await this.userRepository.createUser(newUser);
       return { message: '회원가입이 성공적으로 완료되었습니다.' };
@@ -73,7 +76,7 @@ export class UserService {
     const cachedUserInfo = {
       id: user.id,
       loginId: user.loginId,
-      userStatus: USER_STATUS.LOGIN,
+      userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
       targetEvent: null,
     };
     const sessionId = uuidv4();
