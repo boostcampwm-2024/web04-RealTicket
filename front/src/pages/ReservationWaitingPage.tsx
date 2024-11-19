@@ -92,7 +92,7 @@ export default function ReservationWaitingPage() {
     </div>
   );
 }
-
+//event 호출 후 place 정보(stage url은 여기서 추출) 호출
 const event = {
   id: 1,
   title: '뮤지컬: 레미제라블',

@@ -99,6 +99,7 @@ export default function ProgramDetailPage() {
     </div>
   );
 }
+
 const MENU = [
   { title: '날짜', caption: '날짜를 선택해주세요' },
   null,
