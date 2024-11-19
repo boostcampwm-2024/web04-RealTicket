@@ -13,6 +13,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, name: 'login_password' })
   loginPassword: string;
 
+  @Column({ type: 'varchar', length: 10, name: 'role' })
+  role: string;
+
   @OneToMany(() => Reservation, (reservation) => reservation.user, { lazy: true })
   reservations: Promise<Reservation[]>;
 }
