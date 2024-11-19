@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
+import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
 
@@ -9,6 +10,7 @@ const OFFSET = 1000 * 60 * 60 * 9;
 
 @Injectable()
 export class BookingService {
+  private logger = new Logger(BookingService.name);
   constructor(
     private readonly eventService: EventService,
     private readonly authService: AuthService,
@@ -52,5 +54,16 @@ export class BookingService {
       'waiting-status': true,
       'entering-status': false,
     };
+  }
+
+  async getTimeMs(): Promise<ServerTimeDto> {
+    try {
+      return {
+        now: Date.now(),
+      };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('서버 시간을 가져오는데 실패했습니다.');
+    }
   }
 }
