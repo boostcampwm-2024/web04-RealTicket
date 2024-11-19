@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Post,
   Req,
   Res,
@@ -25,6 +26,7 @@ import { Request, Response } from 'express';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
+import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
 import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
@@ -33,7 +35,7 @@ import { UserService } from '../service/user.service';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(@Inject() private readonly userService: UserService) {}
 
   @ApiOperation({ summary: '회원가입', description: 'id, password를 받아 회원가입 요청을 처리한다.' })
   @ApiBody({
@@ -54,6 +56,28 @@ export class UserController {
   @Post('signup')
   async signup(@Body() createUserDto: UserCreateDto) {
     await this.userService.registerUser(createUserDto);
+    return { message: '회원가입이 성공적으로 완료되었습니다.' };
+  }
+
+  @ApiOperation({ summary: '회원가입', description: 'id, password를 받아 회원가입 요청을 처리한다.' })
+  @ApiBody({
+    type: UserCreateDto,
+    examples: {
+      example: {
+        value: {
+          login_id: 'test',
+          login_password: 'test1234',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ description: '회원가입 성공' })
+  @ApiConflictResponse({ description: '이미 존재하는 사용자입니다.' })
+  @UseInterceptors(TransformInterceptor)
+  @HttpCode(HttpStatus.CREATED)
+  @Post('signup/admin')
+  async signupForAdmin(@Body() createUserDto: UserCreateDto) {
+    await this.userService.registerUser(createUserDto, USER_ROLE.ADMIN);
     return { message: '회원가입이 성공적으로 완료되었습니다.' };
   }
 
