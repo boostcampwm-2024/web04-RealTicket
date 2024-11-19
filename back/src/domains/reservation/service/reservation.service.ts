@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { ReservationIdDto } from '../dto/reservationIdDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
@@ -46,5 +47,11 @@ export class ReservationService {
         return `${seat.section}구역 ${seat.row}행 ${seat.col}열`;
       })
       .join(', ');
+  }
+
+  async deleteReservation({ id }: UserParamDto, { reservationId }: ReservationIdDto) {
+    const result = await this.reservationRepository.deleteReservationByIdMatchedUserId(id, reservationId);
+    if (!result.affected)
+      throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
   }
 }
