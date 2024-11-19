@@ -19,12 +19,12 @@ export class ProgramService {
 
   async findMainPageProgramData() {
     const programs: Program[] = await this.programRepository.selectAllProgram();
-    const programMainPageDtos: ProgramMainPageDto[] = await this.#convertProgramListToMainPageDto(programs);
+    const programMainPageDtos: ProgramMainPageDto[] = await this.convertProgramListToMainPageDto(programs);
 
     return programMainPageDtos;
   }
 
-  async #convertProgramListToMainPageDto(programs: Program[]) {
+  private async convertProgramListToMainPageDto(programs: Program[]) {
     return Promise.all(
       programs.map(async (program: Program) => {
         const place = await program.place;
@@ -40,11 +40,11 @@ export class ProgramService {
     const program: Program = await this.programRepository.selectProgram(programId);
 
     if (!program) throw new NotFoundException(`해당 프로그램[${programId}]는 존재하지 않습니다.`);
-    const programSpecificdto: ProgramSpecificDto = await this.#convertProgramToSpecificDto(program);
+    const programSpecificdto: ProgramSpecificDto = await this.convertProgramToSpecificDto(program);
     return programSpecificdto;
   }
 
-  async #convertProgramToSpecificDto(program: Program): Promise<ProgramSpecificDto> {
+  private async convertProgramToSpecificDto(program: Program): Promise<ProgramSpecificDto> {
     const [place, events] = await Promise.all([program.place, program.events]);
 
     return new ProgramSpecificDto({ ...program, place, events });
