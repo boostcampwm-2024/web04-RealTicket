@@ -8,3 +8,4 @@ export { default as Tickets } from '@/assets/icons/tickets.svg?react';
 export { default as Trash } from '@/assets/icons/trash.svg?react';
 export { default as UpArrow } from '@/assets/icons/up-arrow.svg?react';
 export { default as User } from '@/assets/icons/user.svg?react';
+export { default as Clock } from '@/assets/icons/clock.svg?react';
