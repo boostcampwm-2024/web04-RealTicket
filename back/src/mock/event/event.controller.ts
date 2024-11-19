@@ -1,4 +1,5 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Sse } from '@nestjs/common';
+import { Observable } from 'rxjs';
 
 import { EventService } from './event.service';
 
@@ -9,5 +10,10 @@ export class EventController {
   @Get(':eventId')
   getEventById(@Param('eventId') eventId: number) {
     return this.eventService.getEventById(eventId);
+  }
+
+  @Sse('seats/:eventId')
+  getReservationStatusByEventId(@Param('eventId') eventId: number): Observable<MessageEvent> {
+    return this.eventService.getSeatStatusByEventId(eventId);
   }
 }
