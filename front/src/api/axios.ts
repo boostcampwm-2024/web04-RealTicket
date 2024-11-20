@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-const HOST = import.meta.env.HOST;
-const PORT = import.meta.env.PORT;
-const BASE_URL = `${HOST}:${PORT}`;
+const apiUrl = import.meta.env.VITE_API_URL;
 
 export const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: apiUrl,
 });
