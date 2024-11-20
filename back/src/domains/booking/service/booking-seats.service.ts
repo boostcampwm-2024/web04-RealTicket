@@ -1,7 +1,9 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 import { interval, Observable, switchMap } from 'rxjs';
+
+import { SeatStatus } from '../const/seatStatus.enum';
 
 @Injectable()
 export class BookingSeatsService {
@@ -16,27 +18,41 @@ export class BookingSeatsService {
 
   //TODO: 트랜잭션 관리 필요
   async bookSeat(eventId: number, target: [number, number]) {
-    try {
-      const sectionIndex = target[0];
-      const seatIndex = target[1];
-      const seatsData = await this.redis.get(`event:${eventId}:seats`);
-      const seats = JSON.parse(seatsData);
-      seats[sectionIndex][seatIndex] = false;
-      await this.redis.set(`event:${eventId}:seats`, JSON.stringify(seats));
-      return true;
-    } catch (error) {
-      return error.message();
+    const [sectionIndex, seatIndex] = target;
+    const seatsData = await this.redis.get(`event:${eventId}:seats`);
+    const seats = JSON.parse(seatsData);
+
+    if (seats[sectionIndex][seatIndex] === false) {
+      throw new ConflictException('이미 예약된 좌석입니다.');
     }
+    seats[sectionIndex][seatIndex] = false;
+
+    await this.redis.set(`event:${eventId}:seats`, JSON.stringify(seats));
+    return {
+      eventId,
+      sectionIndex,
+      seatIndex,
+      acceptedStatus: SeatStatus.RESERVE,
+    };
   }
 
   async unBookSeat(eventId: number, target: [number, number]) {
-    const sectionIndex = target[0];
-    const seatIndex = target[1];
+    const [sectionIndex, seatIndex] = target;
     const seatsData = await this.redis.get(`event:${eventId}:seats`);
     const seats = JSON.parse(seatsData);
+
+    if (seats[sectionIndex][seatIndex] === true) {
+      throw new ConflictException('이미 취소된 좌석입니다.');
+    }
     seats[sectionIndex][seatIndex] = true;
+
     await this.redis.set(`event:${eventId}:seats`, JSON.stringify(seats));
-    return true;
+    return {
+      eventId,
+      sectionIndex,
+      seatIndex,
+      acceptedStatus: SeatStatus.DELETE,
+    };
   }
 
   async getSeats(eventId: number): Promise<boolean[][]> {
