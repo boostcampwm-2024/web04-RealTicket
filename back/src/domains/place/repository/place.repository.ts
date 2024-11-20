@@ -11,4 +11,9 @@ export class PlaceRepository {
   async selectPlace(id: number): Promise<Place> {
     return await this.PlaceRepository.findOne({ where: { id } });
   }
+
+  storePlace(data: any) {
+    const place = this.PlaceRepository.create(data);
+    return this.PlaceRepository.save(place);
+  }
 }

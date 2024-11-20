@@ -11,4 +11,9 @@ export class SectionRepository {
   async findByName(name: string): Promise<Section> {
     return await this.sectionRepository.findOne({ where: { name } });
   }
+
+  async storeSections(sections: any): Promise<Section[]> {
+    const secitonEntities = this.sectionRepository.create(sections);
+    return await this.sectionRepository.save(secitonEntities);
+  }
 }

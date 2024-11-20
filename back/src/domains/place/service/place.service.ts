@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 
+import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { Place } from '../entity/place.entity';
 import { PlaceRepository } from '../repository/place.repository';
@@ -40,5 +41,12 @@ export class PlaceService {
       this.logger.error(err);
       throw new InternalServerErrorException('서버 오류 발생');
     }
+  }
+
+  async createPlace(placeCreationDto: PlaceCreationDto) {
+    this.placeRepository.storePlace({
+      ...placeCreationDto,
+      sections: [],
+    });
   }
 }
