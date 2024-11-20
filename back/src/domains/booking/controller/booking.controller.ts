@@ -15,6 +15,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
@@ -27,6 +28,7 @@ import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { BookingAmountReqDto } from '../dto/bookingAmountReqDto';
 import { BookingAmountResDto } from '../dto/bookingAmountResDto';
 import { BookingSeatsService } from '../service/booking-seats.service';
+import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
 
@@ -72,5 +74,15 @@ export class BookingController {
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number): Promise<Observable<MessageEvent>> {
     return this.seatsUpdateService.subscribeSeats(eventId);
+  }
+
+  @ApiOperation({ summary: '서버 시간 조회', description: '서버의 현재 시간을 조회한다.' })
+  @ApiOkResponse({ description: '서버 시간 조회 성공', type: ServerTimeDto, example: { now: 1620000000000 } })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiInternalServerErrorResponse({ description: '서버 시간 조회 실패' })
+  @UseGuards(SessionAuthGuard())
+  @Get('server-time')
+  async getServerTime() {
+    return await this.bookingService.getTimeMs();
   }
 }

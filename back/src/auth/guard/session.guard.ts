@@ -4,6 +4,8 @@ import Redis from 'ioredis';
 
 import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
 
+const EXPIRE_TIME = 3600;
+
 export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
   @Injectable()
   class SessionGuard {
@@ -17,7 +19,7 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
       const request = context.switchToHttp().getRequest();
       const sessionId = getSid(request);
       const session = JSON.parse(await this.redis.get(sessionId));
-      this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + 3600);
+      this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + EXPIRE_TIME);
       // TODO
       // userStatus, target_event를 비교하여 접근 허용 여부를 판단
       if (session && USER_LEVEL[session.userStatus] >= USER_LEVEL[userStatus]) {
@@ -25,10 +27,6 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
       } else if (!session) {
         throw new ForbiddenException('접근 권한이 없습니다.');
       } else if (USER_LEVEL[session.userStatus] < USER_LEVEL[userStatus]) {
-        console.log(session);
-        console.log(`session.userStatus : ${session.userStatus}`);
-        console.log(`USER_LEVEL[session.userStatus] : ${USER_LEVEL[session.userStatus]}`);
-        console.log(`USER_LEVEL[userStatus] : ${USER_LEVEL[userStatus]}`);
         throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
       } else {
         throw new UnauthorizedException('세션이 만료되었습니다.');

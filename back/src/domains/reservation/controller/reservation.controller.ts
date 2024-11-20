@@ -1,5 +1,18 @@
-import { ClassSerializerInterceptor, Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import {
+  BadRequestException,
+  ClassSerializerInterceptor,
+  Controller,
+  Delete,
+  Get,
+  InternalServerErrorException,
+  Param,
+  UseGuards,
+  UseInterceptors,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
@@ -11,6 +24,7 @@ import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { ReservationIdDto } from '../dto/reservationIdDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { ReservationService } from '../service/reservation.service';
 
@@ -32,8 +46,32 @@ export class ReservationController {
     try {
       const reservations: ReservationSpecificDto[] = await this.reservationService.findUserReservation(user);
       return reservations;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      throw error;
+      throw new InternalServerErrorException('서버 내부 에러');
+    }
+  }
+
+  @Delete(':reservationId')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @ApiOperation({
+    summary: '유저 예매 내역 삭제',
+    description: '예매 내역이 유저가 예매한 내역이면 삭제한다.',
+  })
+  @ApiOkResponse({ description: '예매 내역 삭제 성공' })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
+  @ApiBadRequestResponse({
+    description: '파라미터 타입 에러, 해당 예매 내역이 없거나 유저가 예매하지 않은 경우',
+    type: Error,
+  })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  async deleteReservation(@User() user: UserParamDto, @Param() reservationIdDto: ReservationIdDto) {
+    try {
+      await this.reservationService.deleteReservation(user, reservationIdDto);
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('서버 내부 에러');
     }
   }
 }
