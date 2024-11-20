@@ -1,6 +1,9 @@
 import { getCenterCoordinate, getPathD } from '@/utils/svg.ts';
 
+import { twMerge } from 'tailwind-merge';
+
 interface ISectionSelectorMapProps {
+  className?: string;
   viewBoxData: string;
   svgURL: string;
   sections: Section[];
@@ -8,6 +11,7 @@ interface ISectionSelectorMapProps {
   selectedSection: string | null;
 }
 export default function SectionSelectorMap({
+  className,
   viewBoxData,
   svgURL,
   sections,
@@ -16,7 +20,7 @@ export default function SectionSelectorMap({
 }: ISectionSelectorMapProps) {
   //TODO 글자 크기 section 크기에 맞춰서 변동되도록
   return (
-    <svg viewBox={viewBoxData} className="h-full w-full">
+    <svg viewBox={viewBoxData} className={twMerge('w-full', className)}>
       <image href={svgURL} className="h-full w-full"></image>
       {sections.map((section) => {
         const { id, points } = section;

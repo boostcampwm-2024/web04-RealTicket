@@ -13,27 +13,28 @@ import { twMerge } from 'tailwind-merge';
 interface ISectionAndSeatProps {
   seatCount: 1 | 2 | 3 | 4;
   goNextStep: () => void;
-  setReservationResult: () => void;
+  setReservationResult: (result: string[]) => void;
 }
 export default function SectionAndSeat({
   seatCount,
-  // goNextStep,
-  // setReservationResult,
+  goNextStep,
+  setReservationResult,
 }: ISectionAndSeatProps) {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [selectedSeats, setSelectedSeats] = useState<{ section: string; index: number; colLength: number }[]>(
-    [],
-  );
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   //TODO 길이 모음 필요
 
   const selectedSectionSeatMap =
     selectedSection && initialSeatMap.find((section) => section.name == selectedSection);
-  const colLength = selectedSectionSeatMap && selectedSectionSeatMap.colLength;
+  const seatStatus = seatStatusMap.find((section) => section.name === selectedSection);
 
   const { overviewHeight, overviewSvgUrl, overviewWidth, sections } = placeInfo;
   const { title, actors, place, runningDate, runningTime } = event;
   const viewBoxData = `0 0 ${overviewWidth} ${overviewHeight}`;
+  const isSelectionComplete = seatCount <= selectedSeats.length;
 
+  const seatsGridClass =
+    selectedSectionSeatMap && `grid-cols-[repeat(${selectedSectionSeatMap.colLength},min-content)]`;
   //TODO 폰트 크기 구하기 필요
   return (
     <div className="flex w-full gap-4">
@@ -69,38 +70,15 @@ export default function SectionAndSeat({
           </>
         )}
         {selectedSection && selectedSectionSeatMap ? (
-          <div
-            className={twMerge(
-              cx(
-                'grid auto-cols-auto gap-4',
-                `grid-cols-[repeat(${selectedSectionSeatMap.colLength},min-content)]`,
-              ),
-            )}>
-            {/* 섹션, index 저장  */}
-            {selectedSectionSeatMap.seats.map((seat, index) => {
-              const isSelected = selectedSeats.find((selected) => {
-                const { section, index: selectedIndex } = selected;
-                return section === selectedSection && index === selectedIndex;
-              });
-              const stateClass = !seat
-                ? 'bg-transparent  pointer-events-none'
-                : isSelected
-                  ? 'bg-success cursor-pointer pointer-events-none'
-                  : 'bg-primary cursor-pointer';
-
-              return (
-                <div
-                  className={`h-6 w-6 ${stateClass}`}
-                  onClick={() => {
-                    if (seatCount >= selectedSeats.length) {
-                      setSelectedSeats([
-                        ...selectedSeats,
-                        { section: selectedSection, index, colLength: colLength as number },
-                      ]);
-                    }
-                  }}></div>
-              );
-            })}
+          <div className={twMerge(cx('mx-auto grid auto-cols-min gap-4', seatsGridClass))}>
+            {/* data-set에 초기 seat 그릴 떄 설정하기  */}
+            {renderSeatMap(
+              selectedSectionSeatMap,
+              seatStatus!.seats,
+              setSelectedSeats,
+              seatCount,
+              selectedSeats,
+            )}
           </div>
         ) : (
           <SectionSelectorMap
@@ -113,8 +91,9 @@ export default function SectionAndSeat({
         )}
       </div>
       <Separator direction="col" />
-      <div>
+      <div className="flex flex-col gap-6">
         <SectionSelectorMap
+          className="flex-grow-0"
           sections={sections}
           selectedSection={selectedSection}
           setSelectedSection={setSelectedSection}
@@ -124,17 +103,81 @@ export default function SectionAndSeat({
         <Separator direction="row" />
         <div>
           <h3>선택한 좌석</h3>
+          <div>
+            {selectedSeats.map((seat) => (
+              <span>{seat}</span>
+            ))}
+          </div>
         </div>
-        <Separator direction="row" />
 
         <Separator direction="row" />
-        <Button>
-          <span>txt</span>
+        <Button
+          disabled={!isSelectionComplete}
+          onClick={() => {
+            setReservationResult(selectedSeats);
+            goNextStep();
+          }}>
+          {isSelectionComplete ? (
+            <span className="text-label1 text-typo-display">예매하기</span>
+          ) : (
+            <span className="text-label1 text-typo-disable">좌석을 모두 선택해주세요</span>
+          )}
         </Button>
       </div>
     </div>
   );
 }
+//seatMap
+const renderSeatMap = (
+  selectedSection: {
+    id: number;
+    name: string;
+    seats: boolean[];
+    colLength: number;
+  },
+  seatStatus: boolean[],
+  setSelectedSeats: (seats: string[]) => void,
+  maxSelectCount: number,
+  selectedSeats: string[],
+) => {
+  let columnCount = 1;
+  const { name, seats, colLength } = selectedSection;
+
+  return seats.map((seat, index) => {
+    const rowsCount = Math.floor(index / colLength) + 1;
+    const isNewLine = index % colLength === 0;
+    if (isNewLine) columnCount = 1;
+    const seatName = seat ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
+    const isMine = seatName ? selectedSeats.includes(seatName) : false;
+
+    const isOthers = !seatStatus[index];
+    //TODO 삼항 연산자 제거
+    const stateClass = !seat
+      ? 'bg-transparent  pointer-events-none'
+      : isMine
+        ? 'bg-success cursor-pointer'
+        : isOthers
+          ? `bg-surface-sub pointer-events-none`
+          : 'bg-primary cursor-pointer';
+    if (seat) columnCount++;
+    return (
+      <div
+        className={`h-6 w-6 ${stateClass}`}
+        data-name={seatName}
+        onClick={() => {
+          const selectedCount = selectedSeats.length;
+          if (isMine) {
+            const nextSelectedSeats = selectedSeats.filter((seat) => seat !== seatName);
+            setSelectedSeats(nextSelectedSeats);
+            return;
+          }
+          if (maxSelectCount <= selectedCount) return;
+          setSelectedSeats([...selectedSeats, seatName!]);
+        }}
+      />
+    );
+  });
+};
 
 const SEAT_STATES = ['선택 가능', '선택 중', '선택 완료', '선택 불가'];
 const getColorClass = (state: string) => {
@@ -257,6 +300,63 @@ const initialSeatMap = [
       true,
       true,
       true,
+      false,
+      true,
+      true,
+    ],
+    colLength: 5,
+  },
+];
+
+const seatStatusMap = [
+  {
+    id: 1,
+    name: 'A',
+    seats: [
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+    ],
+    colLength: 5,
+  },
+  {
+    id: 2,
+    name: 'B',
+    seats: [
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
       false,
       true,
       true,
