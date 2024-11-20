@@ -1,12 +1,15 @@
 import { RouterProvider } from 'react-router-dom';
 
-import AuthProvider from '@/providers/AuthProvider.tsx';
-import router from '@/routes/index.tsx';
+import AuthProvider from '@/providers/AuthProvider';
+import QueryProvider from '@/providers/QueryProvider';
+import router from '@/routes/index';
 
 function App() {
   return (
     <AuthProvider>
-      <RouterProvider router={router} />
+      <QueryProvider>
+        <RouterProvider router={router} />
+      </QueryProvider>
     </AuthProvider>
   );
 }
