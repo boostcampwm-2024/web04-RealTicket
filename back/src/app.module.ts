@@ -1,5 +1,6 @@
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
@@ -22,6 +23,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
       ? [
           TypeOrmModule.forRoot(ormConfig),
           RedisModule.forRoot(redisConfig),
+          ScheduleModule.forRoot(),
           ProgramModule,
           ReservationModule,
           PlaceModule,
