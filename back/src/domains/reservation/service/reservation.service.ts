@@ -1,16 +1,36 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { RedisService } from '@liaoliaots/nestjs-redis';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import Redis from 'ioredis';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { Event } from '../../event/entity/event.entity';
+import { EventRepository } from '../../event/repository/event.reposiotry';
+import { UserRepository } from '../../user/repository/user.repository';
+import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
+import { ReservationResultDto } from '../dto/reservationResultDto';
+import { ReservationSeatInfoDto } from '../dto/reservationSeatInfoDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
 import { ReservationRepository } from '../repository/reservation.repository';
+import { ReservedSeatRepository } from '../repository/reservedSeat.repository';
 
 @Injectable()
 export class ReservationService {
-  constructor(@Inject() private readonly reservationRepository: ReservationRepository) {}
+  private redis: Redis;
+  private logger: Logger = new Logger(ReservationService.name);
+
+  constructor(
+    @Inject() private readonly reservationRepository: ReservationRepository,
+    @Inject() private readonly redisService: RedisService,
+    @Inject() private readonly eventRepository: EventRepository,
+    @Inject() private readonly userRepository: UserRepository,
+    @Inject() private readonly reservedSeatRepository: ReservedSeatRepository,
+  ) {
+    this.redis = this.redisService.getOrThrow();
+  }
 
   async findUserReservation({ id }: UserParamDto) {
     const reservations: Reservation[] =
@@ -54,4 +74,58 @@ export class ReservationService {
     if (!result.affected)
       throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
   }
+
+  async recordReservation(reservationCreateDto: ReservationCreateDto, sid): Promise<ReservationResultDto> {
+    if (this.validateReservationLength(reservationCreateDto.seats)) {
+      throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
+    }
+
+    try {
+      const userId = JSON.parse(await this.redis.get(sid)).id;
+      const event: Event = await this.eventRepository.selectEvent(reservationCreateDto.eventId);
+      const program = await event.program;
+
+      // reservation 정보 저장
+      const reservationData: any = {
+        createdAt: new Date(),
+        amount: reservationCreateDto.seats.length,
+        program: program,
+        event: event,
+        user: await this.userRepository.findById(userId),
+      };
+      const reservation = await this.reservationRepository.storeReservation(reservationData);
+
+      // reservedSeat 정보 저장
+      const reservedSeats = await Promise.all(
+        reservationCreateDto.seats.map(async (seat) => {
+          const reservedSeatData: any = {
+            section: seat.sectionIndex,
+            row: seat.row,
+            col: seat.col,
+            reservation: reservation,
+          };
+          const reservedSeat = await this.reservedSeatRepository.storeReservedSeat(reservedSeatData);
+          return `${reservedSeat['section']}구역 ${reservedSeat['row']}행 ${reservedSeat['col']}열`;
+        }),
+      );
+
+      // 예약정보 반환
+      return {
+        programName: program.name,
+        runningDate: event.runningDate,
+        placeName: (await program.place).name,
+        price: program.price,
+        seats: reservedSeats,
+      };
+    } catch (error) {
+      this.logger.error(error);
+      throw new BadRequestException('예매 정보 저장에 실패');
+    }
+  }
+
+  validateReservationLength(seats: ReservationSeatInfoDto[]) {
+    return seats.length < 0 || seats.length > 4;
+  }
+
+  async;
 }

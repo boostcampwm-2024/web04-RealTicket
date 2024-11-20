@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  Body,
   ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
   InternalServerErrorException,
   Param,
+  Post,
+  Req,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -18,12 +21,15 @@ import {
   ApiOkResponse,
   ApiOperation,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
+import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { ReservationService } from '../service/reservation.service';
@@ -73,5 +79,12 @@ export class ReservationController {
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('서버 내부 에러');
     }
+  }
+
+  @UseInterceptors(TransformInterceptor)
+  @Post()
+  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
+    const sid = req.cookies['SID'];
+    return this.reservationService.recordReservation(reservationCreateDto, sid);
   }
 }
