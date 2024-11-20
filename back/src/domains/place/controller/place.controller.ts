@@ -17,15 +17,18 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { NotFoundError } from 'rxjs';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
+import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { getSeatResponseExample } from '../example/response/getSeatResponseExample';
 import { PlaceService } from '../service/place.service';
 
@@ -77,12 +80,58 @@ export class PlaceController {
   @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
   @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
-  async createPlaceAndSection(@Body() placeCreationDto: PlaceCreationDto) {
+  async createPlace(@Body() placeCreationDto: PlaceCreationDto) {
     try {
       await this.placeService.createPlace(placeCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('서버 내부 오류');
     }
+  }
+
+  @Post('section')
+  @ApiOperation({ summary: '섹션 추가[관리자]', description: '특정 장소에 섹션들을 추가한다' })
+  @ApiBody({
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '섹션 이름', example: 's1' },
+          'col-len': { type: 'integer', description: '섹션의 열 길이', example: 2 },
+          seats: {
+            type: 'array',
+            description: '자리 존재 여부를 나타내는 값',
+            items: { type: 'boolean' },
+            example: [true, true],
+          },
+          'place-id': { type: 'integer', description: 'place 장소 아이디', example: 1 },
+          order: { type: 'integer', description: '해당 섹션의 순서', example: 2 },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: '섹션 추가 성공' })
+  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류, 동일하지 않은 placeId', type: Error })
+  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
+  @ApiNotFoundResponse({ description: '섹션이 위치할 장소가 존재하지 않음', type: Error })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  async createSection(@Body() sectinoCreationDtoList: SectionCreationDto[]) {
+    try {
+      const placeId = this.validatePlaceId(sectinoCreationDtoList);
+      await this.placeService.createSections(sectinoCreationDtoList, placeId);
+    } catch (error) {
+      if (error instanceof NotFoundError || BadRequestException) throw error;
+      throw new InternalServerErrorException('서버 내부 오류');
+    }
+  }
+
+  private validatePlaceId(sectionCreationDtoList: SectionCreationDto[]): number {
+    const placeId = sectionCreationDtoList[0].placeId;
+    if (sectionCreationDtoList.filter((sectionDto) => sectionDto.placeId !== placeId).length) {
+      throw new BadRequestException('섹션은 모두 동일한 place에 삽입해야 합니다.');
+    }
+    return placeId;
   }
 }

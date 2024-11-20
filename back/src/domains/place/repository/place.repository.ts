@@ -16,4 +16,8 @@ export class PlaceRepository {
     const place = this.PlaceRepository.create(data);
     return this.PlaceRepository.save(place);
   }
+
+  async updateSectionsById(orders: string[], id: number) {
+    return await this.PlaceRepository.update({ id }, { sections: orders });
+  }
 }

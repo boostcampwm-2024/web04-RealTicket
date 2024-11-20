@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsBoolean, IsEmpty, IsInt, IsNotEmpty, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsInt, IsNotEmpty, IsString } from 'class-validator';
 
 export class SectionCreationDto {
   @IsNotEmpty()
@@ -13,9 +13,13 @@ export class SectionCreationDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsBoolean({ each: true })
-  seats: boolean[];
+  seats: string[];
 
   @IsNotEmpty()
-  @IsEmpty()
+  @IsInt()
   placeId: number;
+
+  @IsNotEmpty()
+  @IsInt()
+  order: number;
 }
