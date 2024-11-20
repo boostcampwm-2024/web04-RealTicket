@@ -1,6 +1,16 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { DataSource } from 'typeorm';
 
+import { PlaceCreationDto } from '../dto/placeCreation.dto';
+import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
+import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { Place } from '../entity/place.entity';
 import { PlaceRepository } from '../repository/place.repository';
 import { SectionRepository } from '../repository/section.repository';
@@ -12,6 +22,7 @@ export class PlaceService {
   constructor(
     private readonly placeRepository: PlaceRepository,
     private readonly sectionRepository: SectionRepository,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getSeats(placeId: number): Promise<SeatInfoDto> {
@@ -40,5 +51,33 @@ export class PlaceService {
       this.logger.error(err);
       throw new InternalServerErrorException('서버 오류 발생');
     }
+  }
+
+  async createPlace(placeCreationDto: PlaceCreationDto) {
+    this.placeRepository.storePlace({
+      ...placeCreationDto,
+      sections: [],
+    });
+  }
+
+  async createSections(sectionCreationDtoList: SectionCreationDto[], placeId: number) {
+    const place = await this.placeRepository.selectPlace(placeId);
+    if (!place) throw new NotFoundException(`해당 장소[${placeId}]가 존재하지 않습니다.`);
+    await this.dataSource.transaction(async () => {
+      const sortedSectionDtos: SectionCreationDto[] = sectionCreationDtoList.sort(
+        (a, b) => a.order - b.order,
+      );
+      const sections = [];
+      for (const sectionElement of sortedSectionDtos) {
+        const sectionEntity = await this.sectionRepository.storeSection({ ...sectionElement, place });
+        sections.push(sectionEntity);
+      }
+      const sectionOrder = sections.map((section) => section.id.toString());
+      await this.placeRepository.updateSectionsById(sectionOrder, placeId);
+    });
+  }
+
+  async deletePlace({ placeId }: PlaceIdDto) {
+    await this.placeRepository.deleteById(placeId);
   }
 }
