@@ -35,7 +35,7 @@ export default function SectionAndSeat({
 
   const seatsGridClass =
     selectedSectionSeatMap && `grid-cols-[repeat(${selectedSectionSeatMap.colLength},min-content)]`;
-  //TODO 폰트 크기 구하기 필요
+  //TODO 폰트 크기 구하기 필요, 레이아웃 반복문으로 만들기
   return (
     <div className="flex w-full gap-4">
       <div className="flex w-[70%] flex-col gap-8 px-4 py-2">
@@ -46,7 +46,7 @@ export default function SectionAndSeat({
         <div className="flex justify-between">
           <div className="flex flex-col gap-4">
             <span className="text-display1 text-typo">{`공연장 : ${place}`}</span>
-            <span className="text-display1 text-typo">{`관람 시간: ${runningTime}`}</span>
+            <span className="text-display1 text-typo">{`관람 시간: ${runningTime}분`}</span>
           </div>
           <div className="flex flex-col gap-4">
             <span className="text-display1 text-typo"> {`날짜 : ${getDate(runningDate)}`}</span>
@@ -71,7 +71,6 @@ export default function SectionAndSeat({
         )}
         {selectedSection && selectedSectionSeatMap ? (
           <div className={twMerge(cx('mx-auto grid auto-cols-min gap-4', seatsGridClass))}>
-            {/* data-set에 초기 seat 그릴 떄 설정하기  */}
             {renderSeatMap(
               selectedSectionSeatMap,
               seatStatus!.seats,
@@ -127,7 +126,7 @@ export default function SectionAndSeat({
     </div>
   );
 }
-//seatMap
+//TODO 컴포넌트로 변경
 const renderSeatMap = (
   selectedSection: {
     id: number;
@@ -192,12 +191,6 @@ const getColorClass = (state: string) => {
       return 'bg-surface-sub';
   }
 };
-
-/*
-초기 좌석 값이 false 투명
-선점된 좌석 disabled
-가능한 좌석 primary 
- */
 
 const SECTIONS = [
   {
