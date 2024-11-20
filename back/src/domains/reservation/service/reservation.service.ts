@@ -6,6 +6,7 @@ import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
 import { Event } from '../../event/entity/event.entity';
 import { EventRepository } from '../../event/repository/event.reposiotry';
+import { Program } from '../../program/entities/program.entity';
 import { UserRepository } from '../../user/repository/user.repository';
 import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
@@ -76,38 +77,15 @@ export class ReservationService {
   }
 
   async recordReservation(reservationCreateDto: ReservationCreateDto, sid): Promise<ReservationResultDto> {
-    if (this.validateReservationLength(reservationCreateDto.seats)) {
-      throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
-    }
-
     try {
+      if (this.validateReservationLength(reservationCreateDto.seats)) {
+        throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
+      }
       const userId = JSON.parse(await this.redis.get(sid)).id;
       const event: Event = await this.eventRepository.selectEvent(reservationCreateDto.eventId);
       const program = await event.program;
-
-      // reservation 정보 저장
-      const reservationData: any = {
-        createdAt: new Date(),
-        amount: reservationCreateDto.seats.length,
-        program: program,
-        event: event,
-        user: await this.userRepository.findById(userId),
-      };
-      const reservation = await this.reservationRepository.storeReservation(reservationData);
-
-      // reservedSeat 정보 저장
-      const reservedSeats = await Promise.all(
-        reservationCreateDto.seats.map(async (seat) => {
-          const reservedSeatData: any = {
-            section: seat.sectionIndex,
-            row: seat.row,
-            col: seat.col,
-            reservation: reservation,
-          };
-          const reservedSeat = await this.reservedSeatRepository.storeReservedSeat(reservedSeatData);
-          return `${reservedSeat['section']}구역 ${reservedSeat['row']}행 ${reservedSeat['col']}열`;
-        }),
-      );
+      const reservation = await this.makeReservation(reservationCreateDto, program, event, userId);
+      const reservedSeats = await this.makeReservedSeat(reservationCreateDto, reservation);
 
       // 예약정보 반환
       return {
@@ -127,5 +105,36 @@ export class ReservationService {
     return seats.length < 0 || seats.length > 4;
   }
 
-  async;
+  // reservation 테이블에 reservation을 저장하는 함수
+  async makeReservation(
+    reservationCreateDto: ReservationCreateDto,
+    program: Program,
+    event: Event,
+    userId: number,
+  ) {
+    // reservation 정보 저장
+    const reservationData: any = {
+      createdAt: new Date(),
+      amount: reservationCreateDto.seats.length,
+      program: program,
+      event: event,
+      user: await this.userRepository.findById(userId),
+    };
+    return await this.reservationRepository.storeReservation(reservationData);
+  }
+
+  async makeReservedSeat(reservationCreateDto: ReservationCreateDto, reservation: Reservation[]) {
+    return await Promise.all(
+      reservationCreateDto.seats.map(async (seat) => {
+        const reservedSeatData: any = {
+          section: seat.sectionIndex,
+          row: seat.row,
+          col: seat.col,
+          reservation: reservation,
+        };
+        const reservedSeat = await this.reservedSeatRepository.storeReservedSeat(reservedSeatData);
+        return `${reservedSeat['section']}구역 ${reservedSeat['row']}행 ${reservedSeat['col']}열`;
+      }),
+    );
+  }
 }
