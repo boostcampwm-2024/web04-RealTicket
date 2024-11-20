@@ -13,6 +13,10 @@ async function bootstrap() {
     logger: winstonLoggerConfig,
   });
   setupSwagger(app);
+  app.enableCors({
+    origin: '*',
+    credentials: true,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
