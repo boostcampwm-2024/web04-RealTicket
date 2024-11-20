@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 
-import { getPrograms } from '@/api/getPrograms.ts';
+import { getPrograms } from '@/api/program';
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 
-//TODO 지연로딩,  로딩 skeleton 적용, scrollbar 관리(나타나면서 화면을 밀어버린다 )
+//TODO 지연로딩,  로딩 skeleton 적용, scrollbar 관리(나타나면서 화면을 밀어버린다 ), queryKey 관리 필요
 export default function ProgramsPage() {
   const { data } = useSuspenseQuery({ queryKey: ['programs'], queryFn: getPrograms });
   console.log(data);
