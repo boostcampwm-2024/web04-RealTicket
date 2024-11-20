@@ -1,18 +1,45 @@
-import useForm, { Validate } from '@/hooks/useForm.tsx';
+import { useNavigate } from 'react-router-dom';
+
+import { type CustomError } from '@/api/axios.ts';
+import { type SignData, postSignup } from '@/api/user.ts';
+
+import useForm, { type Validate } from '@/hooks/useForm.tsx';
 
 import Button from '@/components/common/Button.tsx';
 import Field from '@/components/common/Field.tsx';
 import Icon from '@/components/common/Icon.tsx';
 import Input from '@/components/common/Input.tsx';
 
+import { useMutation } from '@tanstack/react-query';
+import { AxiosResponse } from 'axios';
+
+type Form = {
+  id: string;
+  password: string;
+  checkPassword: string;
+};
 export default function SignUpPage() {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm();
-  const submit = async (data: unknown) => {
-    console.log(data);
+  } = useForm<Form>();
+  const navigate = useNavigate();
+  const { mutate, error, isPending } = useMutation<AxiosResponse, CustomError, SignData>({
+    mutationFn: postSignup,
+    onError: (error) => {
+      alert(`회윈가입에 실패했습니다. 다시 시도해주세요.\n
+        사유:${error.response?.data.message}`);
+    },
+    onSuccess: () => {
+      alert('화원가입에 성공했습니다. 로그인 해주세요');
+      navigate('/signin');
+    },
+  });
+
+  const submit = async (data: Form) => {
+    const { id, password } = data;
+    await mutate({ login_id: id, login_password: password });
   };
   const is = false;
   //TODO Id 중복 체크 필
@@ -21,14 +48,14 @@ export default function SignUpPage() {
       <form
         onSubmit={handleSubmit(submit)}
         className="flex w-[420px] flex-col gap-6 rounded-xl border border-surface-cardBorder px-6 py-8 shadow-2xl">
-        <h2 className="text-center text-heading1">로그인</h2>
+        <h2 className="text-center text-heading1">회원가입</h2>
         <Field
           label="Id"
-          isValid={!errors.id}
-          errorMessage={errors.id}
+          isValid={!errors.id && !error}
+          errorMessage={errors.id ? errors.id : error?.response?.data.message}
           helpMessage="4자 이상 12자 이하의 영문 소문자와 숫자로 구성해주세요.">
           <Input
-            disabled={is}
+            disabled={isPending}
             {...register('id', {
               validate: validate,
             })}
@@ -37,12 +64,12 @@ export default function SignUpPage() {
         </Field>
         <Field
           label="Password"
-          isValid={!errors.password}
-          errorMessage={errors.password}
+          isValid={!errors.password && !error}
+          errorMessage={errors.password ? errors.password : error?.response?.data.message}
           helpMessage="4자 이상 12자 이하의 영문 소문자와 숫자로 구성해주세요.">
           <Input
             type="password"
-            disabled={is}
+            disabled={isPending}
             autoComplete="off"
             {...register('password', {
               validate: validate,
@@ -50,7 +77,10 @@ export default function SignUpPage() {
             placeholder="비밀번호를 입력해주세요."
           />
         </Field>
-        <Field label="CheckPassword" isValid={!errors.checkPassword} errorMessage={errors.checkPassword}>
+        <Field
+          label="CheckPassword"
+          isValid={!errors.checkPassword && !error}
+          errorMessage={errors.checkPassword ? errors.checkPassword : error?.response?.data.message}>
           <Input
             type="password"
             disabled={is}
@@ -63,7 +93,7 @@ export default function SignUpPage() {
         </Field>
 
         <Button type="submit" disabled={is}>
-          {is ? (
+          {isPending ? (
             <>
               <Icon iconName="Loading" className="animate-spin" />
               <span className="text-label1 text-typo-disable">회원가입 중...</span>
@@ -77,7 +107,7 @@ export default function SignUpPage() {
   );
 }
 
-const validate: Validate = ({ value }) => {
+const validate: Validate<Form> = ({ value }) => {
   const isRightLength = value.length >= 4 && value.length <= 12;
   const patternReg = new RegExp(/^[a-z0-9]+$/);
   const isRightPattern = patternReg.test(value);
@@ -85,7 +115,7 @@ const validate: Validate = ({ value }) => {
   if (!isRightPattern) return '소문자 영어, 숫자 조합으로 작성해주세요.';
   return null;
 };
-const passwordCheckValidate: Validate = ({ value, formData }) => {
+const passwordCheckValidate: Validate<Form> = ({ value, formData }) => {
   const { password } = formData;
   const isEqual = password == value;
   if (!isEqual) return '비밀번호와 일치하지 않습니다.';

@@ -1,7 +1,4 @@
-import { Suspense } from 'react';
 import { RouterProvider } from 'react-router-dom';
-
-import LoadingPage from '@/pages/Loading.tsx';
 
 import AuthProvider from '@/providers/AuthProvider';
 import QueryProvider from '@/providers/QueryProvider';
@@ -11,9 +8,7 @@ function App() {
   return (
     <AuthProvider>
       <QueryProvider>
-        <Suspense fallback={<LoadingPage />}>
-          <RouterProvider router={router} />
-        </Suspense>
+        <RouterProvider router={router} />
       </QueryProvider>
     </AuthProvider>
   );
