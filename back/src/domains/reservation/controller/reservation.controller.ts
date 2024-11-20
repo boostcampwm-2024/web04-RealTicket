@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  Body,
   ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
   InternalServerErrorException,
   Param,
+  Post,
+  Req,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -18,13 +21,17 @@ import {
   ApiOkResponse,
   ApiOperation,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
+import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
+import { ReservationResultDto } from '../dto/reservationResultDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { ReservationService } from '../service/reservation.service';
 
@@ -73,5 +80,31 @@ export class ReservationController {
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('서버 내부 에러');
     }
+  }
+
+  @ApiOperation({
+    summary: '예매 확',
+    description:
+      '예매 확정을 위한 API로 Body 요청을 담아서 보내면 해당 내용을 DB에 저장하고 예약 내역을 반환해준다.',
+  })
+  @ApiOkResponse({
+    description: '예매 확정 성공',
+    type: ReservationResultDto,
+    example: {
+      programName: 'Romeo and Juliet',
+      runningDate: '2024-12-01T09:00:00.000Z',
+      placeName: 'Grand Theater',
+      price: 50,
+      seats: ['1구역 1행 2열', '1구역 1행 3열', '1구역 1행 4열', '1구역 1행 2열'],
+    },
+  })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청' })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러' })
+  //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @UseInterceptors(TransformInterceptor)
+  @Post()
+  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
+    const sid = req.cookies['SID'];
+    return this.reservationService.recordReservation(reservationCreateDto, sid);
   }
 }

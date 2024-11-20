@@ -24,4 +24,9 @@ export class ReservationRepository {
       deletedAt: null,
     });
   }
+
+  async storeReservation(reservationData: any) {
+    const reservation = this.ReservationRepository.create(reservationData);
+    return await this.ReservationRepository.save(reservation);
+  }
 }
