@@ -1,14 +1,16 @@
 import { createContext } from 'react';
 
-import type { AuthDispatch } from '@/hooks/useAuthReducer';
-
 export interface IAuthContextValue {
   isSignIn: boolean;
-  dispatch: AuthDispatch | null;
+  userId: null | string;
+  signIn: ((useId: string) => void) | null;
+  logout: (() => void) | null;
 }
 
 const AUTH_CONTEXT_DEFAULT_VALUE: IAuthContextValue = {
   isSignIn: false,
-  dispatch: null,
+  userId: null,
+  signIn: null,
+  logout: null,
 };
 export const AuthContext = createContext(AUTH_CONTEXT_DEFAULT_VALUE);

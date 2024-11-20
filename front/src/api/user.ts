@@ -2,8 +2,8 @@ import { apiClient } from '@/api/axios.ts';
 
 import { API } from '@/constants/index.ts';
 
-export const postSignup = (data: SignData) => apiClient.post<SignData>(API.USER.SIGNUP, data);
-export const postSignin = (data: SignData) => apiClient.post<SignData>(API.USER.SIGNIN, data);
+export const postSignup = (data: SignData) => apiClient.post(API.USER.SIGNUP, data);
+export const postSignin = (data: SignData) => apiClient.post(API.USER.SIGNIN, data);
 export const postLogout = () => apiClient.post(API.USER.LOGOUT);
 
 export type SignData = {

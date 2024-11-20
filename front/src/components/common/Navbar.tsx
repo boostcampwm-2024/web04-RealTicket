@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
-// import { useAuthContext } from '@/hooks/useAuthContext.tsx';
+import { useAuthContext } from '@/hooks/useAuthContext.tsx';
+
 import Button from '@/components/common/Button';
 import Icon from '@/components/common/Icon';
 import Popover from '@/components/common/Popover';
@@ -11,9 +12,6 @@ import { getDate, getTime } from '@/utils/date';
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 400;
-
-const isSignIn = true;
-const userId = 'test112';
 
 const reservations = [
   {
@@ -31,10 +29,10 @@ const reservations = [
     seats: ['B구역 2행 3열', 'C구역 10행 15열', 'I구역 3행 17열'],
   },
 ];
-//TODO url 상수화
+//TODO url 상수화, 자동로그인 추가
 export default function Navbar() {
-  // const { isSignIn } = useAuthContext();
-
+  const { isSignIn, userId } = useAuthContext();
+  //TODO 예약 내역
   return (
     <header className="flex w-full justify-between px-8 py-4">
       <Link to="/" className="flex items-center gap-5">
@@ -101,7 +99,6 @@ interface IReservation {
 }
 
 function ReservationCard({ id, name, runningDate, place, seats }: IReservation) {
-  //TODO api 처리 요청
   return (
     <div className="relative w-full rounded-xl border border-surface-cardBorder bg-surface-card p-6">
       <div className="flex max-w-[calc(100%-64px)] flex-col gap-6 text-left">
