@@ -15,6 +15,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
@@ -25,10 +26,14 @@ import { Observable } from 'rxjs';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { AuthService } from '../../../auth/service/auth.service';
+import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReqDto';
 import { BookingAmountResDto } from '../dto/bookingAmountResDto';
-import { BookingSeatsService } from '../service/booking-seats.service';
+import { BookReqDto } from '../dto/bookReqDto';
+import { BookResDto } from '../dto/bookResDto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
+import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
 
@@ -37,7 +42,8 @@ export class BookingController {
   constructor(
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
-    private readonly seatsUpdateService: BookingSeatsService,
+    private readonly bookingSeatsService: BookingSeatsService,
+    private readonly authService: AuthService,
   ) {}
 
   @UseGuards(SessionAuthGuard())
@@ -73,7 +79,29 @@ export class BookingController {
   @ApiOkResponse({ description: 'SSE 연결 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number): Promise<Observable<MessageEvent>> {
-    return this.seatsUpdateService.subscribeSeats(eventId);
+    return this.bookingSeatsService.subscribeSeats(eventId);
+  }
+
+  @Post('')
+  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @ApiOperation({
+    summary: '좌석 점유/취소',
+    description: '좌석 하나를 대상으로 점유/취소 요청을 보낸다.',
+  })
+  @ApiOkResponse({ description: '좌석 점유/취소 성공' })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiConflictResponse({ description: '이미 점유/취소된 좌석' })
+  async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookReqDto) {
+    const sid = req.cookies['SID'];
+    const eventId = await this.authService.getUserEventTarget(sid);
+
+    if (dto.expectedStatus === SeatStatus.RESERVE) {
+      const result = await this.bookingSeatsService.bookSeat(eventId, [dto.sectionIndex, dto.seatIndex]);
+      return new BookResDto(result);
+    } else if (dto.expectedStatus === SeatStatus.DELETE) {
+      const result = await this.bookingSeatsService.unBookSeat(eventId, [dto.sectionIndex, dto.seatIndex]);
+      return new BookResDto(result);
+    }
   }
 
   @ApiOperation({ summary: '서버 시간 조회', description: '서버의 현재 시간을 조회한다.' })
