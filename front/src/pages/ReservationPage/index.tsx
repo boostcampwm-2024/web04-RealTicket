@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
-import ReservationResult from '@/pages/SeatPage/ReservationResult.tsx';
-import SeatCountAndCaptcha from '@/pages/SeatPage/SeatCountAndCaptcha';
-import type { SeatCount } from '@/pages/SeatPage/SeatCountAndCaptcha';
-import SectionAndSeat from '@/pages/SeatPage/SectionAndSeat';
+import ReservationResult from '@/pages/ReservationPage/ReservationResult';
+import SeatCountAndCaptcha from '@/pages/ReservationPage/SeatCountAndCaptcha';
+import type { SeatCount } from '@/pages/ReservationPage/SeatCountAndCaptcha';
+import SectionAndSeat from '@/pages/ReservationPage/SectionAndSeat';
 
 type ReservationStep = 'setCount' | 'selectSeats' | 'result '; //TODO 의미 있게 작성하기
 const DEFAULT_SEAT_COUNT = 1;

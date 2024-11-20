@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Button from '@/components/common/Button.tsx';
 import Separator from '@/components/common/Separator.tsx';
 
-import SectionSelectorMap from '@/pages/SeatPage/SectionSelectorMap.tsx';
+import SectionSelectorMap from '@/pages/ReservationPage/SectionSelectorMap';
 
 import { getDate, getTime } from '@/utils/date.ts';
 

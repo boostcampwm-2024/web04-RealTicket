@@ -3,8 +3,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 import AdminPage from '@/pages/AdminPage';
 import ProgramDetailPage from '@/pages/ProgramDetailPage';
 import ProgramsPage from '@/pages/ProgramsPage';
+import ReservationPage from '@/pages/ReservationPage';
 import ReservationWaitingPage from '@/pages/ReservationWaitingPage';
-import SeatPage from '@/pages/SeatPage';
 import SignInPage from '@/pages/SignInPage';
 import SignUpPage from '@/pages/SignUpPage';
 
@@ -24,7 +24,7 @@ const router = createBrowserRouter([
       { path: '/signUp', element: <SignUpPage /> },
       { path: '/admin', element: <AdminPage /> },
       { path: '/events/:eventId/waiting', element: <ReservationWaitingPage /> },
-      { path: '/events/:eventId', element: <SeatPage /> },
+      { path: '/events/:eventId', element: <ReservationPage /> },
     ],
   },
 ]);
