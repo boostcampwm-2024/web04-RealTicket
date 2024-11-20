@@ -14,6 +14,6 @@ import { PlaceService } from './service/place.service';
   imports: [TypeOrmModule.forFeature([Place, Section]), forwardRef(() => ProgramModule)],
   providers: [PlaceService, PlaceRepository, SectionRepository],
   controllers: [PlaceController],
-  exports: [PlaceRepository],
+  exports: [PlaceRepository, SectionRepository],
 })
 export class PlaceModule {}

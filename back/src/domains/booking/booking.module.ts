@@ -8,10 +8,11 @@ import { BookingController } from './controller/booking.controller';
 import { BookingSeatsService } from './service/booking-seats.service';
 import { BookingService } from './service/booking.service';
 import { InBookingService } from './service/in-booking.service';
+import { OpenBookingService } from './service/open-booking.service';
 
 @Module({
   imports: [EventModule, AuthModule, PlaceModule],
   controllers: [BookingController],
-  providers: [BookingService, InBookingService, BookingSeatsService],
+  providers: [BookingService, InBookingService, OpenBookingService, BookingSeatsService],
 })
 export class BookingModule {}

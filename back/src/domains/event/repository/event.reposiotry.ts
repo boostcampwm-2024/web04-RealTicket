@@ -8,6 +8,10 @@ import { Event } from '../entity/event.entity';
 export class EventRepository {
   constructor(@InjectRepository(Event) private EventRepository: Repository<Event>) {}
 
+  async selectEvents(): Promise<Event[]> {
+    return await this.EventRepository.find();
+  }
+
   async selectEvent(id: number): Promise<Event> {
     return await this.EventRepository.findOne({ where: { id } });
   }
