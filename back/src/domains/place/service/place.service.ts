@@ -8,6 +8,7 @@ import {
 import { DataSource } from 'typeorm';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
+import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { Place } from '../entity/place.entity';
@@ -74,5 +75,9 @@ export class PlaceService {
       const sectionOrder = sections.map((section) => section.id.toString());
       await this.placeRepository.updateSectionsById(sectionOrder, placeId);
     });
+  }
+
+  async deletePlace({ placeId }: PlaceIdDto) {
+    await this.placeRepository.deleteById(placeId);
   }
 }

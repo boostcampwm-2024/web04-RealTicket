@@ -16,4 +16,8 @@ export class SectionRepository {
     const secitonEntity = this.sectionRepository.create(section);
     return await this.sectionRepository.save(secitonEntity);
   }
+
+  async deleteByPlaceId(placeId: number): Promise<void> {
+    await this.sectionRepository.delete({ place: { id: placeId } });
+  }
 }

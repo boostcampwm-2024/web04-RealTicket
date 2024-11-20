@@ -3,9 +3,11 @@ import {
   Body,
   ClassSerializerInterceptor,
   Controller,
+  Delete,
   Get,
   HttpStatus,
   InternalServerErrorException,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
@@ -27,6 +29,7 @@ import {
 import { NotFoundError } from 'rxjs';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
+import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { getSeatResponseExample } from '../example/response/getSeatResponseExample';
@@ -85,6 +88,24 @@ export class PlaceController {
       await this.placeService.createPlace(placeCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('서버 내부 오류');
+    }
+  }
+
+  @Delete(':placeId')
+  @ApiOperation({ summary: '장소 삭제[관리자]', description: 'placeId에 해당하는 장소를 삭제한다' })
+  @ApiParam({ name: 'placeId', description: '장소 아이디', type: Number, example: 1 })
+  @ApiOkResponse({ description: '장소 삭제 성공' })
+  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
+  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
+  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
+  @ApiNotFoundResponse({ description: '장소가 존재하지 않음', type: Error })
+  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  async deletePlace(@Param() placeIdDto: PlaceIdDto) {
+    try {
+      await this.placeService.deletePlace(placeIdDto);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('서버 내부 오류');
     }
   }
