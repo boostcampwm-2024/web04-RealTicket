@@ -33,8 +33,6 @@ export default function SectionAndSeat({
   const viewBoxData = `0 0 ${overviewWidth} ${overviewHeight}`;
   const isSelectionComplete = seatCount <= selectedSeats.length;
 
-  const seatsGridClass =
-    selectedSectionSeatMap && `grid-cols-[repeat(${selectedSectionSeatMap.colLength},min-content)]`;
   //TODO 폰트 크기 구하기 필요, 레이아웃 반복문으로 만들기
   return (
     <div className="flex w-full gap-4">
@@ -70,7 +68,13 @@ export default function SectionAndSeat({
           </>
         )}
         {selectedSection && selectedSectionSeatMap ? (
-          <div className={twMerge(cx('mx-auto grid auto-cols-min gap-4', seatsGridClass))}>
+          <div
+            className={twMerge(
+              cx(
+                'mx-auto grid auto-cols-min gap-4',
+                selectedSectionSeatMap && `grid-cols-${selectedSectionSeatMap.colLength}`,
+              ),
+            )}>
             {renderSeatMap(
               selectedSectionSeatMap,
               seatStatus!.seats,
@@ -215,7 +219,7 @@ const SECTIONS = [
 const placeInfo = {
   id: 1,
   name: '공연장 이름',
-  overviewSvgUrl: '/public/images/stageSimple.svg', //백그라운드가 들어갈 이미지 URL
+  overviewSvgUrl: '/images/stageSimple.svg', //백그라운드가 들어갈 이미지 URL
   overviewHeight: 3019,
   overviewWidth: 4394,
   sections: SECTIONS,
