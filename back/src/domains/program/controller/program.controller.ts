@@ -80,12 +80,12 @@ export class ProgramController {
       type: 'object',
       properties: {
         name: { type: 'string', description: '프로그램 이름', example: '맘마미아' },
-        'profile-url': { type: 'string', description: '프로그램 사진 URL', example: '/profile.png' },
-        'running-time': { type: 'number', description: '프로그램 진행 시간(초)', example: 10000 },
+        profileUrl: { type: 'string', description: '프로그램 사진 URL', example: '/profile.png' },
+        runningTime: { type: 'number', description: '프로그램 진행 시간(초)', example: 10000 },
         genre: { type: 'string', description: '프로그램 장르', example: '뮤지컬' },
         actors: { type: 'string', description: '출연진(들)', example: '김동현, 김동현' },
         price: { type: 'number', description: '입장권 가격', example: 15000 },
-        'place-id': { type: 'number', description: '장소 아이디', example: 1 },
+        placeId: { type: 'number', description: '장소 아이디', example: 1 },
       },
     },
   })

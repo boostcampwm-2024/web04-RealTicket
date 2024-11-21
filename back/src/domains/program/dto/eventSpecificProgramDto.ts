@@ -1,5 +1,3 @@
-import { Expose } from 'class-transformer';
-
 export class EventSpecificProgramDto {
   constructor({ id, runningDate }) {
     this.id = id;
@@ -7,6 +5,5 @@ export class EventSpecificProgramDto {
   }
 
   id: number;
-  @Expose({ name: 'running-date' })
   runningDate: Date;
 }
