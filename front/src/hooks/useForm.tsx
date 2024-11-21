@@ -8,19 +8,13 @@ interface IFormState {
   isSubmitting: boolean;
   isValid: boolean;
 }
-export type Validate = ({
-  value,
-  formData,
-}: {
-  value: string;
-  formData: Record<string, string>;
-}) => null | string;
-interface IResisterConfig {
-  validate: Validate;
+export type Validate<T> = ({ value, formData }: { value: string; formData: T }) => null | string;
+interface IResisterConfig<T> {
+  validate: Validate<T>;
 }
 export default function useForm<T extends Record<string, unknown>>() {
   const itemRefListRef = useRef<null | Map<string, HTMLElement>>(null);
-  const itemValidationListRef = useRef<Record<string, Validate>>({});
+  const itemValidationListRef = useRef<Record<string, Validate<T>>>({});
   const [formState, setFormState] = useState<IFormState>({
     errors: {},
     isSubmitting: false,
@@ -34,7 +28,7 @@ export default function useForm<T extends Record<string, unknown>>() {
     return itemRefListRef.current;
   };
 
-  const register = (name: string, config: IResisterConfig) => {
+  const register = (name: string, config: IResisterConfig<T>) => {
     const ref = (item: HTMLElement | null) => {
       const map = getMap();
       if (!item) return;
@@ -59,12 +53,16 @@ export default function useForm<T extends Record<string, unknown>>() {
         });
         itemList.forEach((_, key) => {
           const itemValue = formData[key];
-          const validationResult = itemValidationListRef.current[key]({ value: itemValue, formData });
+          const validationResult = itemValidationListRef.current[key]({
+            value: itemValue,
+            formData: formData as T,
+          });
           if (validationResult) {
             errors = { ...errors, [key]: validationResult };
           }
         });
         const hasError = Object.keys(errors).length > 0;
+        console.log(hasError);
         if (!hasError) {
           await submit(formData as T);
           setFormState((prevState) => ({ ...prevState, errors: {}, isValid: true }));

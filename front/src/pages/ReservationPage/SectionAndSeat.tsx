@@ -7,6 +7,7 @@ import SectionSelectorMap from '@/pages/ReservationPage/SectionSelectorMap';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
+import { EventDetail } from '@/type/index.ts';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,10 +15,12 @@ interface ISectionAndSeatProps {
   seatCount: 1 | 2 | 3 | 4;
   goNextStep: () => void;
   setReservationResult: (result: string[]) => void;
+  event: EventDetail;
 }
 export default function SectionAndSeat({
   seatCount,
   goNextStep,
+  event,
   setReservationResult,
 }: ISectionAndSeatProps) {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
@@ -224,29 +227,6 @@ const placeInfo = {
   overviewWidth: 4394,
   sections: SECTIONS,
 };
-
-const event: Event = {
-  id: 1,
-  title: "IU 2024 콘서트 'I and You'",
-  place: '서울 올림픽공원 체조경기장',
-  runningTime: 120, // 2시간
-  price: 124000,
-  runningDate: new Date('2024-12-10T19:00:00'),
-  reservationOpenDate: new Date('2024-11-15T10:00:00'),
-  reservationCloseDate: new Date('2024-12-10T18:00:00'),
-  actors: '아이유 (IU)',
-};
-interface Event {
-  id: number;
-  title: string;
-  place: string;
-  price: number;
-  runningTime: number;
-  runningDate: Date;
-  reservationOpenDate: Date;
-  reservationCloseDate: Date;
-  actors: string;
-}
 
 const initialSeatMap = [
   {

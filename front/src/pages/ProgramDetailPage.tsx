@@ -1,23 +1,35 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { CustomError } from '@/api/axios.ts';
+import { getMockProgramDetail } from '@/api/program.ts';
+
 import Button from '@/components/common/Button.tsx';
 import Radio from '@/components/common/Radio.tsx';
 import Separator from '@/components/common/Separator';
 
 import { getDate, getDay, getTime } from '@/utils/date.ts';
 
+import { ProgramDetail } from '@/type/index.ts';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { AxiosResponse } from 'axios';
 import { cx } from 'class-variance-authority';
 
 //TODO 페이지 계층 컴포넌트 분리
 export default function ProgramDetailPage() {
-  const { programId } = useParams();
+  const { programId } = useParams(); //초기 데이터 호출용
   console.log(programId);
-  const { events } = programData;
+  const { data } = useSuspenseQuery<AxiosResponse<ProgramDetail>, CustomError>({
+    queryKey: ['program/1'],
+    queryFn: getMockProgramDetail(1),
+  });
+  const programDetail = data.data;
+  const { events } = programDetail;
   const [selected, setSelected] = useState<{ date: null | string; time: null | string }>({
     date: null,
     time: null,
   });
+
   const dateList = [...new Set(events.map((event) => event.runningDate.toDateString()))];
   const startDate = dateList[0];
   const lastDate = dateList[dateList.length - 1];
@@ -29,9 +41,10 @@ export default function ProgramDetailPage() {
   });
   const timeList = [...new Set(filteredDateEvents.map((event) => getTime(event.runningDate)))];
   const selectedEvent = filteredDateEvents.find((event) => getTime(event.runningDate) === selected.time);
+
   return (
     <div className="flex flex-col gap-8">
-      <ProgramInformation {...programData} lastDate={lastDate} startDate={startDate} isOneDay={isOneDay} />
+      <ProgramInformation {...programDetail} lastDate={lastDate} startDate={startDate} isOneDay={isOneDay} />
       <div className="flex flex-col gap-2">
         <div className="flex gap-8">
           {MENU.map((item) => {
@@ -125,7 +138,7 @@ const ProgramInformation = ({
 }: IProgramInformationProps) => {
   return (
     <div className="flex gap-8">
-      <img src={profileUrl} width={200} height={300} alt={`${name}`} />
+      <img src={profileUrl || 'https://picsum.photos/200/300'} width={200} height={300} alt={`${name}`} />
       <div className="flex flex-grow flex-col gap-8">
         <h3 className="text-heading1 text-typo">{name}</h3>
         <div className="flex gap-8 text-display1 text-typo">
@@ -144,66 +157,66 @@ const ProgramInformation = ({
   );
 };
 
-const programData: Program = {
-  id: 1,
-  name: '서울의 밤: 라이브 콘서트',
-  runningTime: 150,
-  genre: '음악/공연',
-  actors: '아이유, 지코, 박보검',
-  place: '서울 올림픽 공원',
-  profileUrl: 'https://picsum.photos/200/300?random=1',
-  price: 120000, // 가격은 원 단위로, 예시로 12만원
-  events: [
-    {
-      id: 1,
-      runningDate: new Date('2024-12-01T14:00:00'),
-    },
-    {
-      id: 2,
-      runningDate: new Date('2024-12-01T17:00:00'),
-    },
-    {
-      id: 3,
-      runningDate: new Date('2024-12-01T20:00:00'),
-    },
-    {
-      id: 4,
-      runningDate: new Date('2024-12-01T23:00:00'),
-    },
-    {
-      id: 5,
-      runningDate: new Date('2024-12-02T14:00:00'),
-    },
-    {
-      id: 6,
-      runningDate: new Date('2024-12-02T17:00:00'),
-    },
-    {
-      id: 7,
-      runningDate: new Date('2024-12-02T20:00:00'),
-    },
-    {
-      id: 8,
-      runningDate: new Date('2024-12-02T23:00:00'),
-    },
-    {
-      id: 9,
-      runningDate: new Date('2024-12-03T14:00:00'),
-    },
-    {
-      id: 10,
-      runningDate: new Date('2024-12-03T17:00:00'),
-    },
-    {
-      id: 11,
-      runningDate: new Date('2024-12-03T20:00:00'),
-    },
-    {
-      id: 12,
-      runningDate: new Date('2024-12-03T23:00:00'),
-    },
-  ],
-};
+// const programData: Program = {
+//   id: 1,
+//   name: '서울의 밤: 라이브 콘서트',
+//   runningTime: 150,
+//   genre: '음악/공연',
+//   actors: '아이유, 지코, 박보검',
+//   place: '서울 올림픽 공원',
+//   profileUrl: 'https://picsum.photos/200/300?random=1',
+//   price: 120000, // 가격은 원 단위로, 예시로 12만원
+//   events: [
+//     {
+//       id: 1,
+//       runningDate: new Date('2024-12-01T14:00:00'),
+//     },
+//     {
+//       id: 2,
+//       runningDate: new Date('2024-12-01T17:00:00'),
+//     },
+//     {
+//       id: 3,
+//       runningDate: new Date('2024-12-01T20:00:00'),
+//     },
+//     {
+//       id: 4,
+//       runningDate: new Date('2024-12-01T23:00:00'),
+//     },
+//     {
+//       id: 5,
+//       runningDate: new Date('2024-12-02T14:00:00'),
+//     },
+//     {
+//       id: 6,
+//       runningDate: new Date('2024-12-02T17:00:00'),
+//     },
+//     {
+//       id: 7,
+//       runningDate: new Date('2024-12-02T20:00:00'),
+//     },
+//     {
+//       id: 8,
+//       runningDate: new Date('2024-12-02T23:00:00'),
+//     },
+//     {
+//       id: 9,
+//       runningDate: new Date('2024-12-03T14:00:00'),
+//     },
+//     {
+//       id: 10,
+//       runningDate: new Date('2024-12-03T17:00:00'),
+//     },
+//     {
+//       id: 11,
+//       runningDate: new Date('2024-12-03T20:00:00'),
+//     },
+//     {
+//       id: 12,
+//       runningDate: new Date('2024-12-03T23:00:00'),
+//     },
+//   ],
+// };
 interface Event {
   id: number;
   name: string;
