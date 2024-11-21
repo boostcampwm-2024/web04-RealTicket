@@ -11,7 +11,7 @@ export default function Layout() {
       <Navbar />
 
       <Suspense fallback={<LoadingPage />}>
-        <div className="mx-auto my-4 flex max-w-[1080px] items-center justify-center">
+        <div className="mx-auto my-4 flex h-[calc(100vh-72px)] max-w-[1080px] items-center justify-center">
           <Outlet />
         </div>
       </Suspense>

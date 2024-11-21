@@ -9,3 +9,7 @@ export { default as Trash } from '@/assets/icons/trash.svg?react';
 export { default as UpArrow } from '@/assets/icons/up-arrow.svg?react';
 export { default as User } from '@/assets/icons/user.svg?react';
 export { default as Clock } from '@/assets/icons/clock.svg?react';
+export { default as CheckCircle } from '@/assets/icons/check-circle.svg?react';
+export { default as MapPin } from '@/assets/icons/map-pin.svg?react';
+export { default as Calendar } from '@/assets/icons/calendar.svg?react';
+export { default as Ticket } from '@/assets/icons/ticket.svg?react';
