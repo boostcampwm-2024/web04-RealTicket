@@ -12,8 +12,8 @@ export class SectionRepository {
     return await this.sectionRepository.findOne({ where: { id } });
   }
 
-  async findByName(name: string): Promise<Section> {
-    return await this.sectionRepository.findOne({ where: { name } });
+  async findById(id: number): Promise<Section> {
+    return await this.sectionRepository.findOne({ where: { id } });
   }
 
   async storeSection(section: any): Promise<Section[]> {

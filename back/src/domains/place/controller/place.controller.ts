@@ -60,7 +60,7 @@ export class PlaceController {
   async getSeats(
     @Param('placeId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) placeId: number,
   ) {
-    return this.placeService.getSeats(placeId);
+    return await this.placeService.getSeats(placeId);
   }
 
   @Post()
