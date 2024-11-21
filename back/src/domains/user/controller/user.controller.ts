@@ -9,7 +9,6 @@ import {
   Req,
   Res,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -25,7 +24,6 @@ import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
-import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
@@ -51,7 +49,6 @@ export class UserController {
   })
   @ApiOkResponse({ description: '회원가입 성공' })
   @ApiConflictResponse({ description: '이미 존재하는 사용자입니다.' })
-  @UseInterceptors(TransformInterceptor)
   @HttpCode(HttpStatus.CREATED)
   @Post('signup')
   async signup(@Body() createUserDto: UserCreateDto) {
@@ -73,7 +70,6 @@ export class UserController {
   })
   @ApiOkResponse({ description: '회원가입 성공' })
   @ApiConflictResponse({ description: '이미 존재하는 사용자입니다.' })
-  @UseInterceptors(TransformInterceptor)
   @HttpCode(HttpStatus.CREATED)
   @Post('signup/admin')
   async signupForAdmin(@Body() createUserDto: UserCreateDto) {
@@ -95,7 +91,6 @@ export class UserController {
   })
   @ApiOkResponse({ description: '로그인 성공', example: { login_id: 'test' } })
   @ApiUnauthorizedResponse({ description: '로그인 실패 또는 등록되지 않은 사용자' })
-  @UseInterceptors(TransformInterceptor)
   @Post('login')
   async login(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
     const { sessionId, userInfo } = await this.userService.validateUser(
@@ -119,7 +114,6 @@ export class UserController {
     },
   })
   @ApiOkResponse({ description: '사용 가능한 id', example: { available: false } })
-  @UseInterceptors(TransformInterceptor)
   @Post('checkid')
   async checkInfo(@Body() userLoginIdCheckDto: UserLoginIdCheckDto) {
     return await this.userService.isAvailableLoginId(userLoginIdCheckDto);
