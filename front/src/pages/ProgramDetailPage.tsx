@@ -157,66 +157,6 @@ const ProgramInformation = ({
   );
 };
 
-// const programData: Program = {
-//   id: 1,
-//   name: '서울의 밤: 라이브 콘서트',
-//   runningTime: 150,
-//   genre: '음악/공연',
-//   actors: '아이유, 지코, 박보검',
-//   place: '서울 올림픽 공원',
-//   profileUrl: 'https://picsum.photos/200/300?random=1',
-//   price: 120000, // 가격은 원 단위로, 예시로 12만원
-//   events: [
-//     {
-//       id: 1,
-//       runningDate: new Date('2024-12-01T14:00:00'),
-//     },
-//     {
-//       id: 2,
-//       runningDate: new Date('2024-12-01T17:00:00'),
-//     },
-//     {
-//       id: 3,
-//       runningDate: new Date('2024-12-01T20:00:00'),
-//     },
-//     {
-//       id: 4,
-//       runningDate: new Date('2024-12-01T23:00:00'),
-//     },
-//     {
-//       id: 5,
-//       runningDate: new Date('2024-12-02T14:00:00'),
-//     },
-//     {
-//       id: 6,
-//       runningDate: new Date('2024-12-02T17:00:00'),
-//     },
-//     {
-//       id: 7,
-//       runningDate: new Date('2024-12-02T20:00:00'),
-//     },
-//     {
-//       id: 8,
-//       runningDate: new Date('2024-12-02T23:00:00'),
-//     },
-//     {
-//       id: 9,
-//       runningDate: new Date('2024-12-03T14:00:00'),
-//     },
-//     {
-//       id: 10,
-//       runningDate: new Date('2024-12-03T17:00:00'),
-//     },
-//     {
-//       id: 11,
-//       runningDate: new Date('2024-12-03T20:00:00'),
-//     },
-//     {
-//       id: 12,
-//       runningDate: new Date('2024-12-03T23:00:00'),
-//     },
-//   ],
-// };
 interface Event {
   id: number;
   name: string;

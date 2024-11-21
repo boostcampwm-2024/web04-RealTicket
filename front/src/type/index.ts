@@ -23,14 +23,13 @@ export interface ProgramDetail {
 }
 export interface EventDetail {
   id: number;
-  title: string;
+  name: string;
   place: { id: number; name: string };
   price: number;
   runningTime: number;
   runningDate: string;
   reservationOpenDate: string;
   reservationCloseDate: string;
-  actors: string;
 }
 
 export interface PlaceInformation {
@@ -45,9 +44,14 @@ interface Layout {
   overviewPoints: string;
   sections: Section[];
 }
-interface Section {
+export interface SectionCoordinate {
+  id: string;
+  points: number[][];
+}
+
+export interface Section {
   id: number;
   name: string;
   seats: boolean[];
-  colLength: number;
+  colLen: number;
 }

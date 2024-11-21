@@ -40,10 +40,10 @@ export default function LoginPage() {
     },
     onSuccess: (data) => {
       //쿠키에 접근을 못한다.
-      //1. localstorage에 로그인 성공시 데이터, 유저정보 저장
-      //2. 로그인 여부 저장, 유저정보 요청, 실패시 409 로그인 저장여부 제거, 다시 로그인 진행 요청
+      //1. localstorage에 로그인 성공시 데이터, 유저정보 저장, 접속시 이걸로 렌더링 하고 유저 정보를 요청한다. 비교및 권한 확인 실패시 재로그인 요청
       const { loginId } = data.data;
       if (signIn) signIn(loginId);
+
       alert('로그인 성공 '); //TODO toast 추가
       navigation('/');
     },

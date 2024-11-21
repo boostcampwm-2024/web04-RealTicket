@@ -22,15 +22,17 @@ export default function ReservationWaitingPage() {
   const navigate = useNavigate();
   const { eventId } = useParams();
   const { data: event } = useSuspenseQuery<EventDetail, CustomError>({
-    queryKey: [`event/${eventId}`],
+    queryKey: [`events/${eventId}`],
     queryFn: getEventDetail(Number(eventId)),
+    staleTime: Infinity,
   });
 
-  const { reservationOpenDate, place, title, runningDate, runningTime } = event;
+  const { reservationOpenDate, place, name, runningDate, runningTime } = event;
   const { data: placeInformation, isPending } = useQuery<PlaceInformation, CustomError>({
     queryKey: [`place/${place.id}`],
     queryFn: getPlaceInformation(Number(place.id)),
     enabled: !!event,
+    staleTime: Infinity,
   });
 
   const intervalRef = useRef<number | null>(null); // intervalType
@@ -85,7 +87,7 @@ export default function ReservationWaitingPage() {
         <div>loading</div>
       )}
       <div className="flex flex-col gap-6">
-        <h3 className="text-heading1 text-typo">{title}</h3>
+        <h3 className="text-heading1 text-typo">{name}</h3>
         <div className="flex justify-between gap-8">
           <div className="flex flex-col gap-4 text-display1">
             <span>장소 : {place.name}</span>

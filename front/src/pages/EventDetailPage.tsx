@@ -35,37 +35,7 @@ interface IPlace {
   layout: ILayout;
 }
 type Seats = boolean[];
-// interface ISeatStatus{
-//   seatStatus:Record<number, Seats>
-// }
-// const mockSection = {
-//   id: 2,
-//   name: 'B구역',
-//   view: null,
-//   seats: [
-//     true,
-//     true,
-//     false,
-//     true,
-//     true,
-//     true,
-//     true,
-//     false,
-//     true,
-//     true,
-//     true,
-//     true,
-//     false,
-//     true,
-//     true,
-//     true,
-//     true,
-//     false,
-//     true,
-//     true,
-//   ],
-//   colLength: 5,
-// };
+
 export default function ProgramDetailPage() {
   const { eventId } = useParams();
   const eventSourceRef = useRef<null | EventSource>(null);
@@ -86,14 +56,13 @@ export default function ProgramDetailPage() {
             const { data } = result;
             setPlaceData(data);
           })
-          .catch((error) => console.log(error)); // API 요청으로  화면 구현
+          .catch(() => {}); // API 요청으로  화면 구현
       };
       fetchPlace();
     } else {
       if (eventSourceRef.current === null) {
         eventSourceRef.current = new EventSource(`/mock/reservation/${eventId}`);
-        eventSourceRef.current.onmessage = (event) => {
-          console.log(event);
+        eventSourceRef.current.onmessage = () => {
           // const data:ISeatStatus=JSON.parse(event.data);
         };
       }
@@ -119,7 +88,7 @@ export default function ProgramDetailPage() {
                 width={SEAT_BOX_SIZE - SEATS_GAP}
                 height={SEAT_BOX_SIZE - SEATS_GAP}
                 fill={isNotEmpty ? 'green' : 'transparent'}
-                onClick={isNotEmpty ? () => console.log('click') : undefined}
+                onClick={isNotEmpty ? () => {} : undefined}
               />
             );
           })}

@@ -10,7 +10,7 @@ import SignUpPage from '@/pages/SignUpPage';
 
 import Layout from '@/layout/Layout';
 
-//TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정,
+//TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정, flat보다는 next 처럼 밑으로 최적화도 더 좋다
 const router = createBrowserRouter([
   {
     path: '/',
