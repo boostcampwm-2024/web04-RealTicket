@@ -44,6 +44,9 @@ export class PlaceService {
         layout: {
           overview: place.overviewSvg,
           sections: secitons,
+          overviewWidth: place.overviewWidth,
+          overviewHeight: place.overviewHeight,
+          overviewPoints: place.overviewPoints,
         },
       };
     } catch (err) {
