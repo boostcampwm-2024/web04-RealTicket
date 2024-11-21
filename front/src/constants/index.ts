@@ -12,7 +12,7 @@ export const API = {
   },
   USER: {
     SIGNUP: '/user/signup',
-    SIGNIN: '/user/login',
+    LOGIN: '/user/login', //signin->login으로변경
     CHECK_ID: '/user/checkid',
     LOGOUT: '/user/logout',
   },
