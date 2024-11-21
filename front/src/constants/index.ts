@@ -18,5 +18,9 @@ export const API = {
   },
   EVENT: {
     GET_EVENT_DETAIL_MOCK: (id: number) => `/mock/events/${id}`,
+    GET_EVENT_DETAIL: (id: number) => `event/${id}`,
+  },
+  PLACE: {
+    GET_PLACE_INFORMATION: (id: number) => `/place/seats/${id}`,
   },
 };
