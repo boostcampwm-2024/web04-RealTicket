@@ -97,7 +97,7 @@ export class UserController {
       userLoginDto.loginId,
       userLoginDto.loginPassword,
     );
-    res.cookie('SID', sessionId, { httpOnly: true, secure: true });
+    res.cookie('SID', sessionId, { httpOnly: true });
 
     return userInfo;
   }

@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
+import './config/setEnviorment';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/setupSwagger';
 import { winstonLoggerConfig } from './util/logger/winstonlogger.config';
