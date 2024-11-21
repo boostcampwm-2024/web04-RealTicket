@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import { type CustomError } from '@/api/axios.ts';
-import { SignData, postSignin } from '@/api/user.ts';
+import { type UserData, postLogin } from '@/api/user.ts';
 
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
 import useForm, { type Validate } from '@/hooks/useForm';
@@ -23,7 +23,7 @@ type ResponseData = {
 };
 
 const FAILED_MESSAGE = '아이디 또는 비밀번호가 일치하지 않습니다.';
-export default function SignInPage() {
+export default function LoginPage() {
   const {
     handleSubmit,
     register,
@@ -31,15 +31,17 @@ export default function SignInPage() {
   } = useForm<Form>();
   const { signIn } = useAuthContext();
   const navigation = useNavigate();
-  const { mutate, isPending, error } = useMutation<AxiosResponse<ResponseData>, CustomError, SignData>({
-    mutationFn: postSignin,
+  const { mutate, isPending, error } = useMutation<AxiosResponse<ResponseData>, CustomError, UserData>({
+    mutationFn: postLogin,
     onError: () => {
       //TODO 토스트 추가
       alert(`로그인 실패, 다시 시도해주세요\n 
         사유 : ${FAILED_MESSAGE}`);
     },
     onSuccess: (data) => {
-      //쿠키 저장하기
+      //쿠키에 접근을 못한다.
+      //1. localstorage에 로그인 성공시 데이터, 유저정보 저장
+      //2. 로그인 여부 저장, 유저정보 요청, 실패시 409 로그인 저장여부 제거, 다시 로그인 진행 요청
       const { loginId } = data.data;
       if (signIn) signIn(loginId);
       alert('로그인 성공 '); //TODO toast 추가
@@ -49,7 +51,7 @@ export default function SignInPage() {
 
   const submit = async (data: Form) => {
     const { id, password } = data;
-    mutate({ login_id: id, login_password: password });
+    mutate({ loginId: id, loginPassword: password });
   };
 
   return (

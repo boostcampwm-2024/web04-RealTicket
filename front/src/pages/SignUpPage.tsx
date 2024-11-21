@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import { type CustomError } from '@/api/axios.ts';
-import { type SignData, postSignup } from '@/api/user.ts';
+import { type UserData, postSignup } from '@/api/user.ts';
 
 import useForm, { type Validate } from '@/hooks/useForm.tsx';
 
@@ -25,7 +25,7 @@ export default function SignUpPage() {
     formState: { errors },
   } = useForm<Form>();
   const navigate = useNavigate();
-  const { mutate, error, isPending } = useMutation<AxiosResponse, CustomError, SignData>({
+  const { mutate, error, isPending } = useMutation<AxiosResponse, CustomError, UserData>({
     mutationFn: postSignup,
     onError: (error) => {
       alert(`회윈가입에 실패했습니다. 다시 시도해주세요.\n
@@ -39,7 +39,7 @@ export default function SignUpPage() {
 
   const submit = async (data: Form) => {
     const { id, password } = data;
-    await mutate({ login_id: id, login_password: password });
+    await mutate({ loginId: id, loginPassword: password });
   };
   const is = false;
   //TODO Id 중복 체크 필
