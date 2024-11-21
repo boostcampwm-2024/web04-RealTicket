@@ -6,7 +6,7 @@ import { MAX_BOOKING_AMOUNT, MIN_BOOKING_AMOUNT } from '../const/bookingAmount.c
 export class BookingAmountReqDto {
   @ApiProperty({
     description: '예매 수량',
-    name: 'booking-amount',
+    name: 'bookingAmount',
     type: Number,
     minimum: MIN_BOOKING_AMOUNT,
     maximum: MAX_BOOKING_AMOUNT,
