@@ -11,6 +11,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -27,6 +28,9 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { NotFoundError } from 'rxjs';
+
+import { USER_STATUS } from 'src/auth/const/userStatus.const';
+import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
@@ -60,6 +64,7 @@ export class PlaceController {
   }
 
   @Post()
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '장소 추가[관리자]', description: '새로운 장소를 추가한다.' })
   @ApiBody({
     schema: {
@@ -93,6 +98,7 @@ export class PlaceController {
   }
 
   @Delete(':placeId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '장소 삭제[관리자]', description: 'placeId에 해당하는 장소를 삭제한다' })
   @ApiParam({ name: 'placeId', description: '장소 아이디', type: Number, example: 1 })
   @ApiOkResponse({ description: '장소 삭제 성공' })
@@ -111,6 +117,7 @@ export class PlaceController {
   }
 
   @Post('section')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '섹션 추가[관리자]', description: '특정 장소에 섹션들을 추가한다' })
   @ApiBody({
     schema: {
