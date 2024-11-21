@@ -63,15 +63,12 @@ export class UserService {
     return await bcrypt.hash(password, saltRound);
   }
 
-  async loginUser(id: string, password: string) {
+  async validateUser(id: string, password: string) {
     const user = await this.userRepository.findOne(id);
-    if (!user) {
-      throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
-    }
 
     const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
-    if (!checkPasswordValid) {
-      throw new UnauthorizedException('비밀번호가 일치하지 않습니다.');
+    if (!checkPasswordValid || !user) {
+      throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
     }
     const cachedUserInfo = {
       id: user.id,
