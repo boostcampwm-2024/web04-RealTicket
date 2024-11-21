@@ -64,25 +64,37 @@ export class UserService {
   }
 
   async validateUser(id: string, password: string) {
-    const user = await this.userRepository.findOne(id);
+    try {
+      const user = await this.userRepository.findOne(id);
+      console.log(user);
+      if (!user) {
+        throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
+      }
 
-    const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
-    if (!checkPasswordValid || !user) {
-      throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
+      const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
+      if (!checkPasswordValid) {
+        throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
+      }
+      const cachedUserInfo = {
+        id: user.id,
+        loginId: user.loginId,
+        userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
+        targetEvent: null,
+      };
+      const sessionId = uuidv4();
+      const userInfoDto: UserInfoDto = new UserInfoDto();
+      userInfoDto.loginId = user.loginId;
+      // TODO
+      // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
+      await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
+      return { sessionId: sessionId, userInfo: userInfoDto };
+    } catch (err) {
+      this.logger.error(err);
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
+      throw new InternalServerErrorException('서버에서 문제가 발생하였습니다.');
     }
-    const cachedUserInfo = {
-      id: user.id,
-      loginId: user.loginId,
-      userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
-      targetEvent: null,
-    };
-    const sessionId = uuidv4();
-    const userInfoDto: UserInfoDto = new UserInfoDto();
-    userInfoDto.loginId = user.loginId;
-    // TODO
-    // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
-    await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
-    return { sessionId: sessionId, userInfo: userInfoDto };
   }
 
   async isAvailableLoginId(userLoginIdCheckDto: UserLoginIdCheckDto) {
