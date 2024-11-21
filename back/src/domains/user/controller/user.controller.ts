@@ -43,8 +43,8 @@ export class UserController {
     examples: {
       example: {
         value: {
-          login_id: 'test',
-          login_password: 'test1234',
+          loginId: 'test',
+          loginPassword: 'test1234',
         },
       },
     },
@@ -65,8 +65,8 @@ export class UserController {
     examples: {
       example: {
         value: {
-          login_id: 'test',
-          login_password: 'test1234',
+          loginId: 'test',
+          loginPassword: 'test1234',
         },
       },
     },
@@ -87,8 +87,8 @@ export class UserController {
     examples: {
       example: {
         value: {
-          login_id: 'test',
-          login_password: 'password',
+          loginId: 'test',
+          loginPassword: 'password',
         },
       },
     },
@@ -113,7 +113,7 @@ export class UserController {
     examples: {
       example: {
         value: {
-          login_id: 'test',
+          loginId: 'test',
         },
       },
     },
