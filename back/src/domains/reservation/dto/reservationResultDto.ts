@@ -2,12 +2,10 @@ import { Expose } from 'class-transformer';
 import { IsDate, IsNumber, IsString } from 'class-validator';
 
 export class ReservationResultDto {
-  @Expose({ name: 'program_name' })
   @IsString()
   programName: string;
 
   @IsDate()
-  @Expose({ name: 'running_date' })
   runningDate: Date;
 
   @IsString()
@@ -15,7 +13,7 @@ export class ReservationResultDto {
   placeName: string;
 
   @IsString({ each: true })
-  @Expose({ name: 'reserved_seats' })
+  @Expose({ name: 'reservedSeats' })
   seats: string[];
 
   @IsNumber()
