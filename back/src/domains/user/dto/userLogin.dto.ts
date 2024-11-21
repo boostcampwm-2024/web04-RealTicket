@@ -1,10 +1,15 @@
-import { IsString } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UserLoginDto {
   @IsString()
+  @MinLength(4)
+  @MaxLength(12)
+  @Matches(/^[a-z0-9]+$/)
   readonly loginId: string;
 
   @IsString()
-  //@Matches(/^[A-Za-z\d!@#$%^&*()]{8,12}/)
+  @MinLength(4)
+  @MaxLength(12)
+  @Matches(/^[a-z0-9]+$/)
   readonly loginPassword: string;
 }

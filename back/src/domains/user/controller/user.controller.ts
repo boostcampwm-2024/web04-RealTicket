@@ -78,7 +78,7 @@ export class UserController {
   @Post('signup/admin')
   async signupForAdmin(@Body() createUserDto: UserCreateDto) {
     await this.userService.registerUser(createUserDto, USER_ROLE.ADMIN);
-    return { message: '회원가입이 성공적으로 완료되었습니다.' };
+    return { message: '관리자 회원가입이 성공적으로 완료되었습니다.' };
   }
 
   @ApiOperation({ summary: '로그인', description: 'id, password를 받아 로그인 요청을 처리한다.' })
@@ -88,7 +88,7 @@ export class UserController {
       example: {
         value: {
           login_id: 'test',
-          login_password: 'test1234',
+          login_password: 'password',
         },
       },
     },
@@ -96,9 +96,9 @@ export class UserController {
   @ApiOkResponse({ description: '로그인 성공', example: { login_id: 'test' } })
   @ApiUnauthorizedResponse({ description: '로그인 실패 또는 등록되지 않은 사용자' })
   @UseInterceptors(TransformInterceptor)
-  @Post('signin')
-  async signin(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
-    const { sessionId, userInfo } = await this.userService.loginUser(
+  @Post('login')
+  async login(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
+    const { sessionId, userInfo } = await this.userService.validateUser(
       userLoginDto.loginId,
       userLoginDto.loginPassword,
     );
