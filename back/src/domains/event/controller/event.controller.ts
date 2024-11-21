@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -28,6 +29,9 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { USER_STATUS } from 'src/auth/const/userStatus.const';
+import { SessionAuthGuard } from 'src/auth/guard/session.guard';
+
 import { EventCreationDto } from '../dto/eventCreationDto';
 import { EventIdDto } from '../dto/eventIdDto';
 import { EventSpecificDto } from '../dto/eventSpecificDto';
@@ -40,9 +44,12 @@ export class EventController {
 
   @Get(':eventId')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @UseGuards(SessionAuthGuard())
   @ApiOperation({ summary: '이벤트 세부 정보 조회', description: 'id값이 일치하는 이벤트를 조회한다.' })
   @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
   @ApiOkResponse({ description: '이벤트 조회 성공', type: EventSpecificDto })
+  @ApiBadRequestResponse({ description: '파라미터 타입 오류', type: Error })
+  @ApiForbiddenResponse({ description: '유저 미인증', type: Error })
   @ApiNotFoundResponse({ description: 'id가 일치하는 이벤트 미존재', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async findOneEvent(@Param() eventIdDto: EventIdDto) {
@@ -56,6 +63,7 @@ export class EventController {
   }
 
   @Post()
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '이벤트 추가[관리자]', description: '새로운 이벤트를 추가한다.' })
   @ApiBody({
     schema: {
@@ -92,6 +100,7 @@ export class EventController {
   }
 
   @Delete(':eventId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '이벤트 삭제[관리자]', description: 'id값이 일치하는 이벤트를 삭제한다.' })
   @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
   @ApiOkResponse({ description: '이벤트 삭제 성공' })

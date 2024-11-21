@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -27,6 +28,9 @@ import {
   ApiParam,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
+import { USER_STATUS } from 'src/auth/const/userStatus.const';
+import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 
 import { ProgramCreationDto } from '../dto/programCreationDto';
 import { ProgramIdDto } from '../dto/programIdDto';
@@ -75,6 +79,7 @@ export class ProgramController {
 
   @Post()
   @ApiOperation({ summary: '프로그램 추가[관리자]', description: '새로운 프로그램을 추가한다.' })
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiBody({
     schema: {
       type: 'object',
@@ -105,6 +110,7 @@ export class ProgramController {
   }
 
   @Delete(':programId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '프로그램 삭제[관리자]', description: 'id값이 일치하는 프로그램을 삭제한다.' })
   @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
   @ApiOkResponse({ description: '프로그램 삭제 성공' })
