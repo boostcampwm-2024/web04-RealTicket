@@ -8,14 +8,15 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
-    proxy: {
-      // /api로 시작하는 모든 요청을 백엔드로 프록시
-      '/': {
-        target: 'http://localhost:8080', // 백엔드 서버 주소 (NestJS 서버)
-        changeOrigin: true, // CORS 헤더 설정을 자동으로 처리
-        rewrite: (path) => path.replace(/^\/api/, ''), // /api 제거
-      },
-    },
+    open: true,
+    // proxy: {
+    //   // /api로 시작하는 모든 요청을 백엔드로 프록시
+    //   '/api': {
+    //     target: 'http://localhost:8080', // 백엔드 서버 주소 (NestJS 서버)
+    //     changeOrigin: true, // CORS 헤더 설정을 자동으로 처리
+    //     rewrite: (path) => path.replace(/^\/api/, ''), // /api 제거
+    //   },
+    // },
   },
   plugins: [react(), svgr()],
   resolve: {

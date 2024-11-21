@@ -39,6 +39,7 @@ export default function SignInPage() {
         사유 : ${FAILED_MESSAGE}`);
     },
     onSuccess: (data) => {
+      //쿠키 저장하기
       const { loginId } = data.data;
       if (signIn) signIn(loginId);
       alert('로그인 성공 '); //TODO toast 추가

@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 
+import { postLogout } from '@/api/user.ts';
+
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
 
 import Button from '@/components/common/Button';
@@ -9,6 +11,7 @@ import Separator from '@/components/common/Separator.tsx';
 
 import { getDate, getTime } from '@/utils/date';
 
+import { useMutation } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 400;
@@ -31,7 +34,22 @@ const reservations = [
 ];
 //TODO url 상수화, 자동로그인 추가
 export default function Navbar() {
-  const { isSignIn, userId } = useAuthContext();
+  const { isSignIn, userId, logout } = useAuthContext();
+  const { mutate } = useMutation({
+    mutationFn: postLogout,
+    onError: (error) => {
+      console.log(error);
+    },
+    onSuccess: (data) => {
+      console.log(data);
+      if (logout) logout();
+    },
+  });
+
+  const logOut = () => {
+    console.log('hi');
+    mutate();
+  };
   //TODO 예약 내역
   return (
     <header className="flex w-full justify-between px-8 py-4">
@@ -65,7 +83,7 @@ export default function Navbar() {
                   ))}
                 </div>
                 <Separator direction="row" />
-                <Button intent="ghost" size="middle">
+                <Button intent="ghost" size="middle" onClick={logOut}>
                   <Icon iconName="LogOut" color="error" />
                   <span className="text-label1 text-error">로그아웃</span>
                 </Button>
