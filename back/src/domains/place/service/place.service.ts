@@ -28,11 +28,10 @@ export class PlaceService {
   async getSeats(placeId: number): Promise<SeatInfoDto> {
     try {
       const place: Place = await this.placeRepository.selectPlace(placeId);
-      console.log(place);
       const sectionNameList = place.sections;
       const secitons = await Promise.all(
         sectionNameList.map(async (sectionName) => {
-          return await this.sectionRepository.findByName(sectionName);
+          return await this.sectionRepository.findById(parseInt(sectionName, 10));
         }),
       );
 
@@ -45,6 +44,9 @@ export class PlaceService {
         layout: {
           overview: place.overviewSvg,
           sections: secitons,
+          overviewWidth: place.overviewWidth,
+          overviewHeight: place.overviewHeight,
+          overviewPoints: place.overviewPoints,
         },
       };
     } catch (err) {
