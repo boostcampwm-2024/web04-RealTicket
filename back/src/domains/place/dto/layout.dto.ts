@@ -9,6 +9,10 @@ export class layoutDto {
   })
   overview: string;
 
+  overviewWidth: number;
+  overviewHeight: number;
+  overviewPoints: string;
+
   @ApiProperty({
     description: '레이아웃의 섹션 배열',
     name: 'sections',
