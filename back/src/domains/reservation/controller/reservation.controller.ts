@@ -28,7 +28,6 @@ import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
-import { TransformInterceptor } from '../../../util/convention-transformer/transformer.interceptor';
 import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
 import { ReservationResultDto } from '../dto/reservationResultDto';
@@ -101,7 +100,6 @@ export class ReservationController {
   @ApiForbiddenResponse({ description: '인증되지 않은 요청' })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
-  @UseInterceptors(TransformInterceptor)
   @Post()
   async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
     const sid = req.cookies['SID'];

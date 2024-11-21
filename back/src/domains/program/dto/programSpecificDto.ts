@@ -1,5 +1,3 @@
-import { Expose } from 'class-transformer';
-
 import { Event } from 'src/domains/event/entity/event.entity';
 
 import { EventSpecificProgramDto } from './eventSpecificProgramDto';
@@ -23,12 +21,10 @@ export class ProgramSpecificDto {
 
   id: number;
   name: string;
-  @Expose({ name: 'running-time' })
   runningTime: number;
   genre: string;
   actors: string;
   place: PlaceSpecificProgramDto;
-  @Expose({ name: 'profile-url' })
   profileUrl: string;
   price: number;
   events: EventSpecificProgramDto[];

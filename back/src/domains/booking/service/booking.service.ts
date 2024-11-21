@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, InternalServerErrorException, Logger }
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
+import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatusDto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
@@ -18,8 +19,8 @@ export class BookingService {
   ) {}
 
   // 함수 이름 생각하기
-  async isAdmission(eventId: number, sid: string) {
-    // event_id를 받아서 해당 이벤트가 존재하는지 확인한다.
+  async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
+    // eventId를 받아서 해당 이벤트가 존재하는지 확인한다.
     const event = await this.eventService.findSpecificEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
 
@@ -35,8 +36,7 @@ export class BookingService {
 
     await this.authService.setUserEventTarget(sid, eventId);
 
-    const result = await this.tryToEnter(sid);
-    return result;
+    return await this.tryToEnter(sid);
   }
 
   private async tryToEnter(sid: string) {
@@ -44,15 +44,15 @@ export class BookingService {
     if (await this.inBookingService.insertInBooking(sid)) {
       await this.authService.setUserStatusSelectingSeat(sid);
       return {
-        'waiting-status': false,
-        'entering-status': true,
+        waitingStatus: false,
+        enteringStatus: true,
       };
     }
     // 입장이 실패하면 user의 상태를 waiting room으로 변경하기
     await this.authService.setUserStatusWaiting(sid);
     return {
-      'waiting-status': true,
-      'entering-status': false,
+      waitingStatus: true,
+      enteringStatus: false,
     };
   }
 

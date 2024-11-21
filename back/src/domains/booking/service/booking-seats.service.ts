@@ -65,7 +65,7 @@ export class BookingSeatsService {
       switchMap(async () => {
         const seatsData = await this.getSeats(eventId);
         return {
-          data: { 'seat-status': seatsData },
+          data: { seaStatus: seatsData },
         };
       }),
     );

@@ -47,9 +47,9 @@ export class BookingController {
   ) {}
 
   @UseGuards(SessionAuthGuard())
-  @Get('permission/:event_id')
+  @Get('permission/:eventId')
   async requestAdmission(
-    @Param('event_id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) eventId: number,
+    @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) eventId: number,
     @Req() req: Request,
   ) {
     const sid = req.cookies['SID'];

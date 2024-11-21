@@ -46,7 +46,7 @@ export class PlaceController {
   constructor(private readonly placeService: PlaceService) {}
 
   @ApiOperation({ summary: '장소의 좌석 정보를 가져오는 API' })
-  @ApiParam({ name: 'place_id', description: '장소의 id', required: true, example: 1 })
+  @ApiParam({ name: 'placeId', description: '장소의 id', required: true, example: 1 })
   @ApiOkResponse({
     description: '장소의 좌석 정보를 가져옵니다.',
     type: SeatInfoDto,
@@ -56,9 +56,9 @@ export class PlaceController {
   @ApiForbiddenResponse({ description: '권한이 없습니다.' })
   @ApiInternalServerErrorResponse({ description: '서버 오류 발생' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
-  @Get('seats/:place_id')
+  @Get('seats/:placeId')
   async getSeats(
-    @Param('place_id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) placeId: number,
+    @Param('placeId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) placeId: number,
   ) {
     return this.placeService.getSeats(placeId);
   }
@@ -72,10 +72,10 @@ export class PlaceController {
       properties: {
         name: { type: 'string', description: '장소 이름', example: '대극장' },
         address: { type: 'string', description: '장소 주소', example: '서울특별시' },
-        'overview-svg': { type: 'string', description: 'overview SVG URL', example: '/overview.svg' },
-        'overview-height': { type: 'number', description: '오버뷰 높이', example: 1000 },
-        'overview-width': { type: 'number', description: '오버뷰 너비', example: 1500 },
-        'overview-points': {
+        overviewSvg: { type: 'string', description: 'overview SVG URL', example: '/overview.svg' },
+        overviewHeight: { type: 'number', description: '오버뷰 높이', example: 1000 },
+        overviewWidth: { type: 'number', description: '오버뷰 너비', example: 1500 },
+        overviewPoints: {
           type: 'json',
           description: '오버뷰 좌표',
           example: JSON.stringify({ x: 200, y: 300 }),
@@ -126,14 +126,14 @@ export class PlaceController {
         type: 'object',
         properties: {
           name: { type: 'string', description: '섹션 이름', example: 's1' },
-          'col-len': { type: 'integer', description: '섹션의 열 길이', example: 2 },
+          colLen: { type: 'integer', description: '섹션의 열 길이', example: 2 },
           seats: {
             type: 'array',
             description: '자리 존재 여부를 나타내는 값',
             items: { type: 'boolean' },
             example: [true, true],
           },
-          'place-id': { type: 'integer', description: 'place 장소 아이디', example: 1 },
+          placeId: { type: 'integer', description: 'place 장소 아이디', example: 1 },
           order: { type: 'integer', description: '해당 섹션의 순서', example: 2 },
         },
       },
