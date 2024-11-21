@@ -61,18 +61,18 @@ export class EventController {
     schema: {
       type: 'object',
       properties: {
-        'running-date': { type: 'date', description: '이벤트 시작 시간', example: '2024-11-18T01:00:00Z' },
-        'reservation-open-date': {
+        runningDate: { type: 'date', description: '이벤트 시작 시간', example: '2024-11-18T01:00:00Z' },
+        reservationOpenDate: {
           type: 'date',
           description: '이벤트 예매 오픈 시간',
           example: '2024-11-16T01:00:00Z',
         },
-        'reservation-close-date': {
+        reservationCloseDate: {
           type: 'date',
           description: '이벤트 예매 마감 시간',
           example: '2024-11-178T01:00:00Z',
         },
-        'program-id': { type: 'number', description: '프로그램 아이디', example: 1 },
+        programId: { type: 'number', description: '프로그램 아이디', example: 1 },
       },
     },
   })

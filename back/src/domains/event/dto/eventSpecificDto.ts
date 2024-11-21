@@ -16,12 +16,12 @@ export class EventSpecificDto {
   id: number;
   name: string;
   place: placeSpecificEventDto;
-  @Expose({ name: 'running-time' })
+  @Expose({ name: 'runningTime' })
   runningTime: number;
-  @Expose({ name: 'running-date' })
+  @Expose({ name: 'runningDate' })
   runningDate: Date;
-  @Expose({ name: 'reservation-open-date' })
+  @Expose({ name: 'reservationOpenDate' })
   reservationOpenDate: Date;
-  @Expose({ name: 'reservation-close-date' })
+  @Expose({ name: 'reservationCloseDate' })
   reservationCloseDate: Date;
 }
