@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { CustomError } from '@/api/axios.ts';
-import { getMockProgramDetail } from '@/api/program.ts';
+import { getProgramsDetail } from '@/api/program.ts';
 
 import Button from '@/components/common/Button.tsx';
 import Radio from '@/components/common/Radio.tsx';
@@ -12,36 +12,38 @@ import { getDate, getDay, getTime } from '@/utils/date.ts';
 
 import { ProgramDetail } from '@/type/index.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { AxiosResponse } from 'axios';
 import { cx } from 'class-variance-authority';
 
 //TODO 페이지 계층 컴포넌트 분리
 export default function ProgramDetailPage() {
   const { programId } = useParams(); //초기 데이터 호출용
-  console.log(programId);
-  const { data } = useSuspenseQuery<AxiosResponse<ProgramDetail>, CustomError>({
+  const navigate = useNavigate();
+  const { data: programDetail } = useSuspenseQuery<ProgramDetail, CustomError>({
     queryKey: ['program/1'],
-    queryFn: getMockProgramDetail(1),
+    queryFn: getProgramsDetail(Number(programId)),
   });
-  const programDetail = data.data;
+
   const { events } = programDetail;
   const [selected, setSelected] = useState<{ date: null | string; time: null | string }>({
     date: null,
     time: null,
   });
 
-  const dateList = [...new Set(events.map((event) => event.runningDate.toDateString()))];
+  const dateList = [...new Set(events.map((event) => new Date(event.runningDate).toDateString()))];
   const startDate = dateList[0];
   const lastDate = dateList[dateList.length - 1];
   const isOneDay = startDate === lastDate;
 
   const filteredDateEvents = events.filter((event) => {
-    const date = event.runningDate.toDateString();
+    const date = new Date(event.runningDate).toDateString();
+
     return date === selected.date;
   });
   const timeList = [...new Set(filteredDateEvents.map((event) => getTime(event.runningDate)))];
   const selectedEvent = filteredDateEvents.find((event) => getTime(event.runningDate) === selected.time);
-
+  const goWaitingPage = () => {
+    navigate(`/events/${selectedEvent?.id}/waiting`);
+  };
   return (
     <div className="flex flex-col gap-8">
       <ProgramInformation {...programDetail} lastDate={lastDate} startDate={startDate} isOneDay={isOneDay} />
@@ -64,8 +66,8 @@ export default function ProgramDetailPage() {
             {dateList.map((date) => (
               <Radio
                 group="date"
-                value={getDate(new Date(date))}
-                subText={getDay(new Date(date))}
+                value={getDate(date)}
+                subText={getDay(date)}
                 checked={date == selected.date}
                 onClick={() => {
                   if (selected.date === date) return;
@@ -101,13 +103,11 @@ export default function ProgramDetailPage() {
             <span className="text-caption1 text-error">없음 </span>
           )}
         </div>
-        {
-          <Button size={'middle'} color={'success'} disabled={!selectedEvent}>
-            <span className={cx('text-label1', selectedEvent ? 'text-typo-display' : 'text-typo-disable')}>
-              예매하기
-            </span>
-          </Button>
-        }
+        <Button size={'middle'} color={'success'} disabled={!selectedEvent} onClick={goWaitingPage}>
+          <span className={cx('text-label1', selectedEvent ? 'text-typo-display' : 'text-typo-disable')}>
+            예매하기
+          </span>
+        </Button>
       </div>
     </div>
   );
@@ -144,7 +144,7 @@ const ProgramInformation = ({
         <div className="flex gap-8 text-display1 text-typo">
           <div className="flex flex-col gap-4">
             <div>공연 기간 : {isOneDay ? startDate : `${startDate} ~ ${lastDate}`}</div>
-            <div>공연 장소 : {place}</div>
+            <div>공연 장소 : {place.name}</div>
             <div>관람 시간 : {runningTime}</div>
           </div>
           <div className="flex flex-col gap-4">
@@ -222,7 +222,7 @@ interface Event {
   name: string;
   place: string;
   runningTime: number;
-  runningDate: Date;
+  runningDate: string;
   reservationOpenDate: Date;
   reservationCloseDate: Date;
   actors: string;
@@ -233,7 +233,7 @@ interface Program {
   runningTime: number;
   genre: string;
   actors: string;
-  place: string;
+  place: { id: number; name: string };
   profileUrl: string;
   price: number;
   events: Pick<Event, 'id' | 'runningDate'>[];

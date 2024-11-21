@@ -17,7 +17,7 @@ export default function ProgramsPage() {
     <ul className="mx-auto grid grid-cols-5 gap-6">
       {programs.map((program) => (
         <li key={program.id}>
-          <Link to={`/programs/1`}>
+          <Link to={`/programs/${program.id}`}>
             <ProgramCard {...program} />
           </Link>
         </li>
