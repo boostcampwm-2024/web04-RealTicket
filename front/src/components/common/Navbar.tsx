@@ -37,17 +37,13 @@ export default function Navbar() {
   const { isSignIn, userId, logout } = useAuthContext();
   const { mutate } = useMutation({
     mutationFn: postLogout,
-    onError: (error) => {
-      console.log(error);
-    },
-    onSuccess: (data) => {
-      console.log(data);
+    onError: () => {},
+    onSuccess: () => {
       if (logout) logout();
     },
   });
 
   const logOut = () => {
-    console.log('hi');
     mutate();
   };
   //TODO 예약 내역
@@ -116,7 +112,7 @@ interface IReservation {
   seats: string[];
 }
 
-function ReservationCard({ id, name, runningDate, place, seats }: IReservation) {
+function ReservationCard({ name, runningDate, place, seats }: IReservation) {
   return (
     <div className="relative w-full rounded-xl border border-surface-cardBorder bg-surface-card p-6">
       <div className="flex max-w-[calc(100%-64px)] flex-col gap-6 text-left">
@@ -142,7 +138,7 @@ function ReservationCard({ id, name, runningDate, place, seats }: IReservation) 
         size={'fit'}
         color={'error'}
         onClick={() => {
-          console.log(id + '삭제 api 요청, 로딩 처리 ');
+          // console.log(id + '삭제 api 요청, 로딩 처리 ');
         }}>
         <Icon iconName="Trash" color={'error'} />
       </Button>
