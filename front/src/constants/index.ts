@@ -12,7 +12,7 @@ export const API = {
   },
   USER: {
     SIGNUP: '/user/signup',
-    SIGNIN: '/user/signin',
+    SIGNIN: '/user/login',
     CHECK_ID: '/user/checkid',
     LOGOUT: '/user/logout',
   },
