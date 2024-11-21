@@ -18,7 +18,7 @@ export default function SectionSelectorMap({
   setSelectedSection,
   selectedSection,
 }: ISectionSelectorMapProps) {
-  //TODO 글자 크기 section 크기에 맞춰서 변동되도록
+  //TODO 글자 크기 section 크기에 맞춰서 변동되도록,
   return (
     <svg viewBox={viewBoxData} className={twMerge('w-full', className)}>
       <image href={svgURL} className="h-full w-full"></image>

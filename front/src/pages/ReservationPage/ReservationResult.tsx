@@ -14,8 +14,7 @@ interface IReservationResultProps {
   reservationResult: string[];
 }
 export default function ReservationResult({ event, reservationResult }: IReservationResultProps) {
-  console.log(reservationResult, '결과');
-  const { title, runningDate, place, price } = event;
+  const { name, runningDate, place, price } = event;
   const placeName = place.name;
   return (
     <div className="flex flex-col gap-8 rounded-xl border-2 border-e-surface-sub p-6 shadow-xl">
@@ -26,7 +25,7 @@ export default function ReservationResult({ event, reservationResult }: IReserva
       </div>
       <Separator direction="row" />
       <div className="flex flex-col gap-12">
-        <h2 className="text-heading1 text-typo">{title}</h2>
+        <h2 className="text-heading1 text-typo">{name}</h2>
         <div className="flex items-center gap-4">
           <Icon iconName="Calendar" />
           <span className="text-heading2 text-typo">{`${getDate(new Date(runningDate))} ${getTime(new Date(runningDate))}`}</span>
