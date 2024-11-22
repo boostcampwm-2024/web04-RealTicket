@@ -16,9 +16,16 @@ export class EventRepository {
     return await this.EventRepository.findOne({ where: { id } });
   }
 
+  async selectEventWithPlaceAndProgram(id: number): Promise<Event> {
+    return await this.EventRepository.findOne({
+      where: { id },
+      relations: ['place', 'program'],
+    });
+  }
+
   async storeEvent(data: any) {
     const event = this.EventRepository.create(data);
-    return this.EventRepository.save(event);
+    return await this.EventRepository.save(event);
   }
 
   async deleteProgram(id: number) {

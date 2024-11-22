@@ -5,6 +5,7 @@ import { Program } from 'src/domains/program/entities/program.entity';
 import { ProgramRepository } from 'src/domains/program/repository/program.repository';
 
 import { EventCreationDto } from '../dto/eventCreationDto';
+import { EventDto } from '../dto/eventDto';
 import { EventIdDto } from '../dto/eventIdDto';
 import { EventSpecificDto } from '../dto/eventSpecificDto';
 import { Event } from '../entity/event.entity';
@@ -17,8 +18,20 @@ export class EventService {
     @Inject() private readonly programRepository: ProgramRepository,
   ) {}
 
-  async findSpecificEvent({ eventId }: EventIdDto): Promise<EventSpecificDto> {
+  async findEvent({ eventId }: EventIdDto): Promise<EventDto> {
     const event: Event = await this.eventRepository.selectEvent(eventId);
+    if (!event) throw new NotFoundException(`해당 이벤트[${eventId}]는존재하지 않습니다.`);
+    return this.#convertEventToDto(event);
+  }
+
+  #convertEventToDto(event: Event): EventDto {
+    return new EventDto({
+      ...event,
+    });
+  }
+
+  async findSpecificEvent({ eventId }: EventIdDto): Promise<EventSpecificDto> {
+    const event: Event = await this.eventRepository.selectEventWithPlaceAndProgram(eventId);
     if (!event) throw new NotFoundException(`해당 이벤트[${eventId}]는존재하지 않습니다.`);
     const eventSpecificDto: EventSpecificDto = await this.#convertEventToSpecificDto(event);
     return eventSpecificDto;
@@ -36,7 +49,7 @@ export class EventService {
 
   async create(eventCreationDto: EventCreationDto): Promise<void> {
     this.validateEventDate(eventCreationDto);
-    const program: Program = await this.programRepository.selectProgram(eventCreationDto.programId);
+    const program: Program = await this.programRepository.selectProgramWithPlace(eventCreationDto.programId);
     if (!program) throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]가 없습니다.`);
     const place: Place = await program.place;
     if (!program.place)

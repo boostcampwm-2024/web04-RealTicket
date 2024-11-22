@@ -21,7 +21,7 @@ export class BookingService {
   // 함수 이름 생각하기
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     // eventId를 받아서 해당 이벤트가 존재하는지 확인한다.
-    const event = await this.eventService.findSpecificEvent({ eventId });
+    const event = await this.eventService.findEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
 
     // event시간 확인 오픈 시간 이전인지

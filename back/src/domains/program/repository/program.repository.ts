@@ -14,8 +14,11 @@ export class ProgramRepository {
     });
   }
 
-  async selectProgram(id: number): Promise<Program> {
-    return await this.ProgramRepository.findOne({ where: { id } });
+  async selectProgramWithPlace(id: number): Promise<Program> {
+    return await this.ProgramRepository.findOne({
+      where: { id },
+      relations: ['place'],
+    });
   }
 
   async selectProgramByIdWithPlaceAndEvent(id: number): Promise<Program> {
