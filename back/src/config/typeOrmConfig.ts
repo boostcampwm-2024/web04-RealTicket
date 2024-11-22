@@ -9,6 +9,8 @@ const ormConfig: TypeOrmModuleOptions = {
   database: process.env.DATABASE_SCHEMA,
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: process.env.DATABASE_SYNCHRONIZE === 'true',
+  charset: 'utf8mb4',
+  timezone: 'z',
 };
 
 export default ormConfig;
