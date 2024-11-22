@@ -35,7 +35,7 @@ export class ReservationService {
 
   async findUserReservation({ id }: UserParamDto) {
     const reservations: Reservation[] =
-      await this.reservationRepository.selectAllReservationAfterNowByUser(id);
+      await this.reservationRepository.selectAllReservationAfterNowByUserWithAll(id);
     return await this.convertReservationListToSpecificDto(reservations);
   }
 

@@ -8,12 +8,13 @@ import { Reservation } from '../entity/reservation.entity';
 export class ReservationRepository {
   constructor(@InjectRepository(Reservation) private ReservationRepository: Repository<Reservation>) {}
 
-  async selectAllReservationAfterNowByUser(userId: number): Promise<Reservation[]> {
+  async selectAllReservationAfterNowByUserWithAll(userId: number): Promise<Reservation[]> {
     return await this.ReservationRepository.find({
       where: {
         user: { id: userId },
         event: { runningDate: MoreThanOrEqual(new Date()) },
       },
+      relations: ['program', 'event', 'reservedSeats'],
     });
   }
 
