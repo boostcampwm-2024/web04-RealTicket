@@ -1,6 +1,6 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { Program } from '../entities/program.entity';
 
@@ -8,17 +8,36 @@ import { Program } from '../entities/program.entity';
 export class ProgramRepository {
   constructor(@InjectRepository(Program) private ProgramRepository: Repository<Program>) {}
 
-  async selectAllProgram(): Promise<Program[]> {
-    return await this.ProgramRepository.find();
+  async selectAllProgramWithPlace(): Promise<Program[]> {
+    return await this.ProgramRepository.find({
+      relations: ['place'],
+    });
   }
 
   async selectProgram(id: number): Promise<Program> {
     return await this.ProgramRepository.findOne({ where: { id } });
   }
 
+  async selectProgramByIdWithPlaceAndEvent(id: number): Promise<Program> {
+    return await this.ProgramRepository.findOne({
+      where: { id },
+      relations: ['place', 'events'],
+    });
+  }
+
   async storeProgram(data: any) {
-    const program = this.ProgramRepository.create(data);
-    return this.ProgramRepository.save(program);
+    try {
+      const program = this.ProgramRepository.create({
+        ...data,
+        place: { id: data.placeId },
+      });
+      return await this.ProgramRepository.save(program);
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        throw new NotFoundException(`해당 장소[${data.placeId}]는 존재하지 않습니다.`);
+      }
+      throw error;
+    }
   }
 
   async deleteProgram(id: number) {

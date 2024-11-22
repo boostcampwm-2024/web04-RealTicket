@@ -1,7 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { PlaceRepository } from 'src/domains/place/repository/place.repository';
-
 import { PlaceMainPageDto } from '../dto/placeMainPageDto';
 import { ProgramCreationDto } from '../dto/programCreationDto';
 import { ProgramIdDto } from '../dto/programIdDto';
@@ -12,13 +10,10 @@ import { ProgramRepository } from '../repository/program.repository';
 
 @Injectable()
 export class ProgramService {
-  constructor(
-    @Inject() private programRepository: ProgramRepository,
-    @Inject() private placeRepository: PlaceRepository,
-  ) {}
+  constructor(@Inject() private programRepository: ProgramRepository) {}
 
-  async findMainPageProgramData() {
-    const programs: Program[] = await this.programRepository.selectAllProgram();
+  async findMainPageProgramData(): Promise<ProgramMainPageDto[]> {
+    const programs: Program[] = await this.programRepository.selectAllProgramWithPlace();
     const programMainPageDtos: ProgramMainPageDto[] = await this.convertProgramListToMainPageDto(programs);
 
     return programMainPageDtos;
@@ -37,8 +32,7 @@ export class ProgramService {
   }
 
   async findSpecificProgram({ programId }: ProgramIdDto): Promise<ProgramSpecificDto> {
-    const program: Program = await this.programRepository.selectProgram(programId);
-
+    const program: Program = await this.programRepository.selectProgramByIdWithPlaceAndEvent(programId);
     if (!program) throw new NotFoundException(`해당 프로그램[${programId}]는 존재하지 않습니다.`);
     const programSpecificdto: ProgramSpecificDto = await this.convertProgramToSpecificDto(program);
     return programSpecificdto;
@@ -51,10 +45,10 @@ export class ProgramService {
   }
 
   async create(programCreationDto: ProgramCreationDto): Promise<void> {
-    const place = await this.placeRepository.selectPlace(programCreationDto.placeId);
-    if (!place) throw new NotFoundException(`해당 장소[${programCreationDto.placeId}]가 없습니다.`);
-
-    await this.programRepository.storeProgram({ ...programCreationDto, place });
+    await this.programRepository.storeProgram({
+      ...programCreationDto,
+      placeId: programCreationDto.placeId,
+    });
   }
 
   async delete({ programId }: ProgramIdDto) {
