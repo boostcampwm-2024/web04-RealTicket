@@ -6,6 +6,7 @@ import { getUser } from '@/api/user.ts';
 import LoadingPage from '@/pages/LoadingPage.tsx';
 
 import { AuthContext } from '@/contexts/AuthContext';
+import AuthEvent from '@/events/AuthEvent.ts';
 import { UserInformation } from '@/type/user.ts';
 import { useQuery } from '@tanstack/react-query';
 
@@ -30,6 +31,15 @@ export default function AuthProvider({ children }: IAuthProviderProps) {
     queryFn: getUser,
     retry: false,
   });
+
+  useEffect(() => {
+    const authEvent = AuthEvent.getInstance();
+    authEvent.on('logout', logout);
+
+    return () => {
+      authEvent.off('log', logout);
+    };
+  }, []);
 
   useEffect(() => {
     if (userInformation) {
