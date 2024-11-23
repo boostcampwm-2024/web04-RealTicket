@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 
 import { CustomError } from '@/api/axios.ts';
 import { getUser } from '@/api/user.ts';
@@ -41,7 +41,7 @@ export default function AuthProvider({ children }: IAuthProviderProps) {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (userInformation) {
       const { loginId } = userInformation;
       if (loginId) {
