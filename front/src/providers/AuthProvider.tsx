@@ -3,6 +3,8 @@ import { ReactNode, useEffect, useState } from 'react';
 import { CustomError } from '@/api/axios.ts';
 import { getUser } from '@/api/user.ts';
 
+import LoadingPage from '@/pages/LoadingPage.tsx';
+
 import { AuthContext } from '@/contexts/AuthContext';
 import { UserInformation } from '@/type/user.ts';
 import { useQuery } from '@tanstack/react-query';
@@ -23,17 +25,18 @@ const AUTH_DEFAULT_STATE: IAuthState = {
 //TODO 로그인 여부 cookie 로 확인,
 export default function AuthProvider({ children }: IAuthProviderProps) {
   const [auth, setAuth] = useState<IAuthState>(AUTH_DEFAULT_STATE);
-  const { data: userInformation } = useQuery<UserInformation | null, CustomError>({
+  const { data: userInformation, isPending } = useQuery<UserInformation | null, CustomError>({
     queryKey: [],
     queryFn: getUser,
-    placeholderData: null,
     retry: false,
-    throwOnError: false,
   });
+
   useEffect(() => {
     if (userInformation) {
       const { loginId } = userInformation;
-      login(loginId);
+      if (loginId) {
+        login(loginId);
+      }
     }
   }, [userInformation]);
   const login = (userId: string) => {
@@ -42,6 +45,9 @@ export default function AuthProvider({ children }: IAuthProviderProps) {
   const logout = () => {
     setAuth({ isLogin: false, userId: null });
   };
+
+  //TODO suspense
+  if (isPending) return <LoadingPage></LoadingPage>;
 
   return (
     <AuthContext.Provider value={{ isLogin: auth.isLogin, userId: auth.userId, logout, login }}>
