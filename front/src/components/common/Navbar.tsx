@@ -104,7 +104,7 @@ export default function Navbar() {
             </Link>
           </Button>
           <Button color={'primary'} size={'middle'} asChild>
-            <Link to="/signIn">
+            <Link to="/login">
               <span className="text-label2 text-typo-display">로그인</span>
             </Link>
           </Button>
