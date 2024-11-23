@@ -12,6 +12,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -39,6 +40,7 @@ import { InBookingService } from '../service/in-booking.service';
 @Controller('booking')
 export class BookingController {
   constructor(
+    private readonly eventEmitter: EventEmitter2,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
@@ -76,8 +78,18 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async getReservationStatusByEventId(@Param('eventId') eventId: number): Promise<Observable<MessageEvent>> {
-    return this.bookingSeatsService.subscribeSeats(eventId);
+  async getReservationStatusByEventId(
+    @Param('eventId') eventId: number,
+    @Req() req: Request,
+  ): Promise<Observable<MessageEvent>> {
+    const observable = this.bookingSeatsService.subscribeSeats(eventId);
+
+    const sid = req.cookies['SID'];
+    req.on('close', () => {
+      this.eventEmitter.emit('seats-sse-close', { sid });
+    });
+
+    return observable;
   }
 
   @Post('')

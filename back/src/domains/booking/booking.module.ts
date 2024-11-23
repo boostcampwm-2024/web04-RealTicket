@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 import { AuthModule } from '../../auth/auth.module';
 import { EventModule } from '../event/event.module';
@@ -11,7 +12,7 @@ import { InBookingService } from './service/in-booking.service';
 import { OpenBookingService } from './service/open-booking.service';
 
 @Module({
-  imports: [EventModule, AuthModule, PlaceModule],
+  imports: [EventEmitterModule.forRoot(), EventModule, AuthModule, PlaceModule],
   controllers: [BookingController],
   providers: [BookingService, InBookingService, OpenBookingService, BookingSeatsService],
 })

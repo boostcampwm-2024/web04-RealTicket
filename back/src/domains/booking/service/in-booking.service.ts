@@ -1,5 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
@@ -20,6 +21,14 @@ export class InBookingService {
     this.redis = this.redisService.getOrThrow();
   }
 
+  @OnEvent('seats-sse-close')
+  async onSeatsSseDisconnect(event: { sid: string }) {
+    const sid = event.sid;
+    const eventId = await this.getTargetEventId(sid);
+    await this.removeInBooking(eventId, sid);
+    await this.authService.setUserStatusLogin(sid);
+  }
+
   async insertInBooking(sid: string): Promise<boolean> {
     const eventId = await this.getTargetEventId(sid);
     const session: InBookingSession = {
@@ -31,8 +40,7 @@ export class InBookingService {
     return true;
   }
 
-  async removeInBooking(sid: string): Promise<void> {
-    const eventId = await this.getTargetEventId(sid);
+  async removeInBooking(eventId: number, sid: string): Promise<void> {
     const session = await this.getSession(eventId, sid);
     if (session) {
       await this.redis.del(this.getSessionKey(eventId, sid));
