@@ -36,12 +36,13 @@ export class BookingService {
 
     await this.authService.setUserEventTarget(sid, eventId);
 
-    return await this.tryToEnter(sid);
+    return await this.getForwarded(sid);
   }
 
-  private async tryToEnter(sid: string) {
+  private async getForwarded(sid: string) {
     // 입장이 성공하면 user의 상태를 seating room으로 변경하기
-    if (await this.inBookingService.insertInBooking(sid)) {
+    const isEntered = await this.inBookingService.insertIfPossible(sid);
+    if (isEntered) {
       await this.authService.setUserStatusSelectingSeat(sid);
       return {
         waitingStatus: false,
