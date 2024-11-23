@@ -29,7 +29,6 @@
     "^@/components/(.*)$",
     "^@/pages/(.*)$",
     "^@/utils/(.*)$",
-    "^@/**/(.*)$",
     
     "<THIRD_PARTY_MODULES>",
     

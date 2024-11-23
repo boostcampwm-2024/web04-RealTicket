@@ -6,11 +6,11 @@ import router from '@/routes/index';
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryProvider>
+    <QueryProvider>
+      <AuthProvider>
         <RouterProvider router={router} />
-      </QueryProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </QueryProvider>
   );
 }
 
