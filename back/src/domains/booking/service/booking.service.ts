@@ -7,6 +7,7 @@ import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
 import { OpenBookingService } from './open-booking.service';
+import { WaitingQueueService } from './waiting-queue.service';
 
 const OFFSET = 1000 * 60 * 60 * 9;
 
@@ -18,6 +19,7 @@ export class BookingService {
     private readonly authService: AuthService,
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
+    private readonly waitingQueueService: WaitingQueueService,
   ) {}
 
   // 함수 이름 생각하기
@@ -40,8 +42,8 @@ export class BookingService {
   }
 
   private async getForwarded(sid: string) {
-    // 입장이 성공하면 user의 상태를 seating room으로 변경하기
     const isEntered = await this.inBookingService.insertIfPossible(sid);
+
     if (isEntered) {
       await this.authService.setUserStatusSelectingSeat(sid);
       return {
@@ -49,11 +51,13 @@ export class BookingService {
         enteringStatus: true,
       };
     }
-    // 입장이 실패하면 user의 상태를 waiting room으로 변경하기
+
     await this.authService.setUserStatusWaiting(sid);
+    const userOrder = await this.waitingQueueService.pushQueue(sid);
     return {
       waitingStatus: true,
       enteringStatus: false,
+      userOrder,
     };
   }
 
