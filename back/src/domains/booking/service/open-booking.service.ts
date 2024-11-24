@@ -9,6 +9,8 @@ import { BookingSeatsService } from './booking-seats.service';
 
 @Injectable()
 export class OpenBookingService implements OnApplicationBootstrap {
+  private openedEvents = new Set<number>();
+
   constructor(
     private eventRepository: EventRepository,
     private sectionRepository: SectionRepository,
@@ -17,6 +19,10 @@ export class OpenBookingService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     await this.checkAndOpenReservations();
+  }
+
+  isEventOpened(eventId: number) {
+    return this.openedEvents.has(eventId);
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -37,6 +43,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     );
     const seats = sections.map((section) => section.seats.map((seat) => parseBooleanString(seat)));
     await this.seatsUpdateService.openReservation(eventId, seats);
+    this.openedEvents.add(eventId);
   }
 }
 

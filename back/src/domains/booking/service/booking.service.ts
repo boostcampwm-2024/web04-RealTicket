@@ -6,6 +6,7 @@ import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatusDto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
+import { OpenBookingService } from './open-booking.service';
 
 const OFFSET = 1000 * 60 * 60 * 9;
 
@@ -16,6 +17,7 @@ export class BookingService {
     private readonly eventService: EventService,
     private readonly authService: AuthService,
     private readonly inBookingService: InBookingService,
+    private readonly openBookingService: OpenBookingService,
   ) {}
 
   // 함수 이름 생각하기
@@ -24,10 +26,8 @@ export class BookingService {
     const event = await this.eventService.findEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
 
-    // event시간 확인 오픈 시간 이전인지
-    if (now <= event.reservationOpenDate) {
-      // 예약 시간이 아닙니다.
-      throw new BadRequestException('아직 예약 오픈 시간이 아닙니다.');
+    if (!this.openBookingService.isEventOpened(eventId)) {
+      throw new BadRequestException('아직 예약이 오픈되지 않았습니다.');
     } else if (now >= event.reservationCloseDate) {
       //event 시간 확인 이벤트 종료시간 이후인지
       // 예약 시간이 아닙니다.
