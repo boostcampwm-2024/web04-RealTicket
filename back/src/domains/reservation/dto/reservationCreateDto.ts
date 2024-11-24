@@ -18,8 +18,8 @@ export class ReservationCreateDto {
     name: 'seats',
     type: [ReservationSeatInfoDto],
     example: [
-      { sectionIndex: 2, row: 5, col: 8 },
-      { sectionIndex: 2, row: 5, col: 9 },
+      { sectionIndex: 2, seatIndex: 7 },
+      { sectionIndex: 2, seatIndex: 8 },
     ],
   })
   seats: ReservationSeatInfoDto[];
