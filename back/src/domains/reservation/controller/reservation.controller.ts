@@ -100,6 +100,6 @@ export class ReservationController {
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Post()
   async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @User() user: UserParamDto) {
-    return this.reservationService.recordReservation(reservationCreateDto, user);
+    return this.reservationService.recordReservationTransaction(reservationCreateDto, user);
   }
 }

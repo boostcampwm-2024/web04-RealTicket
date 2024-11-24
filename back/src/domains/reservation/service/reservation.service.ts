@@ -1,18 +1,16 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
+import { DataSource, In } from 'typeorm';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
 import { Event } from '../../event/entity/event.entity';
 import { EventRepository } from '../../event/repository/event.reposiotry';
-import { Place } from '../../place/entity/place.entity';
+import { Section } from '../../place/entity/section.entity';
 import { SectionRepository } from '../../place/repository/section.repository';
-import { Program } from '../../program/entities/program.entity';
 import { ReservationCreateDto } from '../dto/reservationCreateDto';
-import { ReservationDataDto } from '../dto/reservationDataDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
-import { ReservationResultDto } from '../dto/reservationResultDto';
 import { ReservationSeatInfoDto } from '../dto/reservationSeatInfoDto';
 import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
 import { Reservation } from '../entity/reservation.entity';
@@ -31,6 +29,7 @@ export class ReservationService {
     @Inject() private readonly eventRepository: EventRepository,
     @Inject() private readonly reservedSeatRepository: ReservedSeatRepository,
     @Inject() private readonly sectionRepository: SectionRepository,
+    @Inject() private readonly dataSource: DataSource,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -78,91 +77,82 @@ export class ReservationService {
       throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
   }
 
-  async recordReservation(
-    reservationCreateDto: ReservationCreateDto,
-    { id }: UserParamDto,
-  ): Promise<ReservationResultDto> {
-    try {
-      if (this.validateReservationLength(reservationCreateDto.seats)) {
-        throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
-      }
-      const userId = id;
-      const event = await this.eventRepository.selectEventWithPlaceAndProgramAndPlace(
-        reservationCreateDto.eventId,
-      );
-      const program = await event.program;
-      const place = await program.place;
-      const reservation = await this.makeReservation(reservationCreateDto, program, event, userId);
-      const reservedSeats = await this.makeReservedSeat(reservationCreateDto, reservation, place);
-
-      // // 예약정보 반환
-      return {
-        programName: program.name,
-        runningDate: event.runningDate,
-        placeName: (await program.place).name,
-        price: program.price,
-        seats: reservedSeats.map((seat) => {
-          return `${seat.section}구역 ${seat.row}행 ${seat.col}열`;
-        }),
-      };
-    } catch (error) {
-      this.logger.error(error);
-      throw new BadRequestException('예매 정보 저장에 실패');
-    }
-  }
-
   validateReservationLength(seats: ReservationSeatInfoDto[]) {
     return seats.length < 0 || seats.length > 4;
   }
 
-  // reservation 테이블에 reservation을 저장하는 함수
-  async makeReservation(
-    reservationCreateDto: ReservationCreateDto,
-    program: Program,
-    event: Event,
-    userId: number,
-  ) {
-    // reservation 정보 저장
-    const reservationData: ReservationDataDto = {
-      createdAt: new Date(),
-      amount: reservationCreateDto.seats.length,
-      program: program,
-      event: event,
-      user: { id: userId },
-    };
-    return await this.reservationRepository.storeReservation(reservationData);
-  }
+  async recordReservationTransaction(reservationCreateDto: ReservationCreateDto, { id }: UserParamDto) {
+    const queryRunner = this.dataSource.createQueryRunner();
 
-  async makeReservedSeat(
-    reservationCreateDto: ReservationCreateDto,
-    reservation: Reservation[],
-    place: Place,
-  ) {
-    // 예약하고자 하는 section 정보가 place에 존재하는지 확인
-    // 있다면 section의 id를 반환
-    const sections = reservationCreateDto.seats.map((seat) => {
-      if (!place.sections.includes(seat.sectionIndex.toString())) {
-        throw new BadRequestException(`해당 section이 존재하지 않습니다. sectionId: ${seat.sectionIndex}`);
-      }
-      return seat.sectionIndex;
-    });
+    if (this.validateReservationLength(reservationCreateDto.seats)) {
+      throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
+    }
 
-    // DB에서 seciton 정보 가져오기
-    const sectionInfo = await this.sectionRepository.selectSectionsByIds(sections);
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const userId = id;
+      const event = await queryRunner.manager.find(Event, {
+        where: { id: reservationCreateDto.eventId },
+        relations: ['place', 'program'],
+      });
+      const program = await event[0].program;
+      const place = await program.place;
 
-    //sections속 DB section에 존재하지 않는 section이 있는지 확인
-    const reservedSeatsInfo = reservationCreateDto.seats.map((seat) => {
-      const section = sectionInfo.find((section) => section.id === seat.sectionIndex);
-      return {
-        section: section.name,
-        // 1행부터 시작하도록 행에 +1
-        row: Math.floor(seat.seatIndex / section.colLen) + 1,
-        // 1열부터 시작하도록 열에 +1
-        col: (seat.seatIndex % section.colLen) + 1,
-        reservation: { id: reservation['id'] },
+      // reservation 정보 저장
+      const reservationData: any = {
+        createdAt: new Date(),
+        amount: reservationCreateDto.seats.length,
+        program: program,
+        event: event[0],
+        user: { id: userId },
       };
-    });
 
-    return await this.reservedSeatRepository.storeReservedSeat(reservedSeatsInfo);
+      const reservation = await queryRunner.manager.create(Reservation, reservationData);
+      const reservationResult = await queryRunner.manager.save(reservation);
+
+      const sections = reservationCreateDto.seats.map((seat) => {
+        if (!place.sections.includes(seat.sectionIndex.toString())) {
+          throw new BadRequestException(`해당 section이 존재하지 않습니다. sectionId: ${seat.sectionIndex}`);
+        }
+        return seat.sectionIndex;
+      });
+
+      // DB에서 seciton 정보 가져오기
+      //const sectionInfo = await this.sectionRepository.selectSectionsByIds(sections);
+      const sectionInfo = await queryRunner.manager.find(Section, { where: { id: In(sections) } });
+
+      //sections속 DB section에 존재하지 않는 section이 있는지 확인
+      const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat) => {
+        const section = sectionInfo.find((section) => section.id === seat.sectionIndex);
+        return {
+          section: section.name,
+          // 1행부터 시작하도록 행에 +1
+          row: Math.floor(seat.seatIndex / section.colLen) + 1,
+          // 1열부터 시작하도록 열에 +1
+          col: (seat.seatIndex % section.colLen) + 1,
+          reservation: { id: reservationResult.id },
+        };
+      });
+      const reservedSeatInfoEntity = queryRunner.manager.create(ReservedSeat, reservedSeatsInfo);
+      await queryRunner.manager.save(ReservedSeat, reservedSeatInfoEntity);
+
+      await queryRunner.commitTransaction();
+      return {
+        programName: program.name,
+        runningDate: event[0].runningDate,
+        placeName: place.name,
+        price: program.price,
+        seats: reservedSeatsInfo.map((seat) => {
+          return `${seat.section}구역 ${seat.row}행 ${seat.col}열`;
+        }),
+      };
+    } catch (err) {
+      this.logger.error(err);
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException('예매에 실패했습니다.');
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
