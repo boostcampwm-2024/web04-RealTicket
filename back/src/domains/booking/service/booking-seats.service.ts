@@ -1,9 +1,17 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import Redis from 'ioredis';
-import { interval, Observable, switchMap } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
+import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
@@ -12,9 +20,14 @@ import { runUpdateSeatLua } from '../luaScripts/updateSeatLua';
 
 import { InBookingService } from './in-booking.service';
 
+type SeatStatusObject = {
+  seatStatus: boolean[][];
+};
+
 @Injectable()
 export class BookingSeatsService {
   private readonly redis: Redis | null;
+  private seatsSubscriptionMap = new Map<number, BehaviorSubject<SeatStatusObject>>();
 
   constructor(
     private redisService: RedisService,
@@ -31,6 +44,12 @@ export class BookingSeatsService {
       runInitSectionSeatLua(this.redis, key, seatBitMap);
     });
     await runSetSectionsLenLua(this.redis, eventId, seats.length);
+
+    if (this.seatsSubscriptionMap.has(eventId)) {
+      throw new InternalServerErrorException('이미 해당 이벤트의 좌석 구독이 존재합니다.');
+    }
+    const subscription = await this.createSeatSubscription(eventId, seats);
+    this.seatsSubscriptionMap.set(eventId, subscription);
   }
 
   async bookSeat(sid: string, target: [number, number]) {
@@ -114,14 +133,26 @@ export class BookingSeatsService {
     return seatStatusBits.map((sectionBits) => sectionBits.map((bit) => bit === 1));
   }
 
-  subscribeSeats(eventId: number): Observable<any> {
-    return interval(1000).pipe(
-      switchMap(async () => {
-        const seatsData = await this.getSeats(eventId);
-        return {
-          data: { seaStatus: seatsData },
-        };
-      }),
+  subscribeSeats(eventId: number) {
+    return this.seatsSubscriptionMap
+      .get(eventId)
+      .asObservable()
+      .pipe(
+        map((data) => {
+          return {
+            data,
+            retry: SEATS_SSE_RETRY_TIME,
+          };
+        }),
+      );
+  }
+
+  private async createSeatSubscription(eventId: number, initialSeats: boolean[][]) {
+    const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
+    setInterval(
+      async () => subscription.next({ seatStatus: await this.getSeats(eventId) }),
+      SEATS_BROADCAST_INTERVAL,
     );
+    return subscription;
   }
 }
