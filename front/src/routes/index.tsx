@@ -1,5 +1,8 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 
+import WithLogin from '@/components/loaders/WithLogin';
+import WithoutLogin from '@/components/loaders/WithoutLogin';
+
 import AdminPage from '@/pages/AdminPage';
 import LoginPage from '@/pages/LoginPage';
 import ProgramDetailPage from '@/pages/ProgramDetailPage';
@@ -20,11 +23,40 @@ const router = createBrowserRouter([
       { path: '', element: <Navigate to="programs" /> },
       { path: '/programs', element: <ProgramsPage /> },
       { path: '/programs/:programId', element: <ProgramDetailPage /> },
-      { path: '/signIn', element: <LoginPage /> },
-      { path: '/signUp', element: <SignUpPage /> },
-      { path: '/admin', element: <AdminPage /> },
+      {
+        path: '/login',
+        element: (
+          <WithoutLogin>
+            <LoginPage />
+          </WithoutLogin>
+        ),
+      },
+
+      {
+        path: '/signUp',
+        element: (
+          <WithoutLogin>
+            <SignUpPage />
+          </WithoutLogin>
+        ),
+      },
+      {
+        path: '/admin',
+        element: (
+          <WithLogin>
+            <AdminPage />
+          </WithLogin>
+        ),
+      },
       { path: '/events/:eventId/waiting', element: <ReservationWaitingPage /> },
-      { path: '/events/:eventId', element: <ReservationPage /> },
+      {
+        path: '/events/:eventId',
+        element: (
+          <WithLogin>
+            <ReservationPage />
+          </WithLogin>
+        ),
+      },
     ],
   },
 ]);

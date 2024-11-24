@@ -29,7 +29,7 @@ export default function LoginPage() {
     register,
     formState: { errors },
   } = useForm<Form>();
-  const { signIn } = useAuthContext();
+  const { login } = useAuthContext();
   const navigation = useNavigate();
   const { mutate, isPending, error } = useMutation<AxiosResponse<ResponseData>, CustomError, UserData>({
     mutationFn: postLogin,
@@ -42,7 +42,7 @@ export default function LoginPage() {
       //쿠키에 접근을 못한다.
       //1. localstorage에 로그인 성공시 데이터, 유저정보 저장, 접속시 이걸로 렌더링 하고 유저 정보를 요청한다. 비교및 권한 확인 실패시 재로그인 요청
       const { loginId } = data.data;
-      if (signIn) signIn(loginId);
+      if (loginId && login) login(loginId);
 
       alert('로그인 성공 '); //TODO toast 추가
       navigation('/');

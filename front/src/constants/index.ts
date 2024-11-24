@@ -15,6 +15,7 @@ export const API = {
     LOGIN: '/user/login', //signin->login으로변경
     CHECK_ID: '/user/checkid',
     LOGOUT: '/user/logout',
+    INFORMATION: '/user',
   },
   EVENT: {
     GET_EVENT_DETAIL_MOCK: (id: number) => `/mock/events/${id}`,

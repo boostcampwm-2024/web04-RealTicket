@@ -1,3 +1,4 @@
+//TODO domain 별 타입 분리
 export interface Program {
   id: number;
   name: string;
