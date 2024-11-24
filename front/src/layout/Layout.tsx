@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 
-import Navbar from '@/components/common/Navbar';
+import Navbar from '@/components/Navbar';
 
 import LoadingPage from '@/pages/LoadingPage';
 

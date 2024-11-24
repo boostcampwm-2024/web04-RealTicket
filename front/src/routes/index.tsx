@@ -1,7 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 
-import WithLogin from '@/components/loader/WithLogin';
-import WithoutLogin from '@/components/loader/WithoutLogin.tsx';
+import WithLogin from '@/components/loaders/WithLogin';
+import WithoutLogin from '@/components/loaders/WithoutLogin';
 
 import AdminPage from '@/pages/AdminPage';
 import LoginPage from '@/pages/LoginPage';

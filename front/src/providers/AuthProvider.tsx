@@ -23,7 +23,6 @@ const AUTH_DEFAULT_STATE: IAuthState = {
   userId: null,
 };
 
-//TODO 로그인 여부 cookie 로 확인,
 export default function AuthProvider({ children }: IAuthProviderProps) {
   const [auth, setAuth] = useState<IAuthState>(AUTH_DEFAULT_STATE);
   const { data: userInformation, isPending } = useQuery<UserInformation | null, CustomError>({
