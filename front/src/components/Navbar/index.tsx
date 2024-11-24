@@ -6,20 +6,21 @@ import { postLogout } from '@/api/user.ts';
 
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
 
+import ReservationCard from '@/components/Navbar/ReservationCard.tsx';
 import Button from '@/components/common/Button';
 import Icon from '@/components/common/Icon';
 import Popover from '@/components/common/Popover';
 import Separator from '@/components/common/Separator.tsx';
 
-import { getDate, getTime } from '@/utils/date';
-
 import type { Reservation } from '@/type/reservation.ts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 400;
 
 //TODO url 상수화, 자동로그인 추가, 삭제 중인 카드 로딩 초링
+const RESERVATION_DELETE_MUTATION_KEY = ['reservation'];
+
 export default function Navbar() {
   const { isLogin, userId, logout } = useAuthContext();
   const queryClient = useQueryClient();
@@ -29,11 +30,18 @@ export default function Navbar() {
     enabled: isLogin,
     staleTime: Infinity,
   });
+
   const { mutate: requestDeleteReservation } = useMutation({
+    mutationKey: RESERVATION_DELETE_MUTATION_KEY,
     mutationFn: deleteReservation,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservation'] });
+      return queryClient.invalidateQueries({ queryKey: ['reservation'] });
     },
+  });
+
+  const deletingReservationIdList = useMutationState({
+    filters: { mutationKey: RESERVATION_DELETE_MUTATION_KEY, status: 'pending' },
+    select: (mutation) => mutation.state.variables,
   });
 
   const { mutate: requestLogout } = useMutation({
@@ -80,6 +88,7 @@ export default function Navbar() {
                     reservations.map((reservation) => (
                       <ReservationCard
                         {...reservation}
+                        isDeleting={deletingReservationIdList.includes(reservation.id)}
                         handleDeleteReservation={() => requestDeleteReservation(reservation.id)}
                       />
                     ))
@@ -114,44 +123,19 @@ export default function Navbar() {
   );
 }
 
-interface ReservationCardProps extends Reservation {
-  handleDeleteReservation: () => void;
-}
-
-function ReservationCard({
-  programName,
-  runningDate,
-  placeName,
-  seats,
-  handleDeleteReservation,
-}: ReservationCardProps) {
-  return (
-    <div className="relative w-full rounded-xl border border-surface-cardBorder bg-surface-card p-6">
-      <div className="flex max-w-[calc(100%-64px)] flex-col gap-6 text-left">
-        <h3 className="truncate text-display1">{programName}</h3>
-        <div className="">
-          <div className="truncate text-display1">
-            {getDate(Number(runningDate)) + getTime(Number(runningDate))}
-          </div>
-          <div className="truncate text-display1 hover:overflow-visible hover:text-clip">{`공연장 : ${placeName}`}</div>
-        </div>
-        <div>
-          <span className="truncate text-display1">좌석</span>
-          <ul>
-            {seats.map((seat) => (
-              <li>{seat}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <Button
-        className="absolute right-0 top-0 mr-6 mt-6"
-        intent={'outline'}
-        size={'fit'}
-        color={'error'}
-        onClick={handleDeleteReservation}>
-        <Icon iconName="Trash" color={'error'} />
-      </Button>
-    </div>
-  );
-}
+// const reservations = [
+//   {
+//     id: 1,
+//     programName: '2024 WORLD TOUR',
+//     runningDate: '1731258000000',
+//     placeName: '고척 스타이돔',
+//     seats: ['A구역 2행 3열', 'B구역 1행 5열'],
+//   },
+//   {
+//     id: 2,
+//     programName: '2024 KOREA TOUR',
+//     runningDate: '1731420000000',
+//     placeName: '예술의 전당 콘서트홀werwerwerwr',
+//     seats: ['B구역 2행 3열', 'C구역 10행 15열', 'I구역 3행 17열'],
+//   },
+// ];
