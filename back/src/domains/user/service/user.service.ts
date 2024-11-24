@@ -66,7 +66,6 @@ export class UserService {
   async validateUser(id: string, password: string) {
     try {
       const user = await this.userRepository.findOne(id);
-      console.log(user);
       if (!user) {
         throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
       }

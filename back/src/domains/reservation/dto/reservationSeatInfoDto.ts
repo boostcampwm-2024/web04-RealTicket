@@ -12,20 +12,11 @@ export class ReservationSeatInfoDto {
   sectionIndex: number;
 
   @ApiProperty({
-    description: '좌석의 행 번호',
+    description: '좌석의 index',
     name: 'row',
     type: 'number',
     example: 5,
   })
   @IsNumber()
-  row: number;
-
-  @ApiProperty({
-    description: '좌석의 열 번호',
-    name: 'col',
-    type: 'number',
-    example: 8,
-  })
-  @IsNumber()
-  col: number;
+  seatIndex: number;
 }

@@ -8,7 +8,6 @@ import {
   InternalServerErrorException,
   Param,
   Post,
-  Req,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -21,7 +20,6 @@ import {
   ApiOkResponse,
   ApiOperation,
 } from '@nestjs/swagger';
-import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
@@ -101,8 +99,7 @@ export class ReservationController {
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Post()
-  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
-    const sid = req.cookies['SID'];
-    return this.reservationService.recordReservation(reservationCreateDto, sid);
+  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @User() user: UserParamDto) {
+    return this.reservationService.recordReservation(reservationCreateDto, user);
   }
 }

@@ -1,5 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
 import Redis from 'ioredis';
 
 import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
@@ -16,8 +17,9 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
     }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-      const request = context.switchToHttp().getRequest();
-      const sessionId = getSid(request);
+      const request: Request = context.switchToHttp().getRequest();
+
+      const sessionId = request.cookies.SID;
       const session = JSON.parse(await this.redis.get(sessionId));
       this.redis.expireat(sessionId, Math.round(Date.now() / 1000) + EXPIRE_TIME);
       // TODO
@@ -35,18 +37,4 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
   }
 
   return SessionGuard;
-}
-
-function getSid(request: any) {
-  if (request.headers.cookie) {
-    const SID: string = request.headers.cookie
-      .split(';')
-      .map((e: string) => {
-        return e.trim().split('=');
-      })
-      .find((e: Array<string>) => e[0] === 'SID')[1];
-
-    return SID;
-  }
-  return null;
 }
