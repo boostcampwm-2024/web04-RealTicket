@@ -1,0 +1,1 @@
+export const WAITING_BROADCAST_INTERVAL = 3000;

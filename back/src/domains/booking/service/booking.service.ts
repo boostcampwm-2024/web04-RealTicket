@@ -6,6 +6,8 @@ import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatusDto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
+import { OpenBookingService } from './open-booking.service';
+import { WaitingQueueService } from './waiting-queue.service';
 
 const OFFSET = 1000 * 60 * 60 * 9;
 
@@ -16,6 +18,8 @@ export class BookingService {
     private readonly eventService: EventService,
     private readonly authService: AuthService,
     private readonly inBookingService: InBookingService,
+    private readonly openBookingService: OpenBookingService,
+    private readonly waitingQueueService: WaitingQueueService,
   ) {}
 
   // 함수 이름 생각하기
@@ -24,10 +28,8 @@ export class BookingService {
     const event = await this.eventService.findEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
 
-    // event시간 확인 오픈 시간 이전인지
-    if (now <= event.reservationOpenDate) {
-      // 예약 시간이 아닙니다.
-      throw new BadRequestException('아직 예약 오픈 시간이 아닙니다.');
+    if (!this.openBookingService.isEventOpened(eventId)) {
+      throw new BadRequestException('아직 예약이 오픈되지 않았습니다.');
     } else if (now >= event.reservationCloseDate) {
       //event 시간 확인 이벤트 종료시간 이후인지
       // 예약 시간이 아닙니다.
@@ -36,23 +38,26 @@ export class BookingService {
 
     await this.authService.setUserEventTarget(sid, eventId);
 
-    return await this.tryToEnter(sid);
+    return await this.getForwarded(sid);
   }
 
-  private async tryToEnter(sid: string) {
-    // 입장이 성공하면 user의 상태를 seating room으로 변경하기
-    if (await this.inBookingService.insertInBooking(sid)) {
+  private async getForwarded(sid: string) {
+    const isEntered = await this.inBookingService.insertIfPossible(sid);
+
+    if (isEntered) {
       await this.authService.setUserStatusSelectingSeat(sid);
       return {
         waitingStatus: false,
         enteringStatus: true,
       };
     }
-    // 입장이 실패하면 user의 상태를 waiting room으로 변경하기
+
     await this.authService.setUserStatusWaiting(sid);
+    const userOrder = await this.waitingQueueService.pushQueue(sid);
     return {
       waitingStatus: true,
       enteringStatus: false,
+      userOrder,
     };
   }
 

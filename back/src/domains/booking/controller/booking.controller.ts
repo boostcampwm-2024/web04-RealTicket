@@ -12,6 +12,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -35,13 +36,16 @@ import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
+import { WaitingQueueService } from '../service/waiting-queue.service';
 
 @Controller('booking')
 export class BookingController {
   constructor(
+    private readonly eventEmitter: EventEmitter2,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
+    private readonly waitingQueueService: WaitingQueueService,
   ) {}
 
   @UseGuards(SessionAuthGuard())
@@ -52,6 +56,18 @@ export class BookingController {
   ) {
     const sid = req.cookies['SID'];
     return await this.bookingService.isAdmission(eventId, sid);
+  }
+
+  @Sse('re-permission/:eventId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.WAITING))
+  @ApiOperation({
+    summary: '대기큐 현황 SSE',
+    description: '대기큐의 대기 현황을 구독한다.',
+  })
+  @ApiOkResponse({ description: 'SSE 연결 성공' })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async subscribeWaitingQueue(@Param('eventId') eventId: number) {
+    return this.waitingQueueService.subscribeQueue(eventId);
   }
 
   @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
@@ -76,8 +92,18 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async getReservationStatusByEventId(@Param('eventId') eventId: number): Promise<Observable<MessageEvent>> {
-    return this.bookingSeatsService.subscribeSeats(eventId);
+  async getReservationStatusByEventId(
+    @Param('eventId') eventId: number,
+    @Req() req: Request,
+  ): Promise<Observable<MessageEvent>> {
+    const observable = this.bookingSeatsService.subscribeSeats(eventId);
+
+    const sid = req.cookies['SID'];
+    req.on('close', () => {
+      this.eventEmitter.emit('seats-sse-close', { sid });
+    });
+
+    return observable;
   }
 
   @Post('')
