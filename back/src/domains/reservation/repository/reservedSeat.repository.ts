@@ -8,7 +8,7 @@ import { ReservedSeat } from '../entity/reservedSeat.entity';
 export class ReservedSeatRepository {
   constructor(@InjectRepository(ReservedSeat) private reservedSeatRepository: Repository<ReservedSeat>) {}
 
-  storeReservedSeat(reservedSeatData: any) {
+  storeReservedSeat(reservedSeatData: any): Promise<ReservedSeat[]> {
     const reservedSeat = this.reservedSeatRepository.create(reservedSeatData);
     return this.reservedSeatRepository.save(reservedSeat);
   }

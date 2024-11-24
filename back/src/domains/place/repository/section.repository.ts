@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { Section } from '../entity/section.entity';
 
@@ -12,6 +12,9 @@ export class SectionRepository {
     return await this.sectionRepository.findOne({ where: { id } });
   }
 
+  async selectSectionsByIds(ids: number[]): Promise<Section[]> {
+    return await this.sectionRepository.find({ where: { id: In(ids) } });
+  }
   async findById(id: number): Promise<Section> {
     return await this.sectionRepository.findOne({ where: { id } });
   }

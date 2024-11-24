@@ -23,6 +23,13 @@ export class EventRepository {
     });
   }
 
+  async selectEventWithPlaceAndProgramAndPlace(id: number): Promise<Event> {
+    return await this.EventRepository.findOne({
+      where: { id },
+      relations: ['place', 'program', 'program.place'],
+    });
+  }
+
   async storeEvent(data: any) {
     const event = this.EventRepository.create(data);
     return await this.EventRepository.save(event);

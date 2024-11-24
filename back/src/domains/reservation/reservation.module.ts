@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { EventModule } from '../event/event.module';
+import { PlaceModule } from '../place/place.module';
 import { UserModule } from '../user/user.module';
 
 import { ReservationController } from './controller/reservation.controller';
@@ -12,7 +13,7 @@ import { ReservedSeatRepository } from './repository/reservedSeat.repository';
 import { ReservationService } from './service/reservation.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Reservation, ReservedSeat]), EventModule, UserModule],
+  imports: [TypeOrmModule.forFeature([Reservation, ReservedSeat]), EventModule, UserModule, PlaceModule],
   controllers: [ReservationController],
   providers: [ReservationService, ReservationRepository, ReservedSeatRepository],
 })
