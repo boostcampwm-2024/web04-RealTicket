@@ -111,7 +111,7 @@ export class BookingSeatsService {
 
   async getSeats(eventId: number) {
     const seatStatusBits = await runGetSeatsLua(this.redis, eventId);
-    return seatStatusBits.map((bit) => bit === 1);
+    return seatStatusBits.map((sectionBits) => sectionBits.map((bit) => bit === 1));
   }
 
   subscribeSeats(eventId: number): Observable<any> {
