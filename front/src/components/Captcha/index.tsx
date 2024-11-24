@@ -35,10 +35,9 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
       }
     }
   };
-  const canValidate = inputData.length == CAPTCHA_TEXT_LENGTH;
 
   return (
-    <div className="p- flex flex-col gap-8 rounded-xl border border-surface-cardBorder p-6 shadow-xl">
+    <div className="flex w-[420px] flex-col gap-8 rounded-xl border border-surface-cardBorder p-6 shadow-xl">
       <div className="flex flex-col gap-2 text-center">
         <h2 className="text-heading1">자동 예매 방지 문자</h2>
         <p className="text-display2 text-typo-sub">부정 예매 방지를 위해 보안 문자를 정확히 입력해주세요.</p>
@@ -67,12 +66,8 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
         <Button color={'cancel'}>
           <span className="text-label1 text-typo-display">취소</span>
         </Button>
-        <Button disabled={!canValidate} color={'primary'} onClick={validateAndGoNextStep}>
-          {canValidate ? (
-            <span className="text-label1 text-typo-display">확인</span>
-          ) : (
-            <span className="text-label1 text-typo-disable">문자를 모두 입력해주세요</span>
-          )}
+        <Button color={'primary'} onClick={validateAndGoNextStep}>
+          <span className="text-label1 text-typo-display">확인</span>
         </Button>
       </div>
     </div>
