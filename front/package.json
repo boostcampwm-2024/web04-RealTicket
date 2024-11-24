@@ -9,8 +9,8 @@
     "start": "vite preview --port 80 --host",
     "lint": "eslint --fix",
     "prettier": "prettier -w",
-    "tsc": "tsc -b"
-    ,"test" : "vitest"
+    "tsc": "tsc -b",
+    "test": "vitest"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.60.6",
@@ -20,6 +20,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
+    "react-simple-captcha": "^9.3.1",
     "tailwind-merge": "^2.5.4",
     "vitest": "^2.1.5"
   },
