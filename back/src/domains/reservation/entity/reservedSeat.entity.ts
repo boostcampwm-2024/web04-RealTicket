@@ -1,8 +1,11 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+
+import { Event } from '../../event/entity/event.entity';
 
 import { Reservation } from './reservation.entity';
 
 @Entity({ name: 'Reserved_Seat' })
+@Unique(['row', 'col', 'section', 'reservation'])
 export class ReservedSeat {
   @PrimaryGeneratedColumn('increment')
   id: number;
@@ -19,4 +22,8 @@ export class ReservedSeat {
   @ManyToOne(() => Reservation, (reservation) => reservation.reservedSeats, { lazy: true })
   @JoinColumn({ name: 'reservation_id', referencedColumnName: 'id' })
   reservation: Promise<Reservation>;
+
+  @ManyToOne(() => Event, (event) => event.reservedSeats, { lazy: true })
+  @JoinColumn({ name: 'event_id', referencedColumnName: 'id' })
+  event: Promise<Event>;
 }

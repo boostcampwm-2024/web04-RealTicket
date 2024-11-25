@@ -4,6 +4,8 @@ import { Place } from 'src/domains/place/entity/place.entity';
 import { Program } from 'src/domains/program/entities/program.entity';
 import { Reservation } from 'src/domains/reservation/entity/reservation.entity';
 
+import { ReservedSeat } from '../../reservation/entity/reservedSeat.entity';
+
 @Entity({ name: 'Event' })
 export class Event {
   @PrimaryGeneratedColumn('increment')
@@ -28,4 +30,7 @@ export class Event {
 
   @OneToMany(() => Reservation, (reservation) => reservation.event, { lazy: true })
   reservations: Promise<Reservation[]>;
+
+  @OneToMany(() => ReservedSeat, (reservedSeat) => reservedSeat.event, { lazy: true })
+  reservedSeats: Promise<ReservedSeat[]>;
 }
