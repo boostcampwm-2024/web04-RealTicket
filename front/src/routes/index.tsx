@@ -51,7 +51,14 @@ const router = createBrowserRouter([
           </WithLogin>
         ),
       },
-      { path: '/events/:eventId/waiting', element: <ReservationWaitingPage /> },
+      {
+        path: '/events/:eventId/waiting',
+        element: (
+          <WithLogin>
+            <ReservationWaitingPage />
+          </WithLogin>
+        ),
+      },
       {
         path: '/events/:eventId',
         element: (
