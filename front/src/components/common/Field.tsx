@@ -1,6 +1,6 @@
 import { PropsWithChildren } from 'react';
 
-import { FieldContext } from '@/contexts/FieldContext';
+import { FieldContext } from '@/contexts/fieldContext';
 
 interface IFieldProps extends PropsWithChildren {
   label: string;
