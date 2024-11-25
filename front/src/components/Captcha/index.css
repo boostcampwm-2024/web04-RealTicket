@@ -1,0 +1,41 @@
+.captcha__container{
+  display: flex;
+  flex-direction: column;
+  gap:1rem;
+}
+
+.captcha{
+  padding: 0 1rem;
+  border: 1px solid gray;
+  border-radius: 4px;
+  & > div{
+    display: flex;
+    gap:.5rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #canv{
+    width: 100%;
+    padding: 1rem .5rem;
+    height: 60px;
+    object-fit: none;
+  }
+  #reload_href{
+    --primary:#2563ebff;
+    display: block;
+    width:2rem;
+    height:2rem;
+    padding: 1rem;
+    background-image: url('@/assets/icons/refresh.svg');
+    background-repeat: no-repeat;
+    background-position:center;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    font-size: 2rem;
+    &:hover{
+      opacity: .7;
+    }
+  }
+  
+}
+

@@ -13,8 +13,6 @@ import { getDate, getTime } from '@/utils/date.ts';
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
-//TODO 타입으로 옮기기
-
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_MINUTE = 60;
 
