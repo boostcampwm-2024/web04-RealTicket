@@ -3,7 +3,9 @@ import router from '@/routes/index.tsx';
 import axios, { AxiosError, isAxiosError } from 'axios';
 
 //TODO 타입 정의
-const BASE_URL = import.meta.env.VITE_API_URL;
+const isDevelopEnvironment = import.meta.env.DEV;
+
+const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
 type ErrorData = {
   error: string;
   message: string;
@@ -17,7 +19,6 @@ export const apiClient = axios.create({
 });
 
 const EXCLUDING_AUTH_ERROR_REDIRECT_URL_LIST = ['/user'];
-
 const NOT_LOGIN_ERROR_STATUS = 403;
 
 //TODO AuthContext logout 처리 필요, 현재 login상태가 true인데, cookie의 서버 세션이 만료된 경우
