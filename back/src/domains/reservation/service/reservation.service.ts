@@ -180,6 +180,11 @@ export class ReservationService {
 
     const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat) => {
       const section = sectionInfo.find((section) => section.id === seat.sectionIndex);
+      if (seat.seatIndex >= section.seats.length || seat.seatIndex < 0) {
+        throw new BadRequestException(
+          `해당 section의 seat이 존재하지 않습니다. seatIndex: ${seat.seatIndex}`,
+        );
+      }
       return {
         event: { id: event[0].id },
         section: section.name,
