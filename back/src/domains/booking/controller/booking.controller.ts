@@ -23,7 +23,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { Observable } from 'rxjs';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
@@ -92,10 +91,7 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async getReservationStatusByEventId(
-    @Param('eventId') eventId: number,
-    @Req() req: Request,
-  ): Promise<Observable<MessageEvent>> {
+  async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
     const observable = this.bookingSeatsService.subscribeSeats(eventId);
 
     const sid = req.cookies['SID'];
