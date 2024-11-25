@@ -6,22 +6,26 @@ export const SEAT_BOX_SIZE = SEAT_SIZE + SEATS_GAP;
 export const API = {
   PROGRAMS: {
     //TODO 단수로
-    GET_PROGRAMS: '/api/program',
-    GET_DETAIL: (id: number) => `/api/program/${id}`,
-    GET_DETAIL_MOCK: (id: number) => `/api/mock/programs/${id}`,
+    GET_PROGRAMS: '/program',
+    GET_DETAIL: (id: number) => `/program/${id}`,
+    GET_DETAIL_MOCK: (id: number) => `/mock/programs/${id}`,
   },
   USER: {
-    SIGNUP: '/api/user/signup',
-    LOGIN: '/api/user/login', //signin->login으로변경
-    CHECK_ID: '/api/user/checkid',
-    LOGOUT: '/api/user/logout',
-    INFORMATION: '/api/user',
+    SIGNUP: '/user/signup',
+    LOGIN: '/user/login', //signin->login으로변경
+    CHECK_ID: '/user/checkid',
+    LOGOUT: '/user/logout',
+    INFORMATION: '/user',
   },
   EVENT: {
-    GET_EVENT_DETAIL_MOCK: (id: number) => `/api/mock/events/${id}`,
-    GET_EVENT_DETAIL: (id: number) => `/apievent/${id}`,
+    GET_EVENT_DETAIL_MOCK: (id: number) => `/mock/events/${id}`,
+    GET_EVENT_DETAIL: (id: number) => `/event/${id}`,
   },
   PLACE: {
-    GET_PLACE_INFORMATION: (id: number) => `/api/place/seats/${id}`,
+    GET_PLACE_INFORMATION: (id: number) => `/place/seats/${id}`,
+  },
+  RESERVATION: {
+    GET_RESERVATION: '/reservation',
+    DELETE_RESERVATION: (id: number) => `/reservation/${id}`,
   },
 };
