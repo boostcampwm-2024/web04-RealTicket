@@ -10,6 +10,7 @@ import { EventRepository } from '../../event/repository/event.reposiotry';
 import { Place } from '../../place/entity/place.entity';
 import { Section } from '../../place/entity/section.entity';
 import { SectionRepository } from '../../place/repository/section.repository';
+import { Program } from '../../program/entities/program.entity';
 import { ReservationCreateDto } from '../dto/reservationCreateDto';
 import { ReservationIdDto } from '../dto/reservationIdDto';
 import { ReservationSeatInfoDto } from '../dto/reservationSeatInfoDto';
@@ -107,6 +108,7 @@ export class ReservationService {
         queryRunner,
         reservationCreateDto,
         place,
+        event,
         reservationResult,
       );
 
@@ -144,9 +146,9 @@ export class ReservationService {
   async saveReservation(
     queryRunner: QueryRunner,
     reservationCreateDto: ReservationCreateDto,
-    userId,
-    event,
-    program,
+    userId: number,
+    event: Event[],
+    program: Program,
   ) {
     const reservationData: any = {
       createdAt: new Date(),
@@ -164,6 +166,7 @@ export class ReservationService {
     queryRunner: QueryRunner,
     reservationCreateDto: ReservationCreateDto,
     place: Place,
+    event: Event[],
     reservationResult: Reservation,
   ) {
     const sections = reservationCreateDto.seats.map((seat) => {
@@ -177,7 +180,13 @@ export class ReservationService {
 
     const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat) => {
       const section = sectionInfo.find((section) => section.id === seat.sectionIndex);
+      if (seat.seatIndex >= section.seats.length || seat.seatIndex < 0) {
+        throw new BadRequestException(
+          `해당 section의 seat이 존재하지 않습니다. seatIndex: ${seat.seatIndex}`,
+        );
+      }
       return {
+        event: { id: event[0].id },
         section: section.name,
         // 1행부터 시작하도록 행에 +1
         row: Math.floor(seat.seatIndex / section.colLen) + 1,
