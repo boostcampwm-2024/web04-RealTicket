@@ -3,7 +3,7 @@ import { Observable } from 'rxjs';
 
 import { EventService } from './event.service';
 
-@Controller('mock/events')
+@Controller('mock/event')
 export class EventController {
   constructor(private readonly eventService: EventService) {}
 
@@ -12,7 +12,7 @@ export class EventController {
     return this.eventService.getEventById(eventId);
   }
 
-  @Sse('seats/:eventId')
+  @Sse('seat/:eventId')
   getReservationStatusByEventId(@Param('eventId') eventId: number): Observable<MessageEvent> {
     return this.eventService.getSeatStatusByEventId(eventId);
   }

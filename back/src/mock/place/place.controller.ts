@@ -6,7 +6,7 @@ import { PlaceService } from './place.service';
 export class PlaceController {
   constructor(private readonly placeService: PlaceService) {}
 
-  @Get('seats/:placeId')
+  @Get('seat/:placeId')
   async getSeatsByPlaceId() {
     return await this.placeService.getSeatsByPlaceId();
   }
