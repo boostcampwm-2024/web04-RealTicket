@@ -30,8 +30,14 @@ export class WaitingQueueService {
   @OnEvent('seats-sse-close')
   async letInNextWaiting(event: { sid: string }) {
     const eventId = await this.authService.getUserEventTarget(event.sid);
-    const { sid } = await this.popQueue(eventId);
-    await this.authService.setUserStatusSelectingSeat(sid);
+    if ((await this.getQueueSize(eventId)) < 1) {
+      return;
+    }
+    const item = await this.popQueue(eventId);
+    if (!item) {
+      return;
+    }
+    await this.authService.setUserStatusSelectingSeat(item.sid);
   }
 
   subscribeQueue(eventId: number) {
@@ -57,8 +63,11 @@ export class WaitingQueueService {
   }
 
   async popQueue(eventId: number) {
-    const { sid, order } = JSON.parse(await this.redis.lpop(`waiting-queue:${eventId}`));
-    return { sid, order };
+    const item = await this.redis.lpop(`waiting-queue:${eventId}`);
+    if (!item) {
+      return null;
+    }
+    return JSON.parse(item);
   }
 
   private async createQueueSubscription(eventId: number) {
