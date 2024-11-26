@@ -11,6 +11,7 @@ import ProgramsPage from '@/pages/ProgramsPage';
 import ReservationPage from '@/pages/ReservationPage';
 import ReservationWaitingPage from '@/pages/ReservationWaitingPage';
 import SignUpPage from '@/pages/SignupPage';
+import WaitingQueuePage from '@/pages/WaitingQueuePage/index.tsx';
 
 // import Test from '@/pages/Test.tsx';
 import Layout from '@/layout/Layout';
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
     children: [
       { path: '*', element: <NotFondPage /> },
       { path: '', element: <Navigate to="/programs" /> },
+      // { path: '', element: <Test></Test> },
       { path: '/programs', element: <ProgramsPage /> },
       { path: '/programs/:programId', element: <ProgramDetailPage /> },
       {
@@ -64,6 +66,14 @@ const router = createBrowserRouter([
         element: (
           <WithLogin>
             <ReservationPage />
+          </WithLogin>
+        ),
+      },
+      {
+        path: '/waiting/:eventId/',
+        element: (
+          <WithLogin>
+            <WaitingQueuePage />
           </WithLogin>
         ),
       },

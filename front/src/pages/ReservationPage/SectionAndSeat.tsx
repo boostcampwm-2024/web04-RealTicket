@@ -64,6 +64,7 @@ export default function SectionAndSeat({
   const viewBoxData = `0 0 ${overviewWidth} ${overviewHeight}`;
   const isSelectionComplete = seatCount <= selectedSeats.length;
   const canViewSeatMap = selectedSection !== null && selectedSectionSeatMap && seatStatusList.length !== 0;
+  //TODO 커스텀 훅으로 변경
   useEffect(() => {
     if (eventSourceRef.current === null) {
       eventSourceRef.current = new EventSource(`${BASE_URL}${API.BOOKING.GET_SEATS_SSE(eventId)}`, {
