@@ -34,7 +34,7 @@ export default function ReservationPage() {
 
   const [seatCount, setSeatCount] = useState<SeatCount>(DEFAULT_SEAT_COUNT);
   const [reservationResult, setReservationResult] = useState<null | string[]>(['']); //TODO 각 단계 데이터 하나에서 컨트로 funnel구조로
-  const [step, setStep] = useState<ReservationStep>('setCount');
+  const [step, setStep] = useState<ReservationStep>('captcha');
   const selectCount = (count: SeatCount) => {
     setSeatCount(count);
   };

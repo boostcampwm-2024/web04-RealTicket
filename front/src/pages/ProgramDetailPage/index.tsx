@@ -16,7 +16,7 @@ import { ProgramDetail } from '@/type/index.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
-//TODO 페이지 계층 컴포넌트 분리
+//TODO 페이지 계층 컴포넌트 분리, 날짜 정렬
 export default function ProgramDetailPage() {
   const { programId } = useParams(); //초기 데이터 호출용
   const navigate = useNavigate();

@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { BASE_URL } from '@/api/axios.ts';
+import { PostSeatData, postSeat } from '@/api/booking.ts';
 
 import Button from '@/components/common/Button.tsx';
 import Separator from '@/components/common/Separator.tsx';
@@ -7,7 +10,9 @@ import SectionSelectorMap from '@/pages/ReservationPage/SectionSelectorMap';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
+import { API } from '@/constants/index.ts';
 import type { EventDetail, PlaceInformation, Section, SectionCoordinate } from '@/type/index.ts';
+import { useMutation, useMutationState } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
@@ -18,6 +23,8 @@ interface ISectionAndSeatProps {
   event: EventDetail;
   placeInformation: PlaceInformation;
 }
+
+//TODO sse로 상태 받아오기, 좌석 선택 요청, 취소, mutation 커스텀 훅 필요
 export default function SectionAndSeat({
   seatCount,
   goNextStep,
@@ -25,21 +32,57 @@ export default function SectionAndSeat({
   setReservationResult,
   placeInformation,
 }: ISectionAndSeatProps) {
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  //TODO 길이 모음 필요 , 상태 관리 필용
+  const [seatStatusList, setSeatStatusList] = useState<boolean[][]>([]);
+  const eventSourceRef = useRef<null | EventSource>(null);
+  const { mutate: pickSeat } = useMutation({
+    mutationFn: postSeat,
+    mutationKey: PICK_SEAT_MUTATION_KEY_LIST,
+    // onMutate: (data) => {
+    //   const { eventId, seatIndex, expectedStatus } = data;
+    // },
+    // onSettled: (data) => {
+    //   const { eventId, seatIndex, expectedStatus } = data;
+    // },
+  });
+
+  const pendingList = useMutationState({
+    filters: { mutationKey: PICK_SEAT_MUTATION_KEY_LIST },
+    select: (mutation) => mutation,
+  });
+  console.log(pendingList);
+
+  //TODO 길이 모음 필요 , 상태 관리 필용, 상태 reducer로 변경 필요, pending 중인 state 추출 필요
   const { layout } = placeInformation;
-  const { sections } = layout;
-  const { overview, overviewHeight, overviewPoints, overviewWidth } = layout;
+  const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
+  const { name, place, runningDate, runningTime, id: eventId } = event;
   const sectionCo = JSON.parse(overviewPoints) as SectionCoordinate[];
-
   const selectedSectionSeatMap =
-    selectedSection && sections.find((section) => section.name == selectedSection);
-  const seatStatus = seatStatusMap.find((section) => section.name === selectedSection);
+    selectedSection !== null && sections.find((_, index) => index == selectedSection);
 
-  const { name, place, runningDate, runningTime } = event;
   const viewBoxData = `0 0 ${overviewWidth} ${overviewHeight}`;
   const isSelectionComplete = seatCount <= selectedSeats.length;
+  const canViewSeatMap = selectedSection !== null && selectedSectionSeatMap && seatStatusList.length !== 0;
+  useEffect(() => {
+    if (eventSourceRef.current === null) {
+      eventSourceRef.current = new EventSource(`${BASE_URL}${API.BOOKING.GET_SEATS_SSE(eventId)}`, {
+        withCredentials: true,
+      });
+      eventSourceRef.current.onmessage = (event) => {
+        const { seatStatus } = JSON.parse(event.data);
+        if (seatStatus) {
+          setSeatStatusList(seatStatus);
+        }
+      };
+    }
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [eventId]);
 
   //TODO 폰트 크기 구하기 필요, 레이아웃 반복문으로 만들기
   return (
@@ -58,7 +101,7 @@ export default function SectionAndSeat({
             <span className="text-display1 text-typo">{`시간 : ${getTime(runningDate)}`}</span>
           </div>
         </div>
-        {selectedSection && (
+        {selectedSection !== null && (
           <>
             <Separator direction="row" />
             <div className="flex justify-evenly">
@@ -74,7 +117,7 @@ export default function SectionAndSeat({
             <Separator direction="row" />
           </>
         )}
-        {selectedSection && selectedSectionSeatMap ? (
+        {canViewSeatMap ? (
           <div
             className={twMerge(
               cx(
@@ -84,10 +127,13 @@ export default function SectionAndSeat({
             )}>
             {renderSeatMap(
               selectedSectionSeatMap,
-              seatStatus!.seats,
+              selectedSection,
+              seatStatusList[selectedSection],
               setSelectedSeats,
               seatCount,
               selectedSeats,
+              pickSeat,
+              eventId,
             )}
           </div>
         ) : (
@@ -140,10 +186,13 @@ export default function SectionAndSeat({
 //TODO 컴포넌트로 변경
 const renderSeatMap = (
   selectedSection: Section,
+  selectedSectionIndex: number,
   seatStatus: boolean[],
   setSelectedSeats: (seats: string[]) => void,
   maxSelectCount: number,
   selectedSeats: string[],
+  pickSeat: (data: PostSeatData) => void,
+  eventId: number,
 ) => {
   let columnCount = 1;
   const { name, seats, colLen } = selectedSection;
@@ -172,11 +221,24 @@ const renderSeatMap = (
         onClick={() => {
           const selectedCount = selectedSeats.length;
           if (isMine) {
-            const nextSelectedSeats = selectedSeats.filter((seat) => seat !== seatName);
-            setSelectedSeats(nextSelectedSeats);
+            const filtered = selectedSeats.filter((seat) => seatName !== seat);
+            pickSeat({
+              sectionIndex: selectedSectionIndex,
+              seatIndex: index,
+              expectedStatus: 'deleted',
+              eventId,
+            });
+            setSelectedSeats(filtered);
             return;
           }
+
           if (maxSelectCount <= selectedCount) return;
+          pickSeat({
+            sectionIndex: selectedSectionIndex,
+            seatIndex: index,
+            expectedStatus: 'reserved',
+            eventId,
+          });
           setSelectedSeats([...selectedSeats, seatName!]);
         }}
       />
@@ -198,246 +260,248 @@ const getColorClass = (state: string) => {
   }
 };
 
-const seatStatusMap = [
-  {
-    name: 'A',
-    colLen: 10,
-    seats: [
-      true,
-      true,
-      false,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-    ],
-    placeId: 4,
-    order: 1,
-  },
-  {
-    name: 'B',
-    colLen: 10,
-    seats: [
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-    ],
-    placeId: 4,
-    order: 2,
-  },
-];
+const PICK_SEAT_MUTATION_KEY_LIST = ['seat'];
+
+// const seatStatusMap = [
+//   {
+//     name: 'A',
+//     colLen: 10,
+//     seats: [
+//       true,
+//       true,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       false,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//     ],
+//     placeId: 4,
+//     order: 1,
+//   },
+//   {
+//     name: 'B',
+//     colLen: 10,
+//     seats: [
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       false,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       false,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       false,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       false,
+//       false,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//       true,
+//       true,
+//       false,
+//     ],
+//     placeId: 4,
+//     order: 2,
+//   },
+// ];
