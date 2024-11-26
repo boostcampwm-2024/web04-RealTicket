@@ -1,6 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -26,19 +25,6 @@ export class WaitingQueueService {
     private authService: AuthService,
   ) {
     this.redis = this.redisService.getOrThrow();
-  }
-
-  @OnEvent('seats-sse-close')
-  async letInNextWaiting(event: { sid: string }) {
-    const eventId = await this.authService.getUserEventTarget(event.sid);
-    if ((await this.getQueueSize(eventId)) < 1) {
-      return;
-    }
-    const item = await this.popQueue(eventId);
-    if (!item) {
-      return;
-    }
-    await this.authService.setUserStatusSelectingSeat(item.sid);
   }
 
   subscribeQueue(eventId: number) {
@@ -71,6 +57,11 @@ export class WaitingQueueService {
     return JSON.parse(item);
   }
 
+  async getQueueSize(eventId: number) {
+    const size = await this.redis.llen(`waiting-queue:${eventId}`);
+    return size;
+  }
+
   private async createQueueSubscription(eventId: number) {
     const initialSituation = {
       headOrder: 0,
@@ -98,10 +89,5 @@ export class WaitingQueueService {
     const headItem = await this.redis.lindex(`waiting-queue:${eventId}`, 0);
     const headOrder = headItem ? JSON.parse(headItem).order : null;
     return headOrder;
-  }
-
-  private async getQueueSize(eventId: number) {
-    const size = await this.redis.llen(`waiting-queue:${eventId}`);
-    return size;
   }
 }
