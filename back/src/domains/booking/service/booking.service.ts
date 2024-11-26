@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
-import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatusDto';
+import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';
@@ -22,13 +23,29 @@ export class BookingService {
     private readonly waitingQueueService: WaitingQueueService,
   ) {}
 
+  @OnEvent('seats-sse-close')
+  async letInNextWaiting(event: { sid: string }) {
+    const eventId = await this.authService.getUserEventTarget(event.sid);
+    if ((await this.waitingQueueService.getQueueSize(eventId)) < 1) {
+      return;
+    }
+    if (await this.inBookingService.isInsertable(eventId)) {
+      const item = await this.waitingQueueService.popQueue(eventId);
+      if (!item) {
+        return;
+      }
+      await this.authService.setUserStatusSelectingSeat(item.sid);
+    }
+  }
+
   // 함수 이름 생각하기
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     // eventId를 받아서 해당 이벤트가 존재하는지 확인한다.
     const event = await this.eventService.findEvent({ eventId });
     const now = new Date(Date.now() + OFFSET);
+    const isOpened = await this.openBookingService.isEventOpened(eventId);
 
-    if (!this.openBookingService.isEventOpened(eventId)) {
+    if (!isOpened) {
       throw new BadRequestException('아직 예약이 오픈되지 않았습니다.');
     } else if (now >= event.reservationCloseDate) {
       //event 시간 확인 이벤트 종료시간 이후인지

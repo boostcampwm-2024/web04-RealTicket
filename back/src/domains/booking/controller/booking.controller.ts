@@ -27,10 +27,12 @@ import { Request } from 'express';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { SeatStatus } from '../const/seatStatus.enum';
-import { BookingAmountReqDto } from '../dto/bookingAmountReqDto';
-import { BookingAmountResDto } from '../dto/bookingAmountResDto';
-import { BookReqDto } from '../dto/bookReqDto';
-import { BookResDto } from '../dto/bookResDto';
+import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
+import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
+import { BookReqDto } from '../dto/bookReq.dto';
+import { BookResDto } from '../dto/bookRes.dto';
+import { InBookingSizeReqDto } from '../dto/inBookingSizeReq.dto';
+import { InBookingSizeResDto } from '../dto/inBookingSizeRes.dto';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
@@ -134,5 +136,33 @@ export class BookingController {
   @Get('server-time')
   async getServerTime() {
     return await this.bookingService.getTimeMs();
+  }
+
+  @Post('in-booking-pool-size/event/:eventId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @ApiOperation({
+    summary: 'ADMIN: 좌석 선택창 인원 설정',
+    description: '특정 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
+  })
+  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async setInBookingSessionsMaxSize(@Param('eventId') eventId: number, @Body() dto: InBookingSizeReqDto) {
+    const maxSize = dto.maxSize;
+    const setSize = await this.inBookingService.setInBookingSessionsMaxSize(eventId, maxSize);
+    return new InBookingSizeResDto(setSize);
+  }
+
+  @Post('in-booking-pool-size/all')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @ApiOperation({
+    summary: 'ADMIN: 좌석 선택창 인원 설정(ALL)',
+    description: '모든 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
+  })
+  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async setAllInBookingSessionsMaxSize(@Body() dto: InBookingSizeReqDto) {
+    const maxSize = dto.maxSize;
+    const setSize = await this.inBookingService.setAllInBookingSessionsMaxSize(maxSize);
+    return new InBookingSizeResDto(setSize);
   }
 }

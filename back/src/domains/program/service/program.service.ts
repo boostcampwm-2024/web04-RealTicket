@@ -1,10 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { PlaceMainPageDto } from '../dto/placeMainPageDto';
-import { ProgramCreationDto } from '../dto/programCreationDto';
-import { ProgramIdDto } from '../dto/programIdDto';
-import { ProgramMainPageDto } from '../dto/programMainPageDto';
-import { ProgramSpecificDto } from '../dto/programSpecificDto';
+import { PlaceMainPageDto } from '../dto/placeMainPage.dto';
+import { ProgramCreationDto } from '../dto/programCreation.dto';
+import { ProgramIdDto } from '../dto/programId.dto';
+import { ProgramMainPageDto } from '../dto/programMainPage.dto';
+import { ProgramSpecificDto } from '../dto/programSpecific.dto';
 import { Program } from '../entities/program.entity';
 import { ProgramRepository } from '../repository/program.repository';
 

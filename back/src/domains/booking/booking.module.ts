@@ -16,5 +16,6 @@ import { WaitingQueueService } from './service/waiting-queue.service';
   imports: [EventEmitterModule.forRoot(), EventModule, AuthModule, PlaceModule],
   controllers: [BookingController],
   providers: [BookingService, InBookingService, OpenBookingService, BookingSeatsService, WaitingQueueService],
+  exports: [InBookingService],
 })
 export class BookingModule {}

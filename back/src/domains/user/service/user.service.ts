@@ -85,7 +85,7 @@ export class UserService {
       userInfoDto.loginId = user.loginId;
       // TODO
       // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
-      await this.redis.set(sessionId, JSON.stringify(cachedUserInfo), 'EX', 3600);
+      await this.redis.set(`user:${sessionId}`, JSON.stringify(cachedUserInfo), 'EX', 3600);
       return { sessionId: sessionId, userInfo: userInfoDto };
     } catch (err) {
       this.logger.error(err);
@@ -111,7 +111,7 @@ export class UserService {
 
   async getUserInfo(sid: string) {
     try {
-      const userInfo = JSON.parse(await this.redis.get(sid));
+      const userInfo = await this.authService.getUserSession(sid);
       const userInfoDto: UserInfoDto = new UserInfoDto();
       userInfoDto.loginId = userInfo.loginId;
       userInfoDto.loginId = userInfo.loginId;

@@ -32,10 +32,10 @@ import {
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 
-import { ProgramCreationDto } from '../dto/programCreationDto';
-import { ProgramIdDto } from '../dto/programIdDto';
-import { ProgramMainPageDto } from '../dto/programMainPageDto';
-import { ProgramSpecificDto } from '../dto/programSpecificDto';
+import { ProgramCreationDto } from '../dto/programCreation.dto';
+import { ProgramIdDto } from '../dto/programId.dto';
+import { ProgramMainPageDto } from '../dto/programMainPage.dto';
+import { ProgramSpecificDto } from '../dto/programSpecific.dto';
 import { ProgramService } from '../service/program.service';
 
 @Controller('program')

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { PlaceMainPageDto } from './placeMainPageDto';
+import { PlaceMainPageDto } from './placeMainPage.dto';
 
 export class ProgramMainPageDto {
   constructor({ id, name, genre, place, profileUrl, actors }) {

@@ -5,20 +5,19 @@ import { DataSource, In, QueryRunner } from 'typeorm';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
+import { AuthService } from '../../../auth/service/auth.service';
+import { InBookingService } from '../../booking/service/in-booking.service';
 import { Event } from '../../event/entity/event.entity';
-import { EventRepository } from '../../event/repository/event.reposiotry';
 import { Place } from '../../place/entity/place.entity';
 import { Section } from '../../place/entity/section.entity';
-import { SectionRepository } from '../../place/repository/section.repository';
 import { Program } from '../../program/entities/program.entity';
-import { ReservationCreateDto } from '../dto/reservationCreateDto';
-import { ReservationIdDto } from '../dto/reservationIdDto';
-import { ReservationSeatInfoDto } from '../dto/reservationSeatInfoDto';
-import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
+import { ReservationCreateDto } from '../dto/reservationCreate.dto';
+import { ReservationIdDto } from '../dto/reservationId.dto';
+import { ReservationSeatInfoDto } from '../dto/reservationSeatInfo.dto';
+import { ReservationSpecificDto } from '../dto/reservationSepecific.dto';
 import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
 import { ReservationRepository } from '../repository/reservation.repository';
-import { ReservedSeatRepository } from '../repository/reservedSeat.repository';
 
 @Injectable()
 export class ReservationService {
@@ -28,10 +27,9 @@ export class ReservationService {
   constructor(
     @Inject() private readonly reservationRepository: ReservationRepository,
     @Inject() private readonly redisService: RedisService,
-    @Inject() private readonly eventRepository: EventRepository,
-    @Inject() private readonly reservedSeatRepository: ReservedSeatRepository,
-    @Inject() private readonly sectionRepository: SectionRepository,
     @Inject() private readonly dataSource: DataSource,
+    @Inject() private readonly authService: AuthService,
+    @Inject() private readonly inBookingService: InBookingService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -83,7 +81,7 @@ export class ReservationService {
     return seats.length < 0 || seats.length > 4;
   }
 
-  async recordReservationTransaction(reservationCreateDto: ReservationCreateDto, { id }: UserParamDto) {
+  async recordReservationTransaction(reservationCreateDto: ReservationCreateDto, sid: string) {
     const queryRunner = this.dataSource.createQueryRunner();
 
     if (this.validateReservationLength(reservationCreateDto.seats)) {
@@ -93,7 +91,15 @@ export class ReservationService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const userId = id;
+      const session = await this.authService.getUserSession(sid);
+      const userId = session.id;
+      const eventId = await this.authService.getUserEventTarget(sid);
+      const bookingAmount = await this.inBookingService.getBookingAmount(sid);
+
+      if (reservationCreateDto.eventId !== eventId || reservationCreateDto.seats.length !== bookingAmount) {
+        throw new BadRequestException('예매 정보 또는 설정한 좌석수가 올바르지 않습니다.');
+      }
+
       const { event, program, place } = await this.getEventDetail(queryRunner, reservationCreateDto.eventId);
 
       const reservationResult = await this.saveReservation(
@@ -124,7 +130,7 @@ export class ReservationService {
         }),
       };
     } catch (err) {
-      this.logger.error(err);
+      this.logger.error(err.name, err.stack);
       await queryRunner.rollbackTransaction();
       throw new BadRequestException('예매에 실패했습니다.');
     } finally {
@@ -158,7 +164,7 @@ export class ReservationService {
       user: { id: userId },
     };
 
-    const reservation = await queryRunner.manager.create(Reservation, reservationData);
+    const reservation = queryRunner.manager.create(Reservation, reservationData);
     return await queryRunner.manager.save(reservation);
   }
 
