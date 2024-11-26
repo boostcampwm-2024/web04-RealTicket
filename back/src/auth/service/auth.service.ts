@@ -13,7 +13,7 @@ export class AuthService {
   }
 
   async getUserIdFromSession(sid: string): Promise<number | null> {
-    const session = JSON.parse(await this.redis.get(sid));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
     if (!session) return null;
     const userId = session.id;
     if (!userId) return null;
@@ -21,36 +21,36 @@ export class AuthService {
   }
 
   async setUserStatusLogin(sid: string) {
-    const session = JSON.parse(await this.redis.get(sid));
-    this.redis.set(sid, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
   }
 
   async setUserStatusWaiting(sid: string) {
-    const session = JSON.parse(await this.redis.get(sid));
-    this.redis.set(sid, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
   }
 
   async setUserStatusSelectingSeat(sid: string) {
-    const session = JSON.parse(await this.redis.get(sid));
-    this.redis.set(sid, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
   }
 
   async setUserStatusAdmin(sid: string) {
-    const session = JSON.parse(await this.redis.get(sid));
-    this.redis.set(sid, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
   }
 
   async setUserEventTarget(sid: string, eventId: number) {
-    const session = JSON.parse(await this.redis.get(sid));
-    this.redis.set(sid, JSON.stringify({ ...session, targetEvent: eventId }));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
   }
 
   async getUserEventTarget(sid: string) {
-    const session = JSON.parse(await this.redis.get(sid));
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
     return session.targetEvent;
   }
 
   async removeSession(sid: string) {
-    return this.redis.unlink(sid);
+    return this.redis.unlink(`user:${sid}`);
   }
 }
