@@ -9,7 +9,11 @@ const getSeatsLua = `
     local seatsLen = redis.call('GET', 'event:'..eventId..':section:'..i..':seats:len')
     local sectionResult = {}
     for j = 0, tonumber(seatsLen)-1 do
-      table.insert(sectionResult, redis.call('GETBIT', 'event:'..eventId..':section:'..i..':seats', j))
+      local seat = redis.call('GETBIT', 'event:'..eventId..':section:'..i..':seats', j)
+      if not (seat == 0 or seat == 1) then
+        return nil
+      end
+      table.insert(sectionResult, seat)
     end
     table.insert(placeResult, sectionResult)  
   end
@@ -17,7 +21,7 @@ const getSeatsLua = `
   return placeResult
 `;
 
-export async function runGetSeatsLua(redis: Redis, eventId: number): Promise<number[][]> {
+export async function runGetSeatsLua(redis: Redis, eventId: number): Promise<number[][] | null> {
   // @ts-expect-error Lua 스크립트 실행 결과 타입의 자동 추론이 불가능하여, 직접 명시하기 위함.
   return redis.eval(getSeatsLua, 1, eventId);
 }

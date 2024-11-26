@@ -130,6 +130,9 @@ export class BookingSeatsService {
 
   async getSeats(eventId: number) {
     const seatStatusBits = await runGetSeatsLua(this.redis, eventId);
+    if (!seatStatusBits) {
+      throw new InternalServerErrorException('좌석 정보를 가져오는데 실패했습니다.');
+    }
     return seatStatusBits.map((sectionBits) => sectionBits.map((bit) => bit === 1));
   }
 
