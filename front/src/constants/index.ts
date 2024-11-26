@@ -22,10 +22,17 @@ export const API = {
     GET_EVENT_DETAIL: (id: number) => `/event/${id}`,
   },
   PLACE: {
-    GET_PLACE_INFORMATION: (id: number) => `/place/seats/${id}`,
+    GET_PLACE_INFORMATION: (id: number) => `/place/seat/${id}`,
   },
   RESERVATION: {
     GET_RESERVATION: '/reservation',
     DELETE_RESERVATION: (id: number) => `/reservation/${id}`,
+  },
+  BOOKING: {
+    GET_SEATS_SSE: (id: number) => `/booking/seat/${id}`,
+    GET_SEATS_SSE_MOCK: `/mock/events/seat/1`,
+    GET_PERMISSION: (id: number) => `/booking/permission/${id}`,
+    POST_COUNT: `/booking/count`,
+    POST_SEAT: `/booking`,
   },
 };

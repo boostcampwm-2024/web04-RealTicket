@@ -1,12 +1,15 @@
 import { ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 
+import { postSeatCount } from '@/api/booking.ts';
+
 import Button from '@/components/common/Button';
 import Separator from '@/components/common/Separator.tsx';
 
+import { useMutation } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
-interface ISeatCountProps {
+interface ISeatCountContentProps {
   seatCount: SeatCount;
   selectCount: (count: SeatCount) => void;
   goNextStep: () => void;
@@ -14,11 +17,17 @@ interface ISeatCountProps {
 //section 선택 페이지는 좌석 선택시에도 사용된다\
 export type SeatCount = (typeof SEAT_COUNT_LIST)[number];
 
-export default function SeatCount({ selectCount, goNextStep, seatCount }: ISeatCountProps) {
+export default function SeatCountContent({ selectCount, goNextStep, seatCount }: ISeatCountContentProps) {
+  const { mutate: postSeatCountMutate, isPending } = useMutation({ mutationFn: postSeatCount });
   const selectSeatCount = (event: ChangeEvent<HTMLSelectElement>) => {
     const selectedCount = Number(event.target.value);
     if (selectedCount == seatCount) return;
     selectCount(selectedCount as SeatCount);
+  };
+
+  const handleNextStep = async () => {
+    await postSeatCountMutate(seatCount);
+    goNextStep();
   };
 
   return (
@@ -48,7 +57,7 @@ export default function SeatCount({ selectCount, goNextStep, seatCount }: ISeatC
             <span className="text-label1 text-typo-display">취소</span>
           </Link>
         </Button>
-        <Button color="primary" onClick={goNextStep}>
+        <Button disabled={isPending} color="primary" onClick={handleNextStep}>
           <span className={cx('text-typo-display', 'text-label1')}>확인</span>
         </Button>
       </div>

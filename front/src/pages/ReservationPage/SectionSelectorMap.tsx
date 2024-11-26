@@ -7,8 +7,8 @@ interface ISectionSelectorMapProps {
   viewBoxData: string;
   svgURL: string;
   sections: Section[];
-  setSelectedSection: (id: string) => void;
-  selectedSection: string | null;
+  setSelectedSection: (id: number) => void;
+  selectedSection: number | null;
 }
 export default function SectionSelectorMap({
   className,
@@ -22,13 +22,13 @@ export default function SectionSelectorMap({
   return (
     <svg viewBox={viewBoxData} className={twMerge('w-full', className)}>
       <image href={svgURL} className="h-full w-full"></image>
-      {sections.map((section) => {
+      {sections.map((section, index) => {
         const { id, points } = section;
         const [centerX, centerY] = getCenterCoordinate(...points);
         const d = getPathD(...points);
-        const isActive = selectedSection === id || selectedSection === null;
+        const isActive = selectedSection === index || selectedSection === null;
         return (
-          <g key={id} className="hover:cursor-pointer" onClick={() => setSelectedSection(id)}>
+          <g key={id} className="hover:cursor-pointer" onClick={() => setSelectedSection(index)}>
             <path className={isActive ? 'fill-primary' : 'fill-surface-sub'} d={d} />
             <text
               className="fill-typo-display text-[200px]"
