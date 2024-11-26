@@ -8,14 +8,16 @@ import { getPlaceInformation } from '@/api/place.ts';
 import Captcha from '@/components/Captcha/index.tsx';
 
 import ReservationResult from '@/pages/ReservationPage/ReservationResult';
-import SeatCountAndCaptcha from '@/pages/ReservationPage/SeatCount';
-import type { SeatCount } from '@/pages/ReservationPage/SeatCount';
+import SeatCountContent from '@/pages/ReservationPage/SeatCountContent';
+import type { SeatCount } from '@/pages/ReservationPage/SeatCountContent';
 import SectionAndSeat from '@/pages/ReservationPage/SectionAndSeat';
 
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
 type ReservationStep = 'captcha' | 'setCount' | 'selectSeats' | 'result';
+
+//TODO 이벤트 정보는 cache로 유지할 수 있고 상태는 react router로 넘겨줄 수 있다.
 const DEFAULT_SEAT_COUNT = 1;
 export default function ReservationPage() {
   const { eventId } = useParams();
@@ -32,7 +34,7 @@ export default function ReservationPage() {
 
   const [seatCount, setSeatCount] = useState<SeatCount>(DEFAULT_SEAT_COUNT);
   const [reservationResult, setReservationResult] = useState<null | string[]>(['']); //TODO 각 단계 데이터 하나에서 컨트로 funnel구조로
-  const [step, setStep] = useState<ReservationStep>('captcha');
+  const [step, setStep] = useState<ReservationStep>('setCount');
   const selectCount = (count: SeatCount) => {
     setSeatCount(count);
   };
@@ -51,7 +53,7 @@ export default function ReservationPage() {
 
   if (step === 'setCount') {
     return (
-      <SeatCountAndCaptcha
+      <SeatCountContent
         selectCount={selectCount}
         seatCount={seatCount}
         goNextStep={() => {

@@ -5,7 +5,7 @@ import axios, { AxiosError, isAxiosError } from 'axios';
 //TODO 타입 정의
 const isDevelopEnvironment = import.meta.env.VITE_ENVIRONMENT === 'dev';
 
-const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
+export const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
 type ErrorData = {
   error: string;
   message: string;

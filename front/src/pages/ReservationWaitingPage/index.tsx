@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { CustomError } from '@/api/axios.ts';
+import { getPermission } from '@/api/booking.ts';
 import { getEventDetail } from '@/api/event.ts';
 import { getPlaceInformation } from '@/api/place.ts';
 
@@ -10,8 +11,9 @@ import Icon from '@/components/common/Icon.tsx';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
+import { permissionResult } from '@/type/booking.ts';
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_MINUTE = 60;
@@ -32,11 +34,22 @@ export default function ReservationWaitingPage() {
     enabled: !!event,
     staleTime: Infinity,
   });
-
+  const queryClient = useQueryClient();
+  const isPermissionFetching = useIsFetching({ queryKey: PERMISSION_QUERY_KEY });
   const intervalRef = useRef<number | null>(null); // intervalType
   const [serverTime, setServerTime] = useState(Date.now());
   const restTime = new Date(reservationOpenDate).getTime() - serverTime;
   const isOpen = restTime <= 0;
+
+  const permissionAndGo = async () => {
+    const { enteringStatus } = await queryClient.fetchQuery<permissionResult>({
+      queryKey: PERMISSION_QUERY_KEY,
+      queryFn: getPermission(Number(eventId)),
+      staleTime: 0,
+    });
+    if (enteringStatus) navigate(`/events/${eventId}`);
+    else navigate('/');
+  };
   //TODO 좌석 초기 데이터
   const renderRestTime = (restTime: number) => {
     const restSeconds = Math.floor(restTime / 1000);
@@ -74,9 +87,7 @@ export default function ReservationWaitingPage() {
   }, []);
 
   //TODO 서버 시간 동기화, image loading
-  const goSelectPage = () => {
-    navigate(`/events/${eventId}`);
-  };
+
   return (
     <div className="flex flex-col gap-8">
       {!isPending && placeInformation ? (
@@ -111,7 +122,7 @@ export default function ReservationWaitingPage() {
           </div>
         </div>
       </div>
-      <Button disabled={!isOpen} className="my-4" onClick={goSelectPage}>
+      <Button disabled={!isOpen || !!isPermissionFetching} className="my-4" onClick={permissionAndGo}>
         {isOpen ? (
           <span className="text-label1 text-typo-display">예매하기</span>
         ) : (
@@ -121,3 +132,5 @@ export default function ReservationWaitingPage() {
     </div>
   );
 }
+
+const PERMISSION_QUERY_KEY = ['permission'];
