@@ -78,7 +78,7 @@ export class UserService {
         id: user.id,
         loginId: user.loginId,
         userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
-        targetEvent: 1,
+        targetEvent: null,
       };
       const sessionId = uuidv4();
       const userInfoDto: UserInfoDto = new UserInfoDto();
