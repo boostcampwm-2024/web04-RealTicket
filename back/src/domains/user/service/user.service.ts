@@ -78,7 +78,7 @@ export class UserService {
         id: user.id,
         loginId: user.loginId,
         userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
-        targetEvent: null,
+        targetEvent: 1,
       };
       const sessionId = uuidv4();
       const userInfoDto: UserInfoDto = new UserInfoDto();
@@ -111,7 +111,7 @@ export class UserService {
 
   async getUserInfo(sid: string) {
     try {
-      const userInfo = JSON.parse(await this.redis.get(sid));
+      const userInfo = await this.authService.getUserSession(sid);
       const userInfoDto: UserInfoDto = new UserInfoDto();
       userInfoDto.loginId = userInfo.loginId;
       userInfoDto.loginId = userInfo.loginId;
