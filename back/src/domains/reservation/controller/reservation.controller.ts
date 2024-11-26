@@ -28,10 +28,10 @@ import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
-import { ReservationCreateDto } from '../dto/reservationCreateDto';
-import { ReservationIdDto } from '../dto/reservationIdDto';
-import { ReservationResultDto } from '../dto/reservationResultDto';
-import { ReservationSpecificDto } from '../dto/reservationSepecificDto';
+import { ReservationCreateDto } from '../dto/reservationCreate.dto';
+import { ReservationIdDto } from '../dto/reservationId.dto';
+import { ReservationResultDto } from '../dto/reservationResult.dto';
+import { ReservationSpecificDto } from '../dto/reservationSepecific.dto';
 import { ReservationService } from '../service/reservation.service';
 
 @Controller('reservation')

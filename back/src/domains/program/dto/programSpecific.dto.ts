@@ -2,8 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { Event } from 'src/domains/event/entity/event.entity';
 
-import { EventSpecificProgramDto } from './eventSpecificProgramDto';
-import { PlaceSpecificProgramDto } from './placeSpecificProgramDto';
+import { EventSpecificProgramDto } from './eventSpecificProgram.dto';
+import { PlaceSpecificProgramDto } from './placeSpecificProgram.dto';
 
 export class ProgramSpecificDto {
   constructor({ id, name, runningTime, genre, actors, place, profileUrl, price, events }) {
