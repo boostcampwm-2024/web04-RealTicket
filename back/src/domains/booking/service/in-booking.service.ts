@@ -4,7 +4,6 @@ import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { IN_BOOKING_POOL_SIZE } from '../const/inBookingPoolSize.const';
 
 type InBookingSession = {
   sid: string;
@@ -30,6 +29,26 @@ export class InBookingService {
     await this.authService.setUserStatusLogin(sid);
   }
 
+  async getInBookingSessionsDefaultMaxSize() {
+    return parseInt(await this.redis.get('in-booking:default-max-size'));
+  }
+
+  async setInBookingSessionsDefaultMaxSize(size: number) {
+    await this.redis.set('in-booking:default-max-size', size);
+  }
+
+  async setInBookingSessionsMaxSize(eventId: number, size: number) {
+    await this.redis.set(`in-booking:${eventId}:max-size`, size);
+    return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
+  }
+
+  async setAllInBookingSessionsMaxSize(size: number) {
+    const keys = await this.redis.keys('in-booking:*:max-size');
+    await Promise.all(keys.map((key) => this.redis.set(key, size)));
+    const lastKey = keys[keys.length - 1];
+    return parseInt(await this.redis.get(lastKey));
+  }
+
   async insertIfPossible(sid: string): Promise<boolean> {
     const eventId = await this.getTargetEventId(sid);
     const isInsertable = await this.isInsertable(eventId);
@@ -38,6 +57,12 @@ export class InBookingService {
       return true;
     }
     return false;
+  }
+
+  async isInsertable(eventId: number): Promise<boolean> {
+    const currentSize = await this.getInBookingSessionsSize(eventId);
+    const maxSize = await this.getInBookingSessionsMaxSize(eventId);
+    return currentSize < maxSize;
   }
 
   async setBookingAmount(sid: string, amount: number): Promise<number> {
@@ -101,9 +126,8 @@ export class InBookingService {
     return session ? JSON.parse(session) : null;
   }
 
-  private async isInsertable(eventId: number): Promise<boolean> {
-    const size = await this.getInBookingSessionsSize(eventId);
-    return size < IN_BOOKING_POOL_SIZE;
+  private async getInBookingSessionsMaxSize(eventId: number) {
+    return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
   }
 
   private async insertInBooking(eventId: number, sid: string): Promise<boolean> {
