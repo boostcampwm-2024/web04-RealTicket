@@ -32,9 +32,9 @@ import {
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 
-import { EventCreationDto } from '../dto/eventCreationDto';
-import { EventIdDto } from '../dto/eventIdDto';
-import { EventSpecificDto } from '../dto/eventSpecificDto';
+import { EventCreationDto } from '../dto/eventCreation.dto';
+import { EventIdDto } from '../dto/eventId.dto';
+import { EventSpecificDto } from '../dto/eventSpecific.dto';
 import { EventService } from '../service/event.service';
 
 @Controller('event')

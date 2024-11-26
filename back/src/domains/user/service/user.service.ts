@@ -111,7 +111,7 @@ export class UserService {
 
   async getUserInfo(sid: string) {
     try {
-      const userInfo = JSON.parse(await this.redis.get(sid));
+      const userInfo = await this.authService.getUserSession(sid);
       const userInfoDto: UserInfoDto = new UserInfoDto();
       userInfoDto.loginId = userInfo.loginId;
       userInfoDto.loginId = userInfo.loginId;

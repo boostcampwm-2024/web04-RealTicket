@@ -4,10 +4,10 @@ import { Place } from 'src/domains/place/entity/place.entity';
 import { Program } from 'src/domains/program/entities/program.entity';
 import { ProgramRepository } from 'src/domains/program/repository/program.repository';
 
-import { EventCreationDto } from '../dto/eventCreationDto';
-import { EventDto } from '../dto/eventDto';
-import { EventIdDto } from '../dto/eventIdDto';
-import { EventSpecificDto } from '../dto/eventSpecificDto';
+import { EventDto } from '../dto/event.dto';
+import { EventCreationDto } from '../dto/eventCreation.dto';
+import { EventIdDto } from '../dto/eventId.dto';
+import { EventSpecificDto } from '../dto/eventSpecific.dto';
 import { Event } from '../entity/event.entity';
 import { EventRepository } from '../repository/event.reposiotry';
 

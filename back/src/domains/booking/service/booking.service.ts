@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
-import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatusDto';
+import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
 import { InBookingService } from './in-booking.service';

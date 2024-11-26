@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { placeSpecificEventDto } from './placeSpecificEventDto';
+import { placeSpecificEventDto } from './placeSpecificEvent.dto';
 
 export class EventSpecificDto {
   constructor({ id, name, place, runningTime, runningDate, reservationOpenDate, reservationCloseDate }) {
