@@ -63,7 +63,7 @@ export class BookingController {
     summary: '대기큐 현황 SSE',
     description: '대기큐의 대기 현황을 구독한다.',
   })
-  @ApiOkResponse({ description: 'SSE 연결 성공' })
+  @ApiOkResponse({ description: 'SSE 연결 성공', type: WaitingSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async subscribeWaitingQueue(@Param('eventId') eventId: number) {
     return this.waitingQueueService.subscribeQueue(eventId);

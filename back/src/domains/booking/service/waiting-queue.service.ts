@@ -8,6 +8,7 @@ import { map } from 'rxjs/operators';
 import { AuthService } from '../../../auth/service/auth.service';
 import { WAITING_BROADCAST_INTERVAL } from '../const/waitingBroadcastInterval.const';
 import { DEFAULT_WAITING_THROUGHPUT_RATE } from '../const/watingThroughputRate.const';
+import { WaitingSseDto } from '../dto/waitingSse.dto';
 
 type WaitingSituation = {
   headOrder: number;
@@ -79,11 +80,13 @@ export class WaitingQueueService {
     const subscription = new BehaviorSubject<WaitingSituation>(initialSituation);
     setInterval(
       async () =>
-        subscription.next({
-          headOrder: await this.getHeadOrder(eventId),
-          totalWaiting: await this.getQueueSize(eventId),
-          throughputRate: DEFAULT_WAITING_THROUGHPUT_RATE,
-        }),
+        subscription.next(
+          new WaitingSseDto(
+            await this.getHeadOrder(eventId),
+            await this.getQueueSize(eventId),
+            DEFAULT_WAITING_THROUGHPUT_RATE,
+          ),
+        ),
       WAITING_BROADCAST_INTERVAL,
     );
 
