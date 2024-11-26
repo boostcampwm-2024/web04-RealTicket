@@ -53,4 +53,8 @@ export class AuthService {
   async removeSession(sid: string) {
     return this.redis.unlink(`user:${sid}`);
   }
+
+  async getUserSession(sid: string) {
+    return JSON.parse(await this.redis.get(`user:${sid}`));
+  }
 }
