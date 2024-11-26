@@ -8,6 +8,7 @@ import {
   InternalServerErrorException,
   Param,
   Post,
+  Req,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -20,6 +21,7 @@ import {
   ApiOkResponse,
   ApiOperation,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
@@ -80,7 +82,7 @@ export class ReservationController {
   }
 
   @ApiOperation({
-    summary: '예매 확',
+    summary: '예매 확정',
     description:
       '예매 확정을 위한 API로 Body 요청을 담아서 보내면 해당 내용을 DB에 저장하고 예약 내역을 반환해준다.',
   })
@@ -97,9 +99,9 @@ export class ReservationController {
   })
   @ApiForbiddenResponse({ description: '인증되지 않은 요청' })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러' })
-  //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Post()
-  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @User() user: UserParamDto) {
-    return this.reservationService.recordReservationTransaction(reservationCreateDto, user);
+  async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
+    return this.reservationService.recordReservationTransaction(reservationCreateDto, req.cookies['SID']);
   }
 }
