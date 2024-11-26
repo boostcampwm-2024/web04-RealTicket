@@ -5,6 +5,7 @@ import {
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -29,11 +30,13 @@ type SeatStatusObject = {
 export class BookingSeatsService {
   private readonly redis: Redis | null;
   private seatsSubscriptionMap = new Map<number, BehaviorSubject<SeatStatusObject>>();
+  private broadcastActivateMap = new Map<number, boolean>();
 
   constructor(
     private redisService: RedisService,
     private inBookingService: InBookingService,
     private authService: AuthService,
+    private eventEmitter: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -100,6 +103,7 @@ export class BookingSeatsService {
     } else if (result === 0) {
       throw new ConflictException('이미 예약된 좌석입니다.');
     } else {
+      this.eventEmitter.emit('seats-status-changed', { eventId });
       return {
         eventId,
         sectionIndex,
@@ -120,6 +124,7 @@ export class BookingSeatsService {
     } else if (result === 0) {
       throw new ConflictException('이미 취소된 좌석입니다.');
     } else {
+      this.eventEmitter.emit('seats-status-changed', { eventId });
       return {
         eventId,
         sectionIndex,
@@ -151,12 +156,27 @@ export class BookingSeatsService {
       );
   }
 
+  @OnEvent('seats-status-changed')
+  private async activateNextBroadcast(event: { eventId: number }) {
+    this.broadcastActivateMap.set(event.eventId, true);
+  }
+
+  private unActivateNextBroadcast = (eventId: number) => {
+    this.broadcastActivateMap.set(eventId, false);
+  };
+
+  private isBroadcastActivated = (eventId: number) => {
+    return this.broadcastActivateMap.get(eventId);
+  };
+
   private async createSeatSubscription(eventId: number, initialSeats: boolean[][]) {
     const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
-    setInterval(
-      async () => subscription.next(new SeatsSseDto(await this.getSeats(eventId))),
-      SEATS_BROADCAST_INTERVAL,
-    );
+    setInterval(async () => {
+      if (this.isBroadcastActivated(eventId)) {
+        subscription.next(new SeatsSseDto(await this.getSeats(eventId)));
+        this.unActivateNextBroadcast(eventId);
+      }
+    }, SEATS_BROADCAST_INTERVAL);
     return subscription;
   }
 }
