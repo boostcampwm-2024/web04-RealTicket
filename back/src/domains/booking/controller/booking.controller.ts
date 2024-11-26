@@ -83,7 +83,7 @@ export class BookingController {
     return new BookingAmountResDto(result);
   }
 
-  @Sse('seats/:eventId')
+  @Sse('seat/:eventId')
   @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @ApiOperation({
     summary: '실시간 좌석 예약 현황 SSE',

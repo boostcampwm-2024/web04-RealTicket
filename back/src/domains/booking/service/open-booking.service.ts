@@ -41,12 +41,8 @@ export class OpenBookingService implements OnApplicationBootstrap {
     const sections = await Promise.all(
       place.sections.map((sectionId) => this.sectionRepository.selectSection(parseInt(sectionId))),
     );
-    const seats = sections.map((section) => section.seats.map((seat) => parseBooleanString(seat)));
+    const seats = sections.map((section) => section.seats);
     await this.seatsUpdateService.openReservation(eventId, seats);
     this.openedEvents.add(eventId);
   }
 }
-
-const parseBooleanString = (str: string): boolean => {
-  return str === 'true';
-};

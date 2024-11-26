@@ -56,7 +56,7 @@ export class PlaceController {
   @ApiForbiddenResponse({ description: '권한이 없습니다.' })
   @ApiInternalServerErrorResponse({ description: '서버 오류 발생' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
-  @Get('seats/:placeId')
+  @Get('seat/:placeId')
   async getSeats(
     @Param('placeId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) placeId: number,
   ) {

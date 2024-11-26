@@ -2,7 +2,7 @@ import { Controller, Get, Param } from '@nestjs/common';
 
 import { ProgramService } from './program.service';
 
-@Controller('mock/programs')
+@Controller('mock/program')
 export class ProgramController {
   constructor(private readonly programService: ProgramService) {}
 
