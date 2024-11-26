@@ -22,26 +22,34 @@ export class AuthService {
 
   async setUserStatusLogin(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (session.userStatus === USER_STATUS.ADMIN) return;
+
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
   }
 
   async setUserStatusWaiting(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (session.userStatus === USER_STATUS.ADMIN) return;
+
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
   }
 
   async setUserStatusSelectingSeat(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (session.userStatus === USER_STATUS.ADMIN) return;
+
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
   }
 
   async setUserStatusAdmin(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
   }
 
   async setUserEventTarget(sid: string, eventId: number) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
   }
 
