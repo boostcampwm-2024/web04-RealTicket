@@ -89,7 +89,7 @@ export class BookingController {
     summary: '실시간 좌석 예약 현황 SSE',
     description: '실시간으로 좌석 예약 현황을 조회한다.',
   })
-  @ApiOkResponse({ description: 'SSE 연결 성공' })
+  @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
     const observable = this.bookingSeatsService.subscribeSeats(eventId);

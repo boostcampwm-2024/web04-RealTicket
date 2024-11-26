@@ -13,6 +13,7 @@ import { AuthService } from '../../../auth/service/auth.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
+import { SeatsSseDto } from '../dto/seatsSse.dto';
 import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
 import { runSetSectionsLenLua } from '../luaScripts/setSectionsLenLua';
@@ -153,7 +154,7 @@ export class BookingSeatsService {
   private async createSeatSubscription(eventId: number, initialSeats: boolean[][]) {
     const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
     setInterval(
-      async () => subscription.next({ seatStatus: await this.getSeats(eventId) }),
+      async () => subscription.next(new SeatsSseDto(await this.getSeats(eventId))),
       SEATS_BROADCAST_INTERVAL,
     );
     return subscription;
