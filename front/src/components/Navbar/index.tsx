@@ -81,10 +81,11 @@ export default function Navbar() {
                 className={cx(widthClass, `flex flex-col gap-6 rounded-xl border bg-white p-6 shadow-2xl`)}>
                 <h3 className="px-4 text-left text-heading3">예매 현황</h3>
                 <Separator direction="row" />
-                <div className="flex flex-col gap-6">
+                <div className="flex max-h-[800px] flex-col gap-6 overflow-y-scroll">
                   {isReservation ? (
                     reservations.map((reservation) => (
                       <ReservationCard
+                        key={reservation.id}
                         {...reservation}
                         isDeleting={deletingReservationIdList.includes(reservation.id)}
                         handleDeleteReservation={() => requestDeleteReservation(reservation.id)}

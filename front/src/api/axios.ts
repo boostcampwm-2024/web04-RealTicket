@@ -6,7 +6,6 @@ import axios, { AxiosError, isAxiosError } from 'axios';
 const isDevelopEnvironment = import.meta.env.VITE_ENVIRONMENT === 'dev';
 // const isDevelopEnvironment = true;
 
-console.log(import.meta.env.VITE_ENVIRONMENT);
 export const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
 type ErrorData = {
   error: string;

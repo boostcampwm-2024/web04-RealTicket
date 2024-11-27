@@ -44,7 +44,7 @@ export default function ReservationResult({ event, reservationResult }: IReserva
           </div>
           <div>
             {reservationResult.map((ticket) => (
-              <div className="flex items-center justify-between text-display1 text-typo">
+              <div key={ticket.name} className="flex items-center justify-between text-display1 text-typo">
                 <span>{ticket.name}</span>
                 <span>{getPriceWon(price)}</span>
               </div>
@@ -61,12 +61,10 @@ export default function ReservationResult({ event, reservationResult }: IReserva
       <Separator direction="row" />
 
       <ul className="list-disc px-6">
-        {[
-          '에매하신 내용은 상단 유저 정보를 통해서 확인 할 수 있습니다.',
-          '공연 당일 예매 내역 및 신분증을 지참해주세요.',
-          '공연 시작 후에는 입장이 제한 될 수 있습니다.',
-        ].map((text) => (
-          <li className="text-caption2 text-typo-sub">{text}</li>
+        {ALERT_MESSAGE_LIST.map((text) => (
+          <li key={text} className="text-caption2 text-typo-sub">
+            {text}
+          </li>
         ))}
       </ul>
       <Button className="bg-surface" color="default" asChild>
@@ -78,3 +76,9 @@ export default function ReservationResult({ event, reservationResult }: IReserva
     </div>
   );
 }
+
+const ALERT_MESSAGE_LIST = [
+  '에매하신 내용은 상단 유저 정보를 통해서 확인 할 수 있습니다.',
+  '공연 당일 예매 내역 및 신분증을 지참해주세요.',
+  '공연 시작 후에는 입장이 제한 될 수 있습니다.',
+];

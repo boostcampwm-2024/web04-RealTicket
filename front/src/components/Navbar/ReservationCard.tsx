@@ -38,7 +38,7 @@ export default function ReservationCard({
           <span className="truncate text-display1">좌석</span>
           <ul>
             {seats.split(',').map((seat) => (
-              <li>{seat}</li>
+              <li key={seat}>{seat}</li>
             ))}
           </ul>
         </div>
