@@ -176,16 +176,16 @@ export class ReservationService {
     reservationResult: Reservation,
   ) {
     const sections = reservationCreateDto.seats.map((seat) => {
-      if (!place.sections.includes(seat.sectionIndex.toString())) {
-        throw new BadRequestException(`해당 section이 존재하지 않습니다. sectionId: ${seat.sectionIndex}`);
+      if (!place.sections[seat.sectionIndex]) {
+        throw new BadRequestException(`해당 section이 존재하지 않습니다. sectionIndex: ${seat.sectionIndex}`);
       }
-      return seat.sectionIndex;
+      return Number.parseInt(place.sections[seat.sectionIndex]);
     });
 
     const sectionInfo = await queryRunner.manager.find(Section, { where: { id: In(sections) } });
 
-    const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat) => {
-      const section = sectionInfo.find((section) => section.id === seat.sectionIndex);
+    const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat, index) => {
+      const section = sectionInfo.find((section) => section.id === sections[index]);
       if (seat.seatIndex >= section.seats.length || seat.seatIndex < 0) {
         throw new BadRequestException(
           `해당 section의 seat이 존재하지 않습니다. seatIndex: ${seat.seatIndex}`,
