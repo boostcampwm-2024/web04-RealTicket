@@ -94,7 +94,17 @@ export class ReservationService {
       const session = await this.authService.getUserSession(sid);
       const userId = session.id;
       const eventId = await this.authService.getUserEventTarget(sid);
-      const bookingAmount = await this.inBookingService.getBookingAmount(sid);
+      const { bookingAmount, bookedSeats } = await this.inBookingService.getBookAmountAndBookedSeats(
+        sid,
+        eventId,
+      );
+
+      reservationCreateDto.seats.forEach((seat) => {
+        const arr = [seat.sectionIndex, seat.seatIndex];
+        if (!bookedSeats.find((bookedSeat) => JSON.stringify(bookedSeat) === JSON.stringify(arr))) {
+          throw new BadRequestException('선점하지 않은 좌석이 포함되어 있습니다.');
+        }
+      });
 
       if (reservationCreateDto.eventId !== eventId || reservationCreateDto.seats.length !== bookingAmount) {
         throw new BadRequestException('예매 정보 또는 설정한 좌석수가 올바르지 않습니다.');
