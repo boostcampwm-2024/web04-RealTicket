@@ -47,6 +47,7 @@ export default function ReservationWaitingPage() {
       queryFn: getPermission(Number(eventId)),
       staleTime: 0,
     });
+
     if (enteringStatus) navigate(`/events/${eventId}`);
     else navigate(`/waiting/${eventId}`, { state: { userOrder } });
   };

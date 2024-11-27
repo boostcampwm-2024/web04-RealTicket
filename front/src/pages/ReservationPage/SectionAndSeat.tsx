@@ -202,15 +202,21 @@ export default function SectionAndSeat({
         <Button
           disabled={!isSelectionComplete}
           onClick={() => {
-            confirmReservation({
-              eventId,
-              seats: selectedSeats.map((seat) => ({
-                sectionIndex: seat.sectionIndex,
-                seatIndex: seat.seatIndex,
-              })),
-            });
-            setReservationResult(selectedSeats);
-            goNextStep();
+            confirmReservation(
+              {
+                eventId,
+                seats: selectedSeats.map((seat) => ({
+                  sectionIndex: seat.sectionIndex,
+                  seatIndex: seat.seatIndex,
+                })),
+              },
+              {
+                onSuccess: () => {
+                  setReservationResult(selectedSeats);
+                  goNextStep();
+                },
+              },
+            );
           }}>
           {isSelectionComplete ? (
             <span className="text-label1 text-typo-display">예매하기</span>
