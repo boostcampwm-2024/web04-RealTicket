@@ -38,3 +38,21 @@ export const API = {
     GET_RE_PERMISSION: (id: number) => `/booking/re-permission/${id}`,
   },
 };
+
+export const ROUTE_URL = {
+  HOME: '/',
+  PROGRAM: {
+    DEFAULT: '/program',
+    PROGRAM_DETAIL: (programId: number) => `/program/${programId}`,
+  },
+  USER: {
+    LOGIN: `/login`,
+    SIGN_UP: `/signup`,
+  },
+  EVENT: {
+    DEFAULT: `/event`,
+    DETAIL: (eventId: number) => `/event/${eventId}`,
+    BOOKING_READY: (eventId: number) => `/event/${eventId}/ready`,
+    WAITING_ROOM: (eventId: number) => `/event/${eventId}/waiting`,
+  },
+};
