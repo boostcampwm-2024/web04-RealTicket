@@ -151,4 +151,12 @@ export class InBookingService {
   private async getInBookingSessionsSize(eventId: number): Promise<number> {
     return this.redis.scard(this.getEventKey(eventId));
   }
+
+  async getBookAmountAndBookedSeats(sid: string, eventId: number) {
+    const session = await this.getSession(eventId, sid);
+    return {
+      bookingAmount: session.bookingAmount,
+      bookedSeats: session.bookedSeats,
+    };
+  }
 }
