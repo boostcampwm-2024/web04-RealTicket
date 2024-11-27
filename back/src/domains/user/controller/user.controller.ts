@@ -24,6 +24,8 @@ import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { User } from '../../../util/user-injection/user.decorator';
+import { UserParamDto } from '../../../util/user-injection/userParamDto';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
@@ -124,9 +126,9 @@ export class UserController {
   @ApiForbiddenResponse({ description: '접근 권한이 없습니다.' })
   @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
   @Post('logout')
-  async getUserLogout(@Req() req: Request) {
+  async getUserLogout(@Req() req: Request, @User() user: UserParamDto) {
     const sid = req.cookies['SID'];
-    return await this.userService.logoutUser(sid);
+    return await this.userService.logoutUser(sid, user);
   }
 
   @ApiOperation({ summary: '사용자 정보', description: '사용자 정보 요청을 처리한다. 사용자 ID를 불러온다.' })
