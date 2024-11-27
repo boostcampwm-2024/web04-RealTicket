@@ -22,7 +22,6 @@ export class ReservationRepository {
     return await this.ReservationRepository.softDelete({
       id: reservationId,
       user: { id: userId },
-      deletedAt: null,
     });
   }
 
