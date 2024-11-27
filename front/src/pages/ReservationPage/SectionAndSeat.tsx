@@ -16,10 +16,16 @@ import { useMutation, useMutationState } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
+interface SelectedSeat {
+  sectionIndex: number;
+  seatIndex: number;
+  name: string;
+}
+
 interface ISectionAndSeatProps {
   seatCount: 1 | 2 | 3 | 4;
   goNextStep: () => void;
-  setReservationResult: (result: string[]) => void;
+  setReservationResult: (result: SelectedSeat[]) => void;
   event: EventDetail;
   placeInformation: PlaceInformation;
 }
@@ -33,26 +39,32 @@ export default function SectionAndSeat({
   placeInformation,
 }: ISectionAndSeatProps) {
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [seatStatusList, setSeatStatusList] = useState<boolean[][]>([]);
   const eventSourceRef = useRef<null | EventSource>(null);
   const { mutate: pickSeat } = useMutation({
     mutationFn: postSeat,
     mutationKey: PICK_SEAT_MUTATION_KEY_LIST,
-    // onMutate: (data) => {
-    //   const { eventId, seatIndex, expectedStatus } = data;
-    // },
-    // onSettled: (data) => {
-    //   const { eventId, seatIndex, expectedStatus } = data;
-    // },
+    onError: (_, data) => {
+      const { seatIndex, sectionIndex } = data;
+      const filtered = selectedSeats.filter(
+        (seat) => seat.seatIndex !== seatIndex || seat.sectionIndex !== sectionIndex,
+      );
+      setSelectedSeats([...filtered]);
+    },
   });
 
-  const pendingList = useMutationState({
-    filters: { mutationKey: PICK_SEAT_MUTATION_KEY_LIST },
-    select: (mutation) => mutation,
+  const reservingList = useMutationState<PostSeatData>({
+    filters: {
+      mutationKey: PICK_SEAT_MUTATION_KEY_LIST,
+      status: 'pending',
+      predicate: (mutation) => {
+        return mutation.state.variables.expectedStatus === 'reserved';
+      },
+    },
+    select: (mutation) => mutation.state.variables as PostSeatData,
   });
-  console.log(pendingList);
-
+  console.log(reservingList);
   //TODO 길이 모음 필요 , 상태 관리 필용, 상태 reducer로 변경 필요, pending 중인 state 추출 필요
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
@@ -135,6 +147,7 @@ export default function SectionAndSeat({
               selectedSeats,
               pickSeat,
               eventId,
+              reservingList,
             )}
           </div>
         ) : (
@@ -162,7 +175,7 @@ export default function SectionAndSeat({
           <h3>선택한 좌석</h3>
           <div>
             {selectedSeats.map((seat) => (
-              <span>{seat}</span>
+              <span>{seat.name}</span>
             ))}
           </div>
         </div>
@@ -189,11 +202,12 @@ const renderSeatMap = (
   selectedSection: Section,
   selectedSectionIndex: number,
   seatStatus: boolean[],
-  setSelectedSeats: (seats: string[]) => void,
+  setSelectedSeats: (seats: SelectedSeat[]) => void,
   maxSelectCount: number,
-  selectedSeats: string[],
+  selectedSeats: SelectedSeat[],
   pickSeat: (data: PostSeatData) => void,
   eventId: number,
+  reservingList: PostSeatData[],
 ) => {
   let columnCount = 1;
   const { name, seats, colLen } = selectedSection;
@@ -203,17 +217,22 @@ const renderSeatMap = (
     const isNewLine = index % colLen === 0;
     if (isNewLine) columnCount = 1;
     const seatName = seat ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
-    const isMine = seatName ? selectedSeats.includes(seatName) : false;
+    const isMine = seatName && selectedSeats.some((selected) => selected.name == seatName);
 
+    const isReserving = reservingList.some(
+      (reserve) => reserve.seatIndex === index && reserve.sectionIndex === selectedSectionIndex,
+    );
     const isOthers = !seatStatus[index];
     //TODO 삼항 연산자 제거
     const stateClass = !seat
       ? 'bg-transparent  pointer-events-none'
-      : isMine
-        ? 'bg-success cursor-pointer'
-        : isOthers
-          ? `bg-surface-sub pointer-events-none`
-          : 'bg-primary cursor-pointer';
+      : isReserving
+        ? 'bg-warning pointer-events-none'
+        : isMine
+          ? 'bg-success cursor-pointer'
+          : isOthers
+            ? `bg-surface-sub pointer-events-none`
+            : 'bg-primary cursor-pointer';
     if (seat) columnCount++;
     return (
       <div
@@ -222,7 +241,7 @@ const renderSeatMap = (
         onClick={() => {
           const selectedCount = selectedSeats.length;
           if (isMine) {
-            const filtered = selectedSeats.filter((seat) => seatName !== seat);
+            const filtered = selectedSeats.filter((seat) => seatName !== seat.name);
             pickSeat({
               sectionIndex: selectedSectionIndex,
               seatIndex: index,
@@ -240,7 +259,10 @@ const renderSeatMap = (
             expectedStatus: 'reserved',
             eventId,
           });
-          setSelectedSeats([...selectedSeats, seatName!]);
+          setSelectedSeats([
+            ...selectedSeats,
+            { seatIndex: index, sectionIndex: selectedSectionIndex, name: seatName! },
+          ]);
         }}
       />
     );
@@ -262,247 +284,3 @@ const getColorClass = (state: string) => {
 };
 
 const PICK_SEAT_MUTATION_KEY_LIST = ['seat'];
-
-// const seatStatusMap = [
-//   {
-//     name: 'A',
-//     colLen: 10,
-//     seats: [
-//       true,
-//       true,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       false,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//     ],
-//     placeId: 4,
-//     order: 1,
-//   },
-//   {
-//     name: 'B',
-//     colLen: 10,
-//     seats: [
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       false,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       false,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       false,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       false,
-//       false,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//       true,
-//       true,
-//       false,
-//     ],
-//     placeId: 4,
-//     order: 2,
-//   },
-// ];

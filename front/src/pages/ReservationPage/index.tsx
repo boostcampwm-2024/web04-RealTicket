@@ -22,7 +22,7 @@ const DEFAULT_SEAT_COUNT = 1;
 export default function ReservationPage() {
   const { eventId } = useParams();
   const { data: event } = useSuspenseQuery<EventDetail, CustomError>({
-    queryKey: [`events/${eventId}`],
+    queryKey: [`event`, eventId],
     queryFn: getEventDetail(Number(eventId)),
   });
   const { place } = event;
