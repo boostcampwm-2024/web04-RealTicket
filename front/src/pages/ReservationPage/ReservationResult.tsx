@@ -16,8 +16,8 @@ interface IReservationResultProps {
   reservationResult: SelectedSeat[];
 }
 export default function ReservationResult({ event, reservationResult }: IReservationResultProps) {
-  const { name, runningDate, place, price } = event;
-  console.log(reservationResult);
+  const { name, runningDate, place } = event;
+  const price = 150000;
   const placeName = place.name;
   return (
     <div className="flex flex-col gap-8 rounded-xl border-2 border-e-surface-sub p-6 shadow-xl">

@@ -3,5 +3,5 @@ export interface Reservation {
   programName: string;
   runningDate: string;
   placeName: string;
-  seats: string[];
+  seats: string;
 }

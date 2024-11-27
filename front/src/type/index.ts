@@ -26,7 +26,6 @@ export interface EventDetail {
   id: number;
   name: string;
   place: { id: number; name: string };
-  price: number;
   runningTime: number;
   runningDate: string;
   reservationOpenDate: string;

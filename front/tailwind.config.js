@@ -5,8 +5,7 @@ import { fontSize } from './style/fontSize.ts';
 
 /** @type {import('tailwindcss').Config} */
 
-const WIDTH = 300;
-const WIDTH_LIst = Array.from({ length: 100 }, (_, index) => WIDTH + index);
+const WIDTH_LIst = Array.from({ length: 1000 }, (_, index) => index);
 const COL_LENGTH_RANGE = Array.from({ length: 20 }, (_, index) => index + 1);
 const TRANSLATE_VALUE_RANGE = Array.from({ length: 101 }, (_, index) => index);
 export default {

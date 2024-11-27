@@ -31,15 +31,13 @@ export default function ReservationCard({
       <div className="flex max-w-[calc(100%-64px)] flex-col gap-6 text-left">
         <h3 className="truncate text-display1">{programName}</h3>
         <div className="">
-          <div className="truncate text-display1">
-            {getDate(Number(runningDate)) + getTime(Number(runningDate))}
-          </div>
+          <div className="truncate text-display1">{getDate(runningDate) + getTime(runningDate)}</div>
           <div className="truncate text-display1 hover:overflow-visible hover:text-clip">{`공연장 : ${placeName}`}</div>
         </div>
         <div>
           <span className="truncate text-display1">좌석</span>
           <ul>
-            {seats.map((seat) => (
+            {seats.split(',').map((seat) => (
               <li>{seat}</li>
             ))}
           </ul>
