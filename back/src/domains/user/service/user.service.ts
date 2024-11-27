@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
+import { UserParamDto } from '../../../util/user-injection/userParamDto';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserInfoDto } from '../dto/userInfo.dto';
@@ -65,6 +66,13 @@ export class UserService {
 
   async validateUser(id: string, password: string) {
     try {
+      const keyOfUserId = `user-id:${id}`;
+      const oldSessionId = await this.redis.get(keyOfUserId);
+
+      if (oldSessionId) {
+        await this.redis.unlink(`user:${oldSessionId}`);
+      }
+
       const user = await this.userRepository.findOne(id);
       if (!user) {
         throw new UnauthorizedException('아이디/비밀번호를 잘못 입력하셨습니다. 다시 입력해주세요');
@@ -85,7 +93,9 @@ export class UserService {
       userInfoDto.loginId = user.loginId;
       // TODO
       // expired는 redis에서 자동으로 제공해주는 기능이있어 expiredAt은 필요 없을거같름
+      await this.redis.set(`user-id:${id}`, sessionId, 'EX', 3600);
       await this.redis.set(`user:${sessionId}`, JSON.stringify(cachedUserInfo), 'EX', 3600);
+
       return { sessionId: sessionId, userInfo: userInfoDto };
     } catch (err) {
       this.logger.error(err);
@@ -114,7 +124,6 @@ export class UserService {
       const userInfo = await this.authService.getUserSession(sid);
       const userInfoDto: UserInfoDto = new UserInfoDto();
       userInfoDto.loginId = userInfo.loginId;
-      userInfoDto.loginId = userInfo.loginId;
       return userInfoDto;
     } catch (err) {
       this.logger.error(err);
@@ -122,9 +131,9 @@ export class UserService {
     }
   }
 
-  async logoutUser(sid: string) {
+  async logoutUser(sid: string, { loginId }: UserParamDto) {
     try {
-      if ((await this.authService.removeSession(sid)) > 0) {
+      if ((await this.authService.removeSession(sid, loginId)) > 0) {
         return { message: '로그아웃 되었습니다.' };
       }
     } catch (err) {

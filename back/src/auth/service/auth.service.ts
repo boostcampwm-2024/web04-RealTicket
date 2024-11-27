@@ -58,7 +58,8 @@ export class AuthService {
     return session.targetEvent;
   }
 
-  async removeSession(sid: string) {
+  async removeSession(sid: string, loginId: string) {
+    this.redis.unlink(`user-id:${loginId}`);
     return this.redis.unlink(`user:${sid}`);
   }
 
