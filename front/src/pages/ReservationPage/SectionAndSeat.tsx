@@ -19,7 +19,7 @@ import { useMutation, useMutationState } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
-interface SelectedSeat {
+export interface SelectedSeat {
   sectionIndex: number;
   seatIndex: number;
   name: string;

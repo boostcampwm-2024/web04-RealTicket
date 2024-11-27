@@ -4,6 +4,8 @@ import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
 import Separator from '@/components/common/Separator.tsx';
 
+import { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat.tsx';
+
 import { getDate, getTime } from '@/utils/date.ts';
 import { getPriceWon } from '@/utils/getPriceWon.ts';
 
@@ -11,10 +13,11 @@ import { EventDetail } from '@/type/index.ts';
 
 interface IReservationResultProps {
   event: EventDetail;
-  reservationResult: string[];
+  reservationResult: SelectedSeat[];
 }
 export default function ReservationResult({ event, reservationResult }: IReservationResultProps) {
   const { name, runningDate, place, price } = event;
+  console.log(reservationResult);
   const placeName = place.name;
   return (
     <div className="flex flex-col gap-8 rounded-xl border-2 border-e-surface-sub p-6 shadow-xl">
@@ -42,7 +45,7 @@ export default function ReservationResult({ event, reservationResult }: IReserva
           <div>
             {reservationResult.map((ticket) => (
               <div className="flex items-center justify-between text-display1 text-typo">
-                <span>{ticket}</span>
+                <span>{ticket.name}</span>
                 <span>{getPriceWon(price)}</span>
               </div>
             ))}
