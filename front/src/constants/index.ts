@@ -27,6 +27,7 @@ export const API = {
   RESERVATION: {
     GET_RESERVATION: '/reservation',
     DELETE_RESERVATION: (id: number) => `/reservation/${id}`,
+    POST_RESERVATION: `/reservation`,
   },
   BOOKING: {
     GET_SEATS_SSE: (id: number) => `/booking/seat/${id}`,

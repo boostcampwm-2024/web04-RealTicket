@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 
 import { BASE_URL } from '@/api/axios.ts';
 import { PostSeatData, postSeat } from '@/api/booking.ts';
+import { postReservation } from '@/api/reservation.ts';
 
 import Button from '@/components/common/Button.tsx';
+import Icon from '@/components/common/Icon.tsx';
 import Separator from '@/components/common/Separator.tsx';
 
 import SectionSelectorMap from '@/pages/ReservationPage/SectionSelectorMap';
 
 import { getDate, getTime } from '@/utils/date.ts';
+import { padEndArray } from '@/utils/padArray.ts';
 
 import { API } from '@/constants/index.ts';
 import type { EventDetail, PlaceInformation, Section, SectionCoordinate } from '@/type/index.ts';
@@ -52,7 +55,9 @@ export default function SectionAndSeat({
       );
       setSelectedSeats([...filtered]);
     },
+    throwOnError: false,
   });
+  const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
 
   const reservingList = useMutationState<PostSeatData>({
     filters: {
@@ -171,12 +176,25 @@ export default function SectionAndSeat({
           viewBoxData={viewBoxData}
         />
         <Separator direction="row" />
-        <div>
-          <h3>선택한 좌석</h3>
-          <div>
-            {selectedSeats.map((seat) => (
-              <span>{seat.name}</span>
-            ))}
+        <div className="flex flex-col gap-4">
+          <h3 className="text-heading2">선택한 좌석</h3>
+          <div className="flex flex-col gap-2">
+            {padEndArray(selectedSeats, seatCount, null).map((item) => {
+              if (item == null)
+                return (
+                  <div className="flex w-full items-center gap-2 rounded border border-surface px-4 py-2">
+                    <Icon iconName="Square" />
+                    <span className="text-display1 text-typo-sub">좌석을 선택해주세요</span>
+                  </div>
+                );
+              else
+                return (
+                  <div className="flex w-full items-center gap-2 rounded border border-success px-4 py-2">
+                    <Icon iconName="CheckSquare" color="success" />
+                    <span className="text-display1 text-typo">{item.name}</span>
+                  </div>
+                );
+            })}
           </div>
         </div>
 
@@ -184,6 +202,13 @@ export default function SectionAndSeat({
         <Button
           disabled={!isSelectionComplete}
           onClick={() => {
+            confirmReservation({
+              eventId,
+              seats: selectedSeats.map((seat) => ({
+                sectionIndex: seat.sectionIndex,
+                seatIndex: seat.seatIndex,
+              })),
+            });
             setReservationResult(selectedSeats);
             goNextStep();
           }}>
