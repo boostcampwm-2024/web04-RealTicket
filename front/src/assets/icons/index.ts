@@ -13,3 +13,6 @@ export { default as CheckCircle } from '@/assets/icons/check-circle.svg?react';
 export { default as MapPin } from '@/assets/icons/map-pin.svg?react';
 export { default as Calendar } from '@/assets/icons/calendar.svg?react';
 export { default as Ticket } from '@/assets/icons/ticket.svg?react';
+export { default as Users } from '@/assets/icons/users.svg?react';
+export { default as Square } from '@/assets/icons/square.svg?react';
+export { default as CheckSquare } from '@/assets/icons/check-square.svg?react';

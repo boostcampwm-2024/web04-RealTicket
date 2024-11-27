@@ -58,7 +58,9 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
       <Separator direction="row" />
       <ul className="list-disc px-4">
         {HELP_MESSAGE_LIST.map((message) => (
-          <li className="text-caption1 text-typo-sub">{message}</li>
+          <li key={message} className="text-caption1 text-typo-sub">
+            {message}
+          </li>
         ))}
       </ul>
 

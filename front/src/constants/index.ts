@@ -27,6 +27,7 @@ export const API = {
   RESERVATION: {
     GET_RESERVATION: '/reservation',
     DELETE_RESERVATION: (id: number) => `/reservation/${id}`,
+    POST_RESERVATION: `/reservation`,
   },
   BOOKING: {
     GET_SEATS_SSE: (id: number) => `/booking/seat/${id}`,
@@ -34,5 +35,6 @@ export const API = {
     GET_PERMISSION: (id: number) => `/booking/permission/${id}`,
     POST_COUNT: `/booking/count`,
     POST_SEAT: `/booking`,
+    GET_RE_PERMISSION: (id: number) => `/booking/re-permission/${id}`,
   },
 };

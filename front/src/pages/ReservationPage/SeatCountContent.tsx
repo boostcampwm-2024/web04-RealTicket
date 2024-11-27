@@ -41,14 +41,16 @@ export default function SeatCountContent({ selectCount, goNextStep, seatCount }:
         <span className="text-heading2">좌석 개수</span>
         <select id="seatCount" className="w-full rounded border px-4 py-2" onChange={selectSeatCount}>
           {SEAT_COUNT_LIST.map((count) => (
-            <option className="" value={count}>{`${count} 개`}</option>
+            <option key={count} className="" value={count}>{`${count} 개`}</option>
           ))}
         </select>
       </label>
       <Separator direction="row" />
       <ul className="list-disc px-4">
         {HELP_MESSAGE_LIST.map((message) => (
-          <li className="text-caption1 text-typo-sub">{message}</li>
+          <li key={message} className="text-caption1 text-typo-sub">
+            {message}
+          </li>
         ))}
       </ul>
       <div className="flex gap-4">

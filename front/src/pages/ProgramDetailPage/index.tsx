@@ -51,11 +51,11 @@ export default function ProgramDetailPage() {
       <ProgramInformation {...programDetail} lastDate={lastDate} startDate={startDate} isOneDay={isOneDay} />
       <div className="flex flex-col gap-2">
         <div className="flex gap-8">
-          {MENU.map((item) => {
-            if (item == null) return <Separator direction="col" />;
+          {MENU.map((item, index) => {
+            if (item == null) return <Separator key={index} direction="col" />;
             const { title, caption } = item;
             return (
-              <div className="flex w-full flex-grow flex-col px-4 py-2">
+              <div key={title} className="flex w-full flex-grow flex-col px-4 py-2">
                 <span className="text-heading3 text-typo">{title}</span>
                 <span className="text-caption2 text-typo-sub">{caption}</span>
               </div>
@@ -67,6 +67,7 @@ export default function ProgramDetailPage() {
           <div className="flex flex-grow basis-0 flex-col gap-2">
             {dateList.map((date) => (
               <Radio
+                key={date}
                 group="date"
                 value={getDate(date)}
                 subText={getDay(date)}
@@ -82,6 +83,7 @@ export default function ProgramDetailPage() {
           <div className="flex flex-grow basis-0 flex-col gap-2">
             {timeList.map((time) => (
               <Radio
+                key={time}
                 group="time"
                 value={time}
                 checked={time === selected.time}

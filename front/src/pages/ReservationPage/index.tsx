@@ -10,6 +10,7 @@ import Captcha from '@/components/Captcha/index.tsx';
 import ReservationResult from '@/pages/ReservationPage/ReservationResult';
 import SeatCountContent from '@/pages/ReservationPage/SeatCountContent';
 import type { SeatCount } from '@/pages/ReservationPage/SeatCountContent';
+import type { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat';
 import SectionAndSeat from '@/pages/ReservationPage/SectionAndSeat';
 
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
@@ -22,7 +23,7 @@ const DEFAULT_SEAT_COUNT = 1;
 export default function ReservationPage() {
   const { eventId } = useParams();
   const { data: event } = useSuspenseQuery<EventDetail, CustomError>({
-    queryKey: [`events/${eventId}`],
+    queryKey: [`event`, eventId],
     queryFn: getEventDetail(Number(eventId)),
   });
   const { place } = event;
@@ -33,7 +34,7 @@ export default function ReservationPage() {
   });
 
   const [seatCount, setSeatCount] = useState<SeatCount>(DEFAULT_SEAT_COUNT);
-  const [reservationResult, setReservationResult] = useState<null | string[]>(['']); //TODO 각 단계 데이터 하나에서 컨트로 funnel구조로
+  const [reservationResult, setReservationResult] = useState<SelectedSeat[]>([]); //TODO 각 단계 데이터 하나에서 컨트로 funnel구조로
   const [step, setStep] = useState<ReservationStep>('captcha');
   const selectCount = (count: SeatCount) => {
     setSeatCount(count);

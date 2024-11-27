@@ -4,6 +4,7 @@ import axios, { AxiosError, isAxiosError } from 'axios';
 
 //TODO 타입 정의
 const isDevelopEnvironment = import.meta.env.VITE_ENVIRONMENT === 'dev';
+// const isDevelopEnvironment = true;
 
 export const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
 type ErrorData = {
@@ -32,7 +33,7 @@ const canRedirect = (error: AxiosError) => {
     return true;
   return false;
 };
-
+//TODO 500 에러 처리 필요
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {

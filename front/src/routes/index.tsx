@@ -11,8 +11,8 @@ import ProgramsPage from '@/pages/ProgramsPage';
 import ReservationPage from '@/pages/ReservationPage';
 import ReservationWaitingPage from '@/pages/ReservationWaitingPage';
 import SignUpPage from '@/pages/SignupPage';
+import WaitingQueuePage from '@/pages/WaitingQueuePage/index.tsx';
 
-// import Test from '@/pages/Test.tsx';
 import Layout from '@/layout/Layout';
 
 //TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정, flat보다는 next 처럼 밑으로 최적화도 더 좋다
@@ -24,6 +24,7 @@ const router = createBrowserRouter([
     children: [
       { path: '*', element: <NotFondPage /> },
       { path: '', element: <Navigate to="/programs" /> },
+
       { path: '/programs', element: <ProgramsPage /> },
       { path: '/programs/:programId', element: <ProgramDetailPage /> },
       {
@@ -64,6 +65,14 @@ const router = createBrowserRouter([
         element: (
           <WithLogin>
             <ReservationPage />
+          </WithLogin>
+        ),
+      },
+      {
+        path: '/waiting/:eventId/',
+        element: (
+          <WithLogin>
+            <WaitingQueuePage />
           </WithLogin>
         ),
       },

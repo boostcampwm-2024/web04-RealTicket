@@ -11,7 +11,7 @@ import Icon from '@/components/common/Icon.tsx';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
-import { permissionResult } from '@/type/booking.ts';
+import type { PermissionResult } from '@/type/booking.ts';
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
 import { useIsFetching, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 
@@ -42,13 +42,14 @@ export default function ReservationWaitingPage() {
   const isOpen = restTime <= 0;
 
   const permissionAndGo = async () => {
-    const { enteringStatus } = await queryClient.fetchQuery<permissionResult>({
+    const { enteringStatus, userOrder } = await queryClient.fetchQuery<PermissionResult>({
       queryKey: PERMISSION_QUERY_KEY,
       queryFn: getPermission(Number(eventId)),
       staleTime: 0,
     });
+
     if (enteringStatus) navigate(`/events/${eventId}`);
-    else navigate('/');
+    else navigate(`/waiting/${eventId}`, { state: { userOrder } });
   };
   //TODO 좌석 초기 데이터
   const renderRestTime = (restTime: number) => {
