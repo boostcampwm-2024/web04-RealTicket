@@ -23,7 +23,7 @@ export default function ReservationCard({
       {isDeleting && (
         <div className="absolute left-0 top-0 z-50 flex h-full w-full items-center justify-center bg-surface opacity-30">
           <div className="flex flex-col items-center gap-4">
-            <Icon iconName="Trash" color={'warning'} className="h-16 w-16 animate-ping" />
+            <Icon iconName="Loading" color={'warning'} className="h-16 w-16 animate-spin" />
             <span className="text-caption1 text-warning">deleting...</span>
           </div>
         </div>

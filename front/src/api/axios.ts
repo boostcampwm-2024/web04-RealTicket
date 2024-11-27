@@ -33,7 +33,7 @@ const canRedirect = (error: AxiosError) => {
     return true;
   return false;
 };
-
+//TODO 500 에러 처리 필요
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
