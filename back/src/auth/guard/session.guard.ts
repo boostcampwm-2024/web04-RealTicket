@@ -21,10 +21,10 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
 
       const sessionId = request.cookies.SID;
       const session = JSON.parse(await this.redis.get(`user:${sessionId}`));
-      this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + EXPIRE_TIME);
       // TODO
       // userStatus, target_event를 비교하여 접근 허용 여부를 판단
       if (session && USER_LEVEL[session.userStatus] >= USER_LEVEL[userStatus]) {
+        this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + EXPIRE_TIME);
         return true;
       } else if (!session) {
         throw new ForbiddenException('접근 권한이 없습니다.');
