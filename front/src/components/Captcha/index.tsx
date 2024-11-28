@@ -26,12 +26,13 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
   };
   const validateAndGoNextStep = () => {
     if (validateCaptcha(inputData)) {
-      //TODO 토스트
       goNextStep();
     } else {
       setIsValid(false);
       if (InputRef.current) {
-        (InputRef.current! as HTMLInputElement).focus();
+        const input = InputRef.current! as HTMLInputElement;
+        input.value = '';
+        input.focus();
       }
     }
   };

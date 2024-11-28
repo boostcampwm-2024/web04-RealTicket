@@ -13,6 +13,7 @@ import ReservationWaitingPage from '@/pages/ReservationWaitingPage';
 import SignUpPage from '@/pages/SignupPage';
 import WaitingQueuePage from '@/pages/WaitingQueuePage/index.tsx';
 
+import { ROUTE_URL } from '@/constants/index.ts';
 import Layout from '@/layout/Layout';
 
 //TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정, flat보다는 next 처럼 밑으로 최적화도 더 좋다
@@ -23,12 +24,12 @@ const router = createBrowserRouter([
     errorElement: <NotFondPage />,
     children: [
       { path: '*', element: <NotFondPage /> },
-      { path: '', element: <Navigate to="/programs" /> },
+      { path: '', element: <Navigate to={ROUTE_URL.PROGRAM.DEFAULT} /> },
 
-      { path: '/programs', element: <ProgramsPage /> },
-      { path: '/programs/:programId', element: <ProgramDetailPage /> },
+      { path: ROUTE_URL.PROGRAM.DEFAULT, element: <ProgramsPage /> },
+      { path: `${ROUTE_URL.PROGRAM.DEFAULT}/:programId`, element: <ProgramDetailPage /> },
       {
-        path: '/login',
+        path: ROUTE_URL.USER.LOGIN,
         element: (
           <WithoutLogin>
             <LoginPage />
@@ -37,7 +38,7 @@ const router = createBrowserRouter([
       },
 
       {
-        path: '/signUp',
+        path: ROUTE_URL.USER.SIGN_UP,
         element: (
           <WithoutLogin>
             <SignUpPage />
@@ -53,7 +54,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: '/events/:eventId/waiting',
+        path: `${ROUTE_URL.EVENT.DEFAULT}/:eventId/ready`,
         element: (
           <WithLogin>
             <ReservationWaitingPage />
@@ -61,7 +62,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: '/events/:eventId',
+        path: `${ROUTE_URL.EVENT.DEFAULT}/:eventId`,
         element: (
           <WithLogin>
             <ReservationPage />
@@ -69,7 +70,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: '/waiting/:eventId/',
+        path: `${ROUTE_URL.EVENT.DEFAULT}/:eventId/waiting`,
         element: (
           <WithLogin>
             <WaitingQueuePage />

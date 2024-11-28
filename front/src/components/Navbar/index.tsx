@@ -18,7 +18,6 @@ import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 460;
 
-//TODO url 상수화, 자동로그인 추가, 삭제 중인 카드 로딩
 const RESERVATION_DELETE_MUTATION_KEY = ['reservation'];
 
 export default function Navbar() {
@@ -35,7 +34,7 @@ export default function Navbar() {
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
     mutationFn: deleteReservation,
     onSuccess: () => {
-      return queryClient.invalidateQueries({ queryKey: ['reservation'] });
+      return queryClient.refetchQueries({ queryKey: ['reservation'] });
     },
   });
 
@@ -59,7 +58,7 @@ export default function Navbar() {
   const isReservation = reservations && reservations.length > 0;
   const widthClass = `w-[${POPOVER_WIDTH}px]`;
   return (
-    <header className="flex w-full justify-between px-8 py-4">
+    <header className="flex w-full justify-between bg-white px-8 py-4">
       <Link to="/" className="flex items-center gap-5">
         <Icon iconName="Tickets" size={'big'} color={'primary'} />
         <span className="text-heading1 text-primary">RealTicket</span>
@@ -81,7 +80,7 @@ export default function Navbar() {
                 className={cx(widthClass, `flex flex-col gap-6 rounded-xl border bg-white p-6 shadow-2xl`)}>
                 <h3 className="px-4 text-left text-heading3">예매 현황</h3>
                 <Separator direction="row" />
-                <div className="flex max-h-[800px] flex-col gap-6 overflow-y-scroll">
+                <div className="flex max-h-[800px] flex-col gap-6 overflow-y-scroll pr-4">
                   {isReservation ? (
                     reservations.map((reservation) => (
                       <ReservationCard
