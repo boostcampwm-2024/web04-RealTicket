@@ -1,3 +1,4 @@
+import { ROUTE_URL } from '@/constants/index.ts';
 import { auth } from '@/events/AuthEvent.ts';
 import router from '@/routes/index.tsx';
 import axios, { AxiosError, isAxiosError } from 'axios';
@@ -21,29 +22,45 @@ export const apiClient = axios.create({
 });
 
 const EXCLUDING_AUTH_ERROR_REDIRECT_URL_LIST = ['/user'];
-const NOT_LOGIN_ERROR_STATUS = 403;
+const UN_AUTHENTICATED_ERROR_STATUS = 403;
 
-//TODO AuthContext logout 처리 필요, 현재 login상태가 true인데, cookie의 서버 세션이 만료된 경우
 const canRedirect = (error: AxiosError) => {
   if (
-    error.status === NOT_LOGIN_ERROR_STATUS &&
+    error.status === UN_AUTHENTICATED_ERROR_STATUS &&
     error.config?.url &&
     !EXCLUDING_AUTH_ERROR_REDIRECT_URL_LIST.includes(error.config.url)
   )
     return true;
   return false;
 };
+const isExclude = (error: AxiosError) => {
+  if (
+    error.status === UN_AUTHENTICATED_ERROR_STATUS &&
+    error.config?.url &&
+    EXCLUDING_AUTH_ERROR_REDIRECT_URL_LIST.includes(error.config.url)
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+const isError = (error: unknown) => error && isAxiosError<CustomError>(error);
 //TODO 500 에러 처리 필요
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error && isAxiosError<CustomError>(error)) {
+    if (isError(error)) {
       if (canRedirect(error)) {
         alert('로그인이 필요합니다.');
         auth.logout();
-        router.navigate('/login', { replace: true });
+        router.navigate(ROUTE_URL.USER.LOGIN, { replace: true });
+        return Promise.reject(error);
       }
-      throw error;
+      if (isExclude(error)) {
+        return Promise.resolve({ data: null });
+      }
+      throw Promise.reject(error);
     }
   },
 );
