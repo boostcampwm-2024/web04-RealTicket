@@ -20,6 +20,8 @@ import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
 import { ReservationRepository } from '../repository/reservation.repository';
 
+const OFFSET = 1000 * 60 * 60 * 9;
+
 @Injectable()
 export class ReservationService {
   private redis: Redis;
@@ -169,7 +171,7 @@ export class ReservationService {
     program: Program,
   ) {
     const reservationData: any = {
-      createdAt: new Date(),
+      createdAt: new Date(Date.now() + OFFSET),
       amount: reservationCreateDto.seats.length,
       program: program,
       event: event[0],
