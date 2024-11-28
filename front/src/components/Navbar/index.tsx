@@ -59,7 +59,7 @@ export default function Navbar() {
   const isReservation = reservations && reservations.length > 0;
   const widthClass = `w-[${POPOVER_WIDTH}px]`;
   return (
-    <header className="flex w-full justify-between px-8 py-4">
+    <header className="flex w-full justify-between bg-white px-8 py-4">
       <Link to="/" className="flex items-center gap-5">
         <Icon iconName="Tickets" size={'big'} color={'primary'} />
         <span className="text-heading1 text-primary">RealTicket</span>
