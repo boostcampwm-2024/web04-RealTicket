@@ -12,6 +12,7 @@ import ProgramInformation from '@/pages/ProgramDetailPage/ProgramInformation.tsx
 
 import { getDate, getDay, getTime } from '@/utils/date.ts';
 
+import { ROUTE_URL } from '@/constants/index.ts';
 import { ProgramDetail } from '@/type/index.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
@@ -43,8 +44,10 @@ export default function ProgramDetailPage() {
   });
   const timeList = [...new Set(filteredDateEvents.map((event) => getTime(event.runningDate)))];
   const selectedEvent = filteredDateEvents.find((event) => getTime(event.runningDate) === selected.time);
-  const goWaitingPage = () => {
-    navigate(`/events/${selectedEvent?.id}/waiting`);
+  const goReadyPage = () => {
+    if (selectedEvent) {
+      navigate(ROUTE_URL.EVENT.BOOKING_READY(selectedEvent.id));
+    }
   };
   return (
     <div className="flex flex-col gap-8">
@@ -107,7 +110,7 @@ export default function ProgramDetailPage() {
             <span className="text-caption1 text-error">없음 </span>
           )}
         </div>
-        <Button size={'middle'} color={'success'} disabled={!selectedEvent} onClick={goWaitingPage}>
+        <Button size={'middle'} color={'success'} disabled={!selectedEvent} onClick={goReadyPage}>
           <span className={cx('text-label1', selectedEvent ? 'text-typo-display' : 'text-typo-disable')}>
             예매하기
           </span>

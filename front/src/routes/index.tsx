@@ -19,13 +19,12 @@ import Layout from '@/layout/Layout';
 //TODO lazyloading,suspene, fallback 적용, withLogin hoc접근 권한 설정, flat보다는 next 처럼 밑으로 최적화도 더 좋다
 const router = createBrowserRouter([
   {
-    path: ROUTE_URL.HOME,
+    path: '/',
     element: <Layout />,
     errorElement: <NotFondPage />,
     children: [
       { path: '*', element: <NotFondPage /> },
       { path: '', element: <Navigate to={ROUTE_URL.PROGRAM.DEFAULT} /> },
-
       { path: ROUTE_URL.PROGRAM.DEFAULT, element: <ProgramsPage /> },
       { path: `${ROUTE_URL.PROGRAM.DEFAULT}/:programId`, element: <ProgramDetailPage /> },
       {

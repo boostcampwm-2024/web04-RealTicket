@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { BASE_URL } from '@/api/axios.ts';
 import { getEventDetail } from '@/api/event.ts';
@@ -14,7 +14,7 @@ import LoadingPage from '@/pages/LoadingPage.tsx';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
-import { API } from '@/constants/index.ts';
+import { API, ROUTE_URL } from '@/constants/index.ts';
 import type { RePermissionResult } from '@/type/booking.ts';
 import type { EventDetail } from '@/type/index.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
@@ -108,7 +108,13 @@ export default function WaitingQueuePage() {
     firstWaitingTime.current == null
       ? 0
       : ((firstWaitingTime.current - waitingTime!) / firstWaitingTime.current!) * 100;
-  if (restCount !== null && restCount <= 0) return <Navigate to={`/events/${eventId}`} />;
+  const canGo = restCount !== null && restCount <= 0;
+  if (canGo) {
+    if (eventId) {
+      navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)), { replace: true });
+    }
+  }
+
   return (
     <Card>
       <h2 className="text-heading1 text-typo">{name}</h2>

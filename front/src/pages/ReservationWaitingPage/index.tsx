@@ -11,6 +11,7 @@ import Icon from '@/components/common/Icon.tsx';
 
 import { getDate, getTime } from '@/utils/date.ts';
 
+import { ROUTE_URL } from '@/constants/index.ts';
 import type { PermissionResult } from '@/type/booking.ts';
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
 import { useIsFetching, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
@@ -48,8 +49,11 @@ export default function ReservationWaitingPage() {
       staleTime: 0,
     });
 
-    if (enteringStatus) navigate(`/events/${eventId}`);
-    else navigate(`/waiting/${eventId}`, { state: { userOrder } });
+    if (enteringStatus) {
+      navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)));
+    } else {
+      navigate(ROUTE_URL.EVENT.WAITING_ROOM(Number(eventId)), { state: { userOrder } });
+    }
   };
   //TODO 좌석 초기 데이터
   const renderRestTime = (restTime: number) => {

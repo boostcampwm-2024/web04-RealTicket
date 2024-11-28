@@ -10,6 +10,7 @@ import Field from '@/components/common/Field.tsx';
 import Icon from '@/components/common/Icon.tsx';
 import Input from '@/components/common/Input.tsx';
 
+import { ROUTE_URL } from '@/constants/index.ts';
 import { useMutation } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
 
@@ -33,7 +34,7 @@ export default function SignUpPage() {
     },
     onSuccess: () => {
       alert('화원가입에 성공했습니다. 로그인 해주세요');
-      navigate('/signin');
+      navigate(ROUTE_URL.USER.LOGIN);
     },
   });
 
