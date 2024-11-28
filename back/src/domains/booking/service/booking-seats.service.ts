@@ -11,6 +11,7 @@ import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { UserService } from '../../user/service/user.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
@@ -37,6 +38,7 @@ export class BookingSeatsService {
     private inBookingService: InBookingService,
     private authService: AuthService,
     private eventEmitter: EventEmitter2,
+    private readonly userService: UserService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -57,7 +59,7 @@ export class BookingSeatsService {
   }
 
   async bookSeat(sid: string, target: [number, number]) {
-    const eventId = await this.authService.getUserEventTarget(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
     const bookedSeat = await this.inBookingService.getBookedSeats(sid);
     const bookingAmount = await this.inBookingService.getBookingAmount(sid);
     const bookedAmount = bookedSeat.length;
@@ -74,7 +76,7 @@ export class BookingSeatsService {
   }
 
   async unBookSeat(sid: string, target: [number, number]) {
-    const eventId = await this.authService.getUserEventTarget(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
     const bookedSeat = await this.inBookingService.getBookedSeats(sid);
     const bookedAmount = bookedSeat.length;
 

@@ -4,6 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { UserService } from '../../user/service/user.service';
 
 type InBookingSession = {
   sid: string;
@@ -17,6 +18,7 @@ export class InBookingService {
   constructor(
     private readonly authService: AuthService,
     private redisService: RedisService,
+    private readonly userService: UserService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -104,7 +106,7 @@ export class InBookingService {
   }
 
   private getTargetEventId(sid: string) {
-    return this.authService.getUserEventTarget(sid);
+    return this.userService.getUserEventTarget(sid);
   }
 
   private getSessionKey(eventId: number, sid: string) {
