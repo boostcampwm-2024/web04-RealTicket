@@ -141,4 +141,15 @@ export class UserService {
       throw new InternalServerErrorException('로그아웃에 실패하였습니다.');
     }
   }
+
+  async setUserEventTarget(sid: string, eventId: number) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
+  }
+
+  async getUserEventTarget(sid: string) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    return session.targetEvent;
+  }
 }
