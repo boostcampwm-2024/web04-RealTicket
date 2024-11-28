@@ -26,8 +26,8 @@ export class OpenBookingService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap() {
-    await this.checkAndOpenReservations();
     await this.inBookingService.setInBookingSessionsDefaultMaxSize(IN_BOOKING_DEFAULT_MAX_SIZE);
+    await this.checkAndOpenReservations();
   }
 
   @Cron(CronExpression.EVERY_HOUR)
