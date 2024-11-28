@@ -8,6 +8,7 @@ import { PlaceModule } from '../place/place.module';
 import { BookingController } from './controller/booking.controller';
 import { BookingSeatsService } from './service/booking-seats.service';
 import { BookingService } from './service/booking.service';
+import { EnterBookingService } from './service/enter-booking.service';
 import { InBookingService } from './service/in-booking.service';
 import { OpenBookingService } from './service/open-booking.service';
 import { WaitingQueueService } from './service/waiting-queue.service';
@@ -15,7 +16,14 @@ import { WaitingQueueService } from './service/waiting-queue.service';
 @Module({
   imports: [EventEmitterModule.forRoot(), EventModule, AuthModule, PlaceModule],
   controllers: [BookingController],
-  providers: [BookingService, InBookingService, OpenBookingService, BookingSeatsService, WaitingQueueService],
+  providers: [
+    BookingService,
+    InBookingService,
+    OpenBookingService,
+    BookingSeatsService,
+    WaitingQueueService,
+    EnterBookingService,
+  ],
   exports: [InBookingService],
 })
 export class BookingModule {}

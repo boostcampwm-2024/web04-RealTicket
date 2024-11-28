@@ -26,6 +26,7 @@ import { Request } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { AuthService } from '../../../auth/service/auth.service';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -45,6 +46,7 @@ import { WaitingQueueService } from '../service/waiting-queue.service';
 export class BookingController {
   constructor(
     private readonly eventEmitter: EventEmitter2,
+    private readonly authService: AuthService,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
@@ -73,8 +75,8 @@ export class BookingController {
     return this.waitingQueueService.subscribeQueue(eventId);
   }
 
-  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Post('count')
+  @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({ summary: '예매 인원 설정', description: '예매할 인원 수를 설정한다.' })
   @ApiBody({ type: BookingAmountReqDto })
@@ -88,7 +90,7 @@ export class BookingController {
   }
 
   @Sse('seat/:eventId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
   @ApiOperation({
     summary: '실시간 좌석 예약 현황 SSE',
     description: '실시간으로 좌석 예약 현황을 조회한다.',
@@ -96,9 +98,11 @@ export class BookingController {
   @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
+    const sid = req.cookies['SID'];
+    await this.bookingService.setSessionSelectingFromEntering(sid);
+
     const observable = this.bookingSeatsService.subscribeSeats(eventId);
 
-    const sid = req.cookies['SID'];
     req.on('close', () => {
       this.eventEmitter.emit('seats-sse-close', { sid });
     });
