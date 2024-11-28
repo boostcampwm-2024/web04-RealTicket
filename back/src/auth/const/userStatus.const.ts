@@ -1,6 +1,7 @@
 export const USER_STATUS = {
   LOGIN: 'LOGIN',
   WAITING: 'WAITING',
+  ENTERING: 'ENTERING',
   SELECTING_SEAT: 'SELECTING_SEAT',
   ADMIN: 'ADMIN',
 };
@@ -8,6 +9,7 @@ export const USER_STATUS = {
 export const USER_LEVEL = {
   LOGIN: 0,
   WAITING: 1,
-  SELECTING_SEAT: 2,
-  ADMIN: 3,
+  ENTERING: 2,
+  SELECTING_SEAT: 3,
+  ADMIN: 4,
 };

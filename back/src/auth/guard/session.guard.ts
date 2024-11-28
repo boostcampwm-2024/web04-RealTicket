@@ -7,7 +7,7 @@ import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
 
 const EXPIRE_TIME = 3600;
 
-export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
+export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STATUS.LOGIN) {
   @Injectable()
   class SessionGuard {
     readonly redis: Redis;
@@ -18,21 +18,27 @@ export function SessionAuthGuard(userStatus: string = USER_STATUS.LOGIN) {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
       const request: Request = context.switchToHttp().getRequest();
-
       const sessionId = request.cookies.SID;
-      const session = JSON.parse(await this.redis.get(`user:${sessionId}`));
-      // TODO
-      // userStatus, target_event를 비교하여 접근 허용 여부를 판단
-      if (session && USER_LEVEL[session.userStatus] >= USER_LEVEL[userStatus]) {
-        this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + EXPIRE_TIME);
-        return true;
-      } else if (!session) {
+
+      const sessionData = await this.redis.get(`user:${sessionId}`);
+      if (!sessionData) {
         throw new ForbiddenException('접근 권한이 없습니다.');
-      } else if (USER_LEVEL[session.userStatus] < USER_LEVEL[userStatus]) {
-        throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
-      } else {
+      }
+
+      const session = JSON.parse(sessionData);
+      if (!session) {
         throw new UnauthorizedException('세션이 만료되었습니다.');
       }
+
+      const statusesToCheck = Array.isArray(requiredStatuses) ? requiredStatuses : [requiredStatuses];
+
+      for (const requiredStatus of statusesToCheck) {
+        if (USER_LEVEL[session.userStatus] >= USER_LEVEL[requiredStatus]) {
+          await this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + EXPIRE_TIME);
+          return true;
+        }
+      }
+      throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
     }
   }
 
