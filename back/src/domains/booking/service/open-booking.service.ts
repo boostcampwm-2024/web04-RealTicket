@@ -33,15 +33,22 @@ export class OpenBookingService implements OnApplicationBootstrap {
   @Cron(CronExpression.EVERY_HOUR)
   private async checkAndOpenReservations() {
     const events = await this.eventRepository.selectEvents();
+    const openedEventIds = new Set(await this.getOpenedEventIds());
     const eventsToOpen = events.filter((event) => {
       const now = new Date();
-      return event.reservationOpenDate <= now;
+      return event.reservationOpenDate <= now && !openedEventIds.has(event.id);
     });
     await Promise.all(eventsToOpen.map((event) => this.openReservation(event)));
   }
 
   async isEventOpened(eventId: number) {
     return (await this.redis.get(`open-booking:${eventId}:opened`)) === 'true';
+  }
+
+  async getOpenedEventIds() {
+    const keys = await this.redis.keys('open-booking:*:opened');
+    const eventIds = keys.map((key) => parseInt(key.split(':')[2]));
+    return eventIds;
   }
 
   private async openReservation(event: Event) {
