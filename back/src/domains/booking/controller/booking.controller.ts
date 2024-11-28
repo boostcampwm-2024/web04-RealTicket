@@ -85,7 +85,7 @@ export class BookingController {
   @ApiBadRequestResponse({ description: '잘못된 요청' })
   async setBookingAmount(@Req() req: Request, @Body() dto: BookingAmountReqDto) {
     const sid = req.cookies['SID'];
-    const result = await this.inBookingService.setBookingAmount(sid, dto.bookingAmount);
+    const result = await this.bookingService.setBookingAmount(sid, dto.bookingAmount);
     return new BookingAmountResDto(result);
   }
 
@@ -99,7 +99,7 @@ export class BookingController {
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
     const sid = req.cookies['SID'];
-    await this.bookingService.setSessionSelectingFromEntering(sid);
+    await this.bookingService.setInBookingFromEntering(sid);
 
     const observable = this.bookingSeatsService.subscribeSeats(eventId);
 

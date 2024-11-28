@@ -56,7 +56,7 @@ export class BookingService {
   private async letInNextWaiting(eventId: number) {
     const isQueueEmpty = async (eventId: number) =>
       (await this.waitingQueueService.getQueueSize(eventId)) < 1;
-    while (!(await isQueueEmpty(eventId)) && (await this.inBookingService.isInsertable(eventId))) {
+    while (!(await isQueueEmpty(eventId)) && (await this.isInsertableInBooking(eventId))) {
       const item = await this.waitingQueueService.popQueue(eventId);
       if (!item) {
         break;
@@ -66,8 +66,12 @@ export class BookingService {
     }
   }
 
-  async setSessionSelectingFromEntering(sid: string) {
+  async setInBookingFromEntering(sid: string) {
+    const eventId = await this.authService.getUserEventTarget(sid);
+    const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
+
     await this.enterBookingService.removeEnteringSession(sid);
+    await this.inBookingService.insertInBooking(eventId, sid, bookingAmount);
     await this.authService.setUserStatusSelectingSeat(sid);
   }
 
@@ -92,9 +96,10 @@ export class BookingService {
   }
 
   private async getForwarded(sid: string) {
-    const isEntered = await this.inBookingService.insertIfPossible(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
+    const isInsertable = await this.isInsertableInBooking(eventId);
 
-    if (isEntered) {
+    if (isInsertable) {
       await this.enterBookingService.addEnteringSession(sid);
       await this.authService.setUserStatusEntering(sid);
       return {
@@ -110,6 +115,21 @@ export class BookingService {
       enteringStatus: false,
       userOrder,
     };
+  }
+
+  private async isInsertableInBooking(eventId: number): Promise<boolean> {
+    const inBookingCount = await this.inBookingService.getInBookingSessionCount(eventId);
+    const enteringCount = await this.enterBookingService.getEnteringSessionCount(eventId);
+    const maxSize = await this.inBookingService.getInBookingSessionsMaxSize(eventId);
+    return inBookingCount + enteringCount < maxSize;
+  }
+
+  async setBookingAmount(sid: string, bookingAmount: number) {
+    const isInBooking = await this.inBookingService.isInBooking(sid);
+    if (isInBooking) {
+      return await this.inBookingService.setBookingAmount(sid, bookingAmount);
+    }
+    return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
