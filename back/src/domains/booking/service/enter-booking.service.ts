@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
-import { AuthService } from '../../../auth/service/auth.service';
+import { UserService } from '../../user/service/user.service';
 import { ENTERING_GC_INTERVAL, ENTERING_SESSION_EXPIRY } from '../const/enterBooking.const';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class EnterBookingService {
   private readonly redis: Redis | null;
   constructor(
     private readonly redisService: RedisService,
-    private readonly authService: AuthService,
+    private readonly userService: UserService,
     private readonly eventEmitter: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -25,14 +25,14 @@ export class EnterBookingService {
   }
 
   async addEnteringSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
     const timestamp = Date.now();
     await this.redis.zadd(`entering:${eventId}`, timestamp, sid);
     return true;
   }
 
   async removeEnteringSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
     await this.redis.zrem(`entering:${eventId}`, sid);
     await this.removeBookingAmount(sid);
     return true;
