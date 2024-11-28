@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
+import { UserService } from '../../user/service/user.service';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
@@ -21,11 +22,12 @@ export class BookingService {
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
+    private readonly userService: UserService,
   ) {}
 
   @OnEvent('seats-sse-close')
   async letInNextWaiting(event: { sid: string }) {
-    const eventId = await this.authService.getUserEventTarget(event.sid);
+    const eventId = await this.userService.getUserEventTarget(event.sid);
     if ((await this.waitingQueueService.getQueueSize(eventId)) < 1) {
       return;
     }
@@ -53,7 +55,7 @@ export class BookingService {
       throw new BadRequestException('이미 예약 마감된 이벤트입니다.');
     }
 
-    await this.authService.setUserEventTarget(sid, eventId);
+    await this.userService.setUserEventTarget(sid, eventId);
 
     return await this.getForwarded(sid);
   }

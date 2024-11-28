@@ -47,17 +47,6 @@ export class AuthService {
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
   }
 
-  async setUserEventTarget(sid: string, eventId: number) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
-
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
-  }
-
-  async getUserEventTarget(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
-    return session.targetEvent;
-  }
-
   async removeSession(sid: string, loginId: string) {
     this.redis.unlink(`user-id:${loginId}`);
     return this.redis.unlink(`user:${sid}`);

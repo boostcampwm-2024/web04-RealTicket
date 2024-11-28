@@ -11,6 +11,7 @@ import { Event } from '../../event/entity/event.entity';
 import { Place } from '../../place/entity/place.entity';
 import { Section } from '../../place/entity/section.entity';
 import { Program } from '../../program/entities/program.entity';
+import { UserService } from '../../user/service/user.service';
 import { ReservationCreateDto } from '../dto/reservationCreate.dto';
 import { ReservationIdDto } from '../dto/reservationId.dto';
 import { ReservationSeatInfoDto } from '../dto/reservationSeatInfo.dto';
@@ -30,6 +31,7 @@ export class ReservationService {
     @Inject() private readonly dataSource: DataSource,
     @Inject() private readonly authService: AuthService,
     @Inject() private readonly inBookingService: InBookingService,
+    @Inject() private readonly userService: UserService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -93,7 +95,7 @@ export class ReservationService {
     try {
       const session = await this.authService.getUserSession(sid);
       const userId = session.id;
-      const eventId = await this.authService.getUserEventTarget(sid);
+      const eventId = await this.userService.getUserEventTarget(sid);
       const { bookingAmount, bookedSeats } = await this.inBookingService.getBookAmountAndBookedSeats(
         sid,
         eventId,
