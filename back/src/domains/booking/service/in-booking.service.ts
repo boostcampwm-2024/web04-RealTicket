@@ -1,5 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
@@ -16,6 +17,7 @@ export class InBookingService {
   constructor(
     private readonly authService: AuthService,
     private redisService: RedisService,
+    private eventEmitter: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -32,12 +34,16 @@ export class InBookingService {
 
   async setInBookingSessionsMaxSize(eventId: number, size: number) {
     await this.redis.set(`in-booking:${eventId}:max-size`, size);
+    this.eventEmitter.emit('in-booking-max-size-changed', { eventId });
     return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
   }
 
   async setAllInBookingSessionsMaxSize(size: number) {
     const keys = await this.redis.keys('in-booking:*:max-size');
     await Promise.all(keys.map((key) => this.redis.set(key, size)));
+
+    this.eventEmitter.emit('all-in-booking-max-size-changed');
+
     const lastKey = keys[keys.length - 1];
     return parseInt(await this.redis.get(lastKey));
   }

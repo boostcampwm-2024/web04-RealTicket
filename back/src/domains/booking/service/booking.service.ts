@@ -42,6 +42,21 @@ export class BookingService {
     }
   }
 
+  @OnEvent('in-booking-max-size-changed')
+  async onSpecificInBookingMaxSizeChanged(event: { eventId: number }) {
+    await this.letInNextWaiting(event.eventId);
+  }
+
+  @OnEvent('all-in-booking-max-size-changed')
+  async onAllInBookingMaxSizeChanged() {
+    const eventIds = await this.openBookingService.getOpenedEventIds();
+    await Promise.all(
+      eventIds.map(async (eventId) => {
+        await this.letInNextWaiting(eventId);
+      }),
+    );
+  }
+
   // 함수 이름 생각하기
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     // eventId를 받아서 해당 이벤트가 존재하는지 확인한다.
