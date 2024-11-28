@@ -1,6 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
@@ -19,14 +18,6 @@ export class InBookingService {
     private redisService: RedisService,
   ) {
     this.redis = this.redisService.getOrThrow();
-  }
-
-  @OnEvent('seats-sse-close')
-  async onSeatsSseDisconnect(event: { sid: string }) {
-    const sid = event.sid;
-    const eventId = await this.getTargetEventId(sid);
-    await this.removeInBooking(eventId, sid);
-    await this.authService.setUserStatusLogin(sid);
   }
 
   async getInBookingSessionsDefaultMaxSize() {
@@ -101,6 +92,13 @@ export class InBookingService {
     const session = await this.getSession(eventId, sid);
     session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== seat[0] || s[1] !== seat[1]);
     await this.setSession(eventId, session);
+  }
+
+  async emitSession(sid: string) {
+    const eventId = await this.getTargetEventId(sid);
+    await this.removeInBooking(eventId, sid);
+    await this.authService.setUserStatusLogin(sid);
+    await this.authService.setUserEventTarget(sid, 0);
   }
 
   private getTargetEventId(sid: string) {

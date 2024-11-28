@@ -24,15 +24,19 @@ export class BookingService {
   ) {}
 
   @OnEvent('seats-sse-close')
-  async letInNextWaiting(event: { sid: string }) {
+  async onSeatsSseDisconnected(event: { sid: string }) {
     const eventId = await this.authService.getUserEventTarget(event.sid);
-    if ((await this.waitingQueueService.getQueueSize(eventId)) < 1) {
-      return;
-    }
-    if (await this.inBookingService.isInsertable(eventId)) {
+    await this.inBookingService.emitSession(event.sid);
+    await this.letInNextWaiting(eventId);
+  }
+
+  private async letInNextWaiting(eventId: number) {
+    const isQueueEmpty = async (eventId: number) =>
+      (await this.waitingQueueService.getQueueSize(eventId)) < 1;
+    while (!(await isQueueEmpty(eventId)) && (await this.inBookingService.isInsertable(eventId))) {
       const item = await this.waitingQueueService.popQueue(eventId);
       if (!item) {
-        return;
+        break;
       }
       await this.authService.setUserStatusSelectingSeat(item.sid);
     }
