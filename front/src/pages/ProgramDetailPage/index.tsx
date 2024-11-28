@@ -17,9 +17,8 @@ import { ProgramDetail } from '@/type/index.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
-//TODO 페이지 계층 컴포넌트 분리, 날짜 정렬
 export default function ProgramDetailPage() {
-  const { programId } = useParams(); //초기 데이터 호출용
+  const { programId } = useParams();
   const navigate = useNavigate();
   const { data: programDetail } = useSuspenseQuery<ProgramDetail, CustomError>({
     queryKey: ['program/1'],
@@ -31,26 +30,28 @@ export default function ProgramDetailPage() {
     date: null,
     time: null,
   });
+  const dateList = [...new Set(events.map((event) => new Date(event.runningDate).toDateString()))].sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime(),
+  );
 
-  const dateList = [...new Set(events.map((event) => new Date(event.runningDate).toDateString()))];
   const startDate = dateList[0];
   const lastDate = dateList[dateList.length - 1];
   const isOneDay = startDate === lastDate;
-
   const filteredDateEvents = events.filter((event) => {
     const date = new Date(event.runningDate).toDateString();
-
     return date === selected.date;
   });
-  const timeList = [...new Set(filteredDateEvents.map((event) => getTime(event.runningDate)))];
+
+  const timeList = [...new Set(filteredDateEvents.map((event) => getTime(event.runningDate)))].sort();
   const selectedEvent = filteredDateEvents.find((event) => getTime(event.runningDate) === selected.time);
   const goReadyPage = () => {
     if (selectedEvent) {
       navigate(ROUTE_URL.EVENT.BOOKING_READY(selectedEvent.id));
     }
   };
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-[720px] flex-col gap-8">
       <ProgramInformation {...programDetail} lastDate={lastDate} startDate={startDate} isOneDay={isOneDay} />
       <div className="flex flex-col gap-2">
         <div className="flex gap-8">
