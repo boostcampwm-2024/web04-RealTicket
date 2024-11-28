@@ -165,4 +165,18 @@ export class BookingController {
     const setSize = await this.inBookingService.setAllInBookingSessionsMaxSize(maxSize);
     return new InBookingSizeResDto(setSize);
   }
+
+  @Post('in-booking-pool-size/default')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @ApiOperation({
+    summary: 'ADMIN: 좌석 선택창 인원 기본값 설정',
+    description: '좌석 선택창에 입장 가능한 인원 수의 기본값을 설정한다.',
+  })
+  @ApiOkResponse({ description: '기본값 설정 성공', type: InBookingSizeResDto })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async setInBookingSessionsDefaultMaxSize(@Body() dto: InBookingSizeReqDto) {
+    const defaultMaxSize = dto.maxSize;
+    const setSize = await this.inBookingService.setInBookingSessionsDefaultMaxSize(defaultMaxSize);
+    return new InBookingSizeResDto(setSize);
+  }
 }

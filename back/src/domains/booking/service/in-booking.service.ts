@@ -35,6 +35,8 @@ export class InBookingService {
 
   async setInBookingSessionsDefaultMaxSize(size: number) {
     await this.redis.set('in-booking:default-max-size', size);
+    const defaultMaxSize = parseInt(await this.redis.get('in-booking:default-max-size'));
+    return defaultMaxSize;
   }
 
   async setInBookingSessionsMaxSize(eventId: number, size: number) {
