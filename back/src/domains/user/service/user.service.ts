@@ -34,10 +34,6 @@ export class UserService {
     this.redis = this.redisService.getOrThrow();
   }
 
-  async getUser(userId: number) {
-    return await this.userRepository.findById(userId);
-  }
-
   async registerUser(userCreateDto: UserCreateDto, role: string = USER_ROLE.USER) {
     if (await this.userRepository.findByLoginId(userCreateDto.loginId)) {
       throw new ConflictException('이미 존재하는 사용자입니다.');
@@ -140,5 +136,16 @@ export class UserService {
       this.logger.error(err);
       throw new InternalServerErrorException('로그아웃에 실패하였습니다.');
     }
+  }
+
+  async setUserEventTarget(sid: string, eventId: number) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
+  }
+
+  async getUserEventTarget(sid: string) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    return session.targetEvent;
   }
 }

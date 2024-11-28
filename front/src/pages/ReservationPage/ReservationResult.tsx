@@ -17,6 +17,8 @@ interface IReservationResultProps {
 }
 export default function ReservationResult({ event, reservationResult }: IReservationResultProps) {
   const { name, runningDate, place } = event;
+  //TODO 가격 호출 필요
+
   const price = 150000;
   const placeName = place.name;
   return (

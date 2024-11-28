@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { UserService } from '../../user/service/user.service';
 
 type InBookingSession = {
   sid: string;
@@ -17,6 +18,7 @@ export class InBookingService {
   constructor(
     private readonly authService: AuthService,
     private redisService: RedisService,
+    private readonly userService: UserService,
     private eventEmitter: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -104,7 +106,7 @@ export class InBookingService {
     const eventId = await this.getTargetEventId(sid);
     await this.removeInBooking(eventId, sid);
     await this.authService.setUserStatusLogin(sid);
-    await this.authService.setUserEventTarget(sid, 0);
+    await this.userService.setUserEventTarget(sid, 0);
   }
 
   async getInBookingSessionsMaxSize(eventId: number) {
@@ -116,7 +118,7 @@ export class InBookingService {
   }
 
   private getTargetEventId(sid: string) {
-    return this.authService.getUserEventTarget(sid);
+    return this.userService.getUserEventTarget(sid);
   }
 
   private getSessionKey(eventId: number, sid: string) {

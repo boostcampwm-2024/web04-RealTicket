@@ -12,12 +12,13 @@ export class AuthService {
     this.redis = this.redisService.getOrThrow();
   }
 
-  async getUserIdFromSession(sid: string): Promise<number | null> {
+  async getUserIdFromSession(sid: string): Promise<[number | null, string | null]> {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
-    if (!session) return null;
+    if (!session) return [null, null];
     const userId = session.id;
-    if (!userId) return null;
-    return userId;
+    const userLoginId = session.loginId;
+    if (!userId || !userLoginId) return [null, null];
+    return [userId, userLoginId];
   }
 
   async setUserStatusLogin(sid: string) {
@@ -52,17 +53,6 @@ export class AuthService {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
-  }
-
-  async setUserEventTarget(sid: string, eventId: number) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
-
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
-  }
-
-  async getUserEventTarget(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
-    return session.targetEvent;
   }
 
   async removeSession(sid: string, loginId: string) {

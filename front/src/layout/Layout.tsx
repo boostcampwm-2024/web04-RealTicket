@@ -9,7 +9,7 @@ export default function Layout() {
   return (
     <>
       <Navbar />
-      <div className="mx-auto my-4 flex h-[calc(100vh-72px)] max-w-[1080px] items-center justify-center">
+      <div className="mx-auto flex h-[calc(100vh-72px)] max-w-[1080px] justify-center p-8 pt-4">
         <Suspense fallback={<LoadingPage />}>
           <Outlet />
         </Suspense>

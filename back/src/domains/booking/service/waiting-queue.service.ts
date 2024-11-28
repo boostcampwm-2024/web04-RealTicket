@@ -5,6 +5,7 @@ import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { UserService } from '../../user/service/user.service';
 import { WAITING_BROADCAST_INTERVAL } from '../const/waitingBroadcastInterval.const';
 import { DEFAULT_WAITING_THROUGHPUT_RATE } from '../const/watingThroughputRate.const';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
@@ -23,6 +24,7 @@ export class WaitingQueueService {
   constructor(
     private redisService: RedisService,
     private authService: AuthService,
+    private userService: UserService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -39,7 +41,7 @@ export class WaitingQueueService {
   }
 
   async pushQueue(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
     if (!this.queueSubscriptionMap.get(eventId)) {
       await this.createQueueSubscription(eventId);
     }

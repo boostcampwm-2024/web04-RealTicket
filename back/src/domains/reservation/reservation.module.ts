@@ -22,6 +22,7 @@ import { ReservationService } from './service/reservation.service';
     PlaceModule,
     AuthModule,
     BookingModule,
+    UserModule,
   ],
   controllers: [ReservationController],
   providers: [ReservationService, ReservationRepository, ReservedSeatRepository],
