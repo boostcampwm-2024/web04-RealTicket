@@ -1,8 +1,8 @@
 import ToastEvent from '@/events/ToastEvent.ts';
 
-const toastEvent = ToastEvent.getInstance();
-
 export { default as ToastContainer } from '@/components/Toast/ToastContainer.tsx';
+
+const toastEvent = ToastEvent.getInstance();
 export const toast = {
   success: (text: string) => {
     toastEvent.emit('success', text);

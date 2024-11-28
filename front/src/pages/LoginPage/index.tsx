@@ -6,6 +6,7 @@ import { type UserData, postLogin } from '@/api/user.ts';
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
 import useForm, { type Validate } from '@/hooks/useForm';
 
+import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button';
 import Field from '@/components/common/Field';
 import Icon from '@/components/common/Icon';
@@ -34,17 +35,12 @@ export default function LoginPage() {
   const { mutate, isPending, error } = useMutation<AxiosResponse<ResponseData>, CustomError, UserData>({
     mutationFn: postLogin,
     onError: () => {
-      //TODO 토스트 추가
-      alert(`로그인 실패, 다시 시도해주세요\n 
-        사유 : ${FAILED_MESSAGE}`);
+      toast.error(`로그인 실패\n 사유 : ${FAILED_MESSAGE}`);
     },
     onSuccess: (data) => {
-      //쿠키에 접근을 못한다.
-      //1. localstorage에 로그인 성공시 데이터, 유저정보 저장, 접속시 이걸로 렌더링 하고 유저 정보를 요청한다. 비교및 권한 확인 실패시 재로그인 요청
       const { loginId } = data.data;
       if (loginId && login) login(loginId);
-
-      alert('로그인 성공 '); //TODO toast 추가
+      toast.success('로그인 성공');
       navigation('/');
     },
   });
@@ -55,7 +51,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex">
+    <div className="mx-auto mt-[-72px] flex items-center">
       <form
         onSubmit={handleSubmit(submit)}
         className="flex w-[420px] flex-col gap-6 rounded-xl border border-surface-cardBorder px-6 py-8 shadow-2xl">

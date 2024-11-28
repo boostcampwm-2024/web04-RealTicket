@@ -25,6 +25,7 @@ const router = createBrowserRouter([
     children: [
       { path: '*', element: <NotFondPage /> },
       { path: '', element: <Navigate to={ROUTE_URL.PROGRAM.DEFAULT} /> },
+
       { path: ROUTE_URL.PROGRAM.DEFAULT, element: <ProgramsPage /> },
       { path: `${ROUTE_URL.PROGRAM.DEFAULT}/:programId`, element: <ProgramDetailPage /> },
       {

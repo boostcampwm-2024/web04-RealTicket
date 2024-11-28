@@ -1,3 +1,5 @@
+import { toast } from '@/components/Toast/index.ts';
+
 import { ROUTE_URL } from '@/constants/index.ts';
 import { auth } from '@/events/AuthEvent.ts';
 import router from '@/routes/index.tsx';
@@ -52,7 +54,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (isError(error)) {
       if (canRedirect(error)) {
-        alert('로그인이 필요합니다.');
+        toast.error('로그인이 필요합니다.\n로그인 후 이용해주세요.');
         auth.logout();
         router.navigate(ROUTE_URL.USER.LOGIN, { replace: true });
         return Promise.reject(error);
@@ -60,7 +62,7 @@ apiClient.interceptors.response.use(
       if (isExclude(error)) {
         return Promise.resolve({ data: null });
       }
-      throw Promise.reject(error);
+      throw error;
     }
   },
 );

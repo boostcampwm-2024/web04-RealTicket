@@ -5,6 +5,7 @@ import { type UserData, postSignup } from '@/api/user.ts';
 
 import useForm, { type Validate } from '@/hooks/useForm.tsx';
 
+import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button.tsx';
 import Field from '@/components/common/Field.tsx';
 import Icon from '@/components/common/Icon.tsx';
@@ -28,24 +29,23 @@ export default function SignUpPage() {
   const navigate = useNavigate();
   const { mutate, error, isPending } = useMutation<AxiosResponse, CustomError, UserData>({
     mutationFn: postSignup,
-    onError: (error) => {
-      alert(`회윈가입에 실패했습니다. 다시 시도해주세요.\n
-        사유:${error.response?.data.message}`);
+    onError: async (error) => {
+      toast.error(`회윈가입에 실패했습니다.\n사유:${error.response?.data.message}`);
     },
     onSuccess: () => {
-      alert('화원가입에 성공했습니다. 로그인 해주세요');
+      toast.success('화원가입에 성공했습니다.\n로그인 해주세요');
       navigate(ROUTE_URL.USER.LOGIN);
     },
   });
 
   const submit = async (data: Form) => {
     const { id, password } = data;
-    await mutate({ loginId: id, loginPassword: password });
+    mutate({ loginId: id, loginPassword: password });
   };
   const is = false;
   //TODO Id 중복 체크 필
   return (
-    <div className="mx-auto flex">
+    <div className="mx-auto mt-[-72px] flex items-center">
       <form
         onSubmit={handleSubmit(submit)}
         className="flex w-[420px] flex-col gap-6 rounded-xl border border-surface-cardBorder px-6 py-8 shadow-2xl">

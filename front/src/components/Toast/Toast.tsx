@@ -42,7 +42,7 @@ export default function Toast({ type, text, close }: ToastProps) {
         }
       }}>
       <Icon iconName={typeIconNameMap[type]} color={'display'} size={'big'} />
-      <span className="text-heading2 text-typo-display">{`${text}`}</span>
+      <span className="text-display1 text-typo-display">{`${text}`}</span>
       <Button className="absolute right-1 top-0" size={'fit'} intent={'ghost'} onClick={handleClose}>
         <span className="text-label2 text-typo-display">x</span>
       </Button>
@@ -50,12 +50,15 @@ export default function Toast({ type, text, close }: ToastProps) {
   );
 }
 
-const toastVariant = cva(`flex gap-4 px-4 py-4 relative h-fit w-[240px] items-center rounded border`, {
-  variants: {
-    type: {
-      error: `bg-error`,
-      success: 'bg-success',
-      warning: `bg-warning`,
+const toastVariant = cva(
+  `flex gap-4 px-4 py-3 relative h-fit w-[300px] items-center rounded border whitespace-pre-line`,
+  {
+    variants: {
+      type: {
+        error: `bg-error`,
+        success: 'bg-success',
+        warning: `bg-warning`,
+      },
     },
   },
-});
+);
