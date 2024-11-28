@@ -38,6 +38,11 @@ export class BookingService {
     await this.letInNextWaiting(eventId);
   }
 
+  @OnEvent('entering-sessions-gc')
+  async onEnteringSessionsGc(event: { eventId: number }) {
+    await this.letInNextWaiting(event.eventId);
+  }
+
   @OnEvent('in-booking-max-size-changed')
   async onSpecificInBookingMaxSizeChanged(event: { eventId: number }) {
     await this.letInNextWaiting(event.eventId);

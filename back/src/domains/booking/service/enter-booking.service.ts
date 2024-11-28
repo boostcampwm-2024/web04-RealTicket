@@ -1,5 +1,6 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
@@ -11,6 +12,7 @@ export class EnterBookingService {
   constructor(
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -18,6 +20,7 @@ export class EnterBookingService {
   async gcEnteringSessions(eventId: number) {
     setInterval(() => {
       this.removeExpiredSessions(eventId);
+      this.eventEmitter.emit('entering-sessions-gc', { eventId });
     }, ENTERING_GC_INTERVAL);
   }
 
