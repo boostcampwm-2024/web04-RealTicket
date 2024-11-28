@@ -3,7 +3,7 @@ import * as Icons from '@/assets/icons';
 import { VariantProps, cva, cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
-type IconName = keyof typeof Icons;
+export type IconName = keyof typeof Icons;
 interface IIconProps extends VariantProps<typeof iconVariants> {
   className?: string;
   iconName: IconName;
