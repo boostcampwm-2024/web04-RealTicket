@@ -36,7 +36,7 @@ export default function AuthProvider({ children }: IAuthProviderProps) {
     authEvent.on('logout', logout);
 
     return () => {
-      authEvent.off('log', logout);
+      authEvent.off('logout', logout);
     };
   }, []);
 
