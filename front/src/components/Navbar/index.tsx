@@ -18,7 +18,6 @@ import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 460;
 
-//TODO url 상수화, 자동로그인 추가, 삭제 중인 카드 로딩
 const RESERVATION_DELETE_MUTATION_KEY = ['reservation'];
 
 export default function Navbar() {
@@ -35,7 +34,7 @@ export default function Navbar() {
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
     mutationFn: deleteReservation,
     onSuccess: () => {
-      return queryClient.invalidateQueries({ queryKey: ['reservation'] });
+      return queryClient.refetchQueries({ queryKey: ['reservation'] });
     },
   });
 
