@@ -34,10 +34,6 @@ export class UserService {
     this.redis = this.redisService.getOrThrow();
   }
 
-  async getUser(userId: number) {
-    return await this.userRepository.findById(userId);
-  }
-
   async registerUser(userCreateDto: UserCreateDto, role: string = USER_ROLE.USER) {
     if (await this.userRepository.findByLoginId(userCreateDto.loginId)) {
       throw new ConflictException('이미 존재하는 사용자입니다.');
