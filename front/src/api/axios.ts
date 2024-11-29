@@ -52,6 +52,7 @@ const isServerError = (error: AxiosError) => {
 
 const isError = (error: unknown) => error && isAxiosError<CustomError>(error);
 //TODO 500 에러 처리 필요
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
