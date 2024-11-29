@@ -90,6 +90,10 @@ export class WaitingQueueService {
   private async getHeadOrder(eventId: number) {
     const headItem = await this.redis.lindex(`waiting-queue:${eventId}`, 0);
     const headOrder = headItem ? JSON.parse(headItem).order : null;
+    if (!headOrder) {
+      const recentHeadOrder = parseInt(await this.redis.get(`waiting-queue:${eventId}:order`));
+      return recentHeadOrder + 1;
+    }
     return headOrder;
   }
 }
