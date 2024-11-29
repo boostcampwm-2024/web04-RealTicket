@@ -9,6 +9,7 @@ import { UserService } from '../../user/service/user.service';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
+import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
 import { InBookingService } from './in-booking.service';
 import { OpenBookingService } from './open-booking.service';
@@ -24,6 +25,7 @@ export class BookingService {
     private readonly redisService: RedisService,
     private readonly eventService: EventService,
     private readonly authService: AuthService,
+    private readonly bookingSeatsService: BookingSeatsService,
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
@@ -35,9 +37,23 @@ export class BookingService {
 
   @OnEvent('seats-sse-close')
   async onSeatsSseDisconnected(event: { sid: string }) {
-    const eventId = await this.userService.getUserEventTarget(event.sid);
-    await this.inBookingService.emitSession(event.sid);
+    const sid = event.sid;
+    const eventId = await this.userService.getUserEventTarget(sid);
+    await this.collectSeatsIfNotSaved(eventId, sid);
+    await this.inBookingService.emitSession(sid);
     await this.letInNextWaiting(eventId);
+  }
+
+  private async collectSeatsIfNotSaved(eventId: number, sid: string) {
+    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+    if (inBookingSession && !inBookingSession.saved) {
+      const bookedSeats = inBookingSession.bookedSeats;
+      bookedSeats.forEach((seat) => {
+        this.bookingSeatsService.updateSeatDeleted(eventId, seat);
+      });
+      inBookingSession.bookedSeats = [];
+      await this.inBookingService.setSession(eventId, inBookingSession);
+    }
   }
 
   @OnEvent('entering-sessions-gc')
