@@ -10,6 +10,7 @@ type InBookingSession = {
   sid: string;
   bookingAmount: number;
   bookedSeats: [number, number][];
+  saved: boolean;
 };
 
 @Injectable()
@@ -61,6 +62,7 @@ export class InBookingService {
       sid,
       bookingAmount,
       bookedSeats: [],
+      saved: false,
     };
     await this.setSession(eventId, session);
     return true;
@@ -102,6 +104,19 @@ export class InBookingService {
     await this.setSession(eventId, session);
   }
 
+  async getIsSaved(sid: string) {
+    const eventId = await this.getTargetEventId(sid);
+    const session = await this.getSession(eventId, sid);
+    return session.saved;
+  }
+
+  async setIsSaved(sid: string, saved: boolean) {
+    const eventId = await this.getTargetEventId(sid);
+    const session = await this.getSession(eventId, sid);
+    session.saved = saved;
+    await this.setSession(eventId, session);
+  }
+
   async emitSession(sid: string) {
     const eventId = await this.getTargetEventId(sid);
     await this.removeInBooking(eventId, sid);
@@ -129,7 +144,7 @@ export class InBookingService {
     return `in-booking:${eventId}:sessions`;
   }
 
-  private async setSession(eventId: number, inBookingSession: InBookingSession): Promise<void> {
+  async setSession(eventId: number, inBookingSession: InBookingSession): Promise<void> {
     const sessionKey = this.getSessionKey(eventId, inBookingSession.sid);
     const eventKey = this.getEventKey(eventId);
 
@@ -137,7 +152,7 @@ export class InBookingService {
     await this.redis.set(sessionKey, JSON.stringify(inBookingSession));
   }
 
-  private async getSession(eventId: number, sid: string): Promise<InBookingSession | null> {
+  async getSession(eventId: number, sid: string): Promise<InBookingSession | null> {
     const session = await this.redis.get(this.getSessionKey(eventId, sid));
     return session ? JSON.parse(session) : null;
   }
