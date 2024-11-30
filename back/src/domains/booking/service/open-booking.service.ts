@@ -9,6 +9,7 @@ import { SectionRepository } from '../../place/repository/section.repository';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 
 import { BookingSeatsService } from './booking-seats.service';
+import { EnterBookingService } from './enter-booking.service';
 import { InBookingService } from './in-booking.service';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     private sectionRepository: SectionRepository,
     private inBookingService: InBookingService,
     private seatsUpdateService: BookingSeatsService,
+    private enterBookingService: EnterBookingService,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -63,6 +65,8 @@ export class OpenBookingService implements OnApplicationBootstrap {
 
     const initialSeats = sections.map((section) => section.seats);
     await this.seatsUpdateService.openReservation(eventId, initialSeats);
+
+    await this.enterBookingService.gcEnteringSessions(eventId);
 
     await this.registerOpenedEvent(eventId);
   }

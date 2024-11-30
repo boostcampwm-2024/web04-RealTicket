@@ -1,0 +1,2 @@
+export const ENTERING_SESSION_EXPIRY = 30 * 1000;
+export const ENTERING_GC_INTERVAL = 10 * 1000;

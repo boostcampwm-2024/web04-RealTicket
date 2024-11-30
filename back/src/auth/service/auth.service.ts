@@ -35,6 +35,13 @@ export class AuthService {
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
   }
 
+  async setUserStatusEntering(sid: string) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (session.userStatus === USER_STATUS.ADMIN) return;
+
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }));
+  }
+
   async setUserStatusSelectingSeat(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
     if (session.userStatus === USER_STATUS.ADMIN) return;

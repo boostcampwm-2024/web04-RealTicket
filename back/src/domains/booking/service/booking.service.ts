@@ -1,5 +1,7 @@
+import { RedisService } from '@liaoliaots/nestjs-redis';
 import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { EventService } from '../../event/service/event.service';
@@ -7,6 +9,8 @@ import { UserService } from '../../user/service/user.service';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
+import { BookingSeatsService } from './booking-seats.service';
+import { EnterBookingService } from './enter-booking.service';
 import { InBookingService } from './in-booking.service';
 import { OpenBookingService } from './open-booking.service';
 import { WaitingQueueService } from './waiting-queue.service';
@@ -16,28 +20,82 @@ const OFFSET = 1000 * 60 * 60 * 9;
 @Injectable()
 export class BookingService {
   private logger = new Logger(BookingService.name);
+  private readonly redis: Redis | null;
   constructor(
+    private readonly redisService: RedisService,
     private readonly eventService: EventService,
     private readonly authService: AuthService,
+    private readonly bookingSeatsService: BookingSeatsService,
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
     private readonly userService: UserService,
-  ) {}
+    private readonly enterBookingService: EnterBookingService,
+  ) {
+    this.redis = this.redisService.getOrThrow();
+  }
 
   @OnEvent('seats-sse-close')
-  async letInNextWaiting(event: { sid: string }) {
-    const eventId = await this.userService.getUserEventTarget(event.sid);
-    if ((await this.waitingQueueService.getQueueSize(eventId)) < 1) {
-      return;
+  async onSeatsSseDisconnected(event: { sid: string }) {
+    const sid = event.sid;
+    const eventId = await this.userService.getUserEventTarget(sid);
+    await this.collectSeatsIfNotSaved(eventId, sid);
+    await this.inBookingService.emitSession(sid);
+    await this.letInNextWaiting(eventId);
+  }
+
+  private async collectSeatsIfNotSaved(eventId: number, sid: string) {
+    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+    if (inBookingSession && !inBookingSession.saved) {
+      const bookedSeats = inBookingSession.bookedSeats;
+      bookedSeats.forEach((seat) => {
+        this.bookingSeatsService.updateSeatDeleted(eventId, seat);
+      });
+      inBookingSession.bookedSeats = [];
+      await this.inBookingService.setSession(eventId, inBookingSession);
     }
-    if (await this.inBookingService.isInsertable(eventId)) {
+  }
+
+  @OnEvent('entering-sessions-gc')
+  async onEnteringSessionsGc(event: { eventId: number }) {
+    await this.letInNextWaiting(event.eventId);
+  }
+
+  @OnEvent('in-booking-max-size-changed')
+  async onSpecificInBookingMaxSizeChanged(event: { eventId: number }) {
+    await this.letInNextWaiting(event.eventId);
+  }
+
+  @OnEvent('all-in-booking-max-size-changed')
+  async onAllInBookingMaxSizeChanged() {
+    const eventIds = await this.openBookingService.getOpenedEventIds();
+    await Promise.all(
+      eventIds.map(async (eventId) => {
+        await this.letInNextWaiting(eventId);
+      }),
+    );
+  }
+
+  private async letInNextWaiting(eventId: number) {
+    const isQueueEmpty = async (eventId: number) =>
+      (await this.waitingQueueService.getQueueSize(eventId)) < 1;
+    while (!(await isQueueEmpty(eventId)) && (await this.isInsertableInBooking(eventId))) {
       const item = await this.waitingQueueService.popQueue(eventId);
       if (!item) {
-        return;
+        break;
       }
-      await this.authService.setUserStatusSelectingSeat(item.sid);
+      await this.enterBookingService.addEnteringSession(item.sid);
+      await this.authService.setUserStatusEntering(item.sid);
     }
+  }
+
+  async setInBookingFromEntering(sid: string) {
+    const eventId = await this.userService.getUserEventTarget(sid);
+    const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
+
+    await this.enterBookingService.removeEnteringSession(sid);
+    await this.inBookingService.insertInBooking(eventId, sid, bookingAmount);
+    await this.authService.setUserStatusSelectingSeat(sid);
   }
 
   // 함수 이름 생각하기
@@ -61,10 +119,12 @@ export class BookingService {
   }
 
   private async getForwarded(sid: string) {
-    const isEntered = await this.inBookingService.insertIfPossible(sid);
+    const eventId = await this.userService.getUserEventTarget(sid);
+    const isInsertable = await this.isInsertableInBooking(eventId);
 
-    if (isEntered) {
-      await this.authService.setUserStatusSelectingSeat(sid);
+    if (isInsertable) {
+      await this.enterBookingService.addEnteringSession(sid);
+      await this.authService.setUserStatusEntering(sid);
       return {
         waitingStatus: false,
         enteringStatus: true,
@@ -78,6 +138,21 @@ export class BookingService {
       enteringStatus: false,
       userOrder,
     };
+  }
+
+  private async isInsertableInBooking(eventId: number): Promise<boolean> {
+    const inBookingCount = await this.inBookingService.getInBookingSessionCount(eventId);
+    const enteringCount = await this.enterBookingService.getEnteringSessionCount(eventId);
+    const maxSize = await this.inBookingService.getInBookingSessionsMaxSize(eventId);
+    return inBookingCount + enteringCount < maxSize;
+  }
+
+  async setBookingAmount(sid: string, bookingAmount: number) {
+    const isInBooking = await this.inBookingService.isInBooking(sid);
+    if (isInBooking) {
+      return await this.inBookingService.setBookingAmount(sid, bookingAmount);
+    }
+    return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
