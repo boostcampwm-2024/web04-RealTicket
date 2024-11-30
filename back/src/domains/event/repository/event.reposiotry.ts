@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 
 import { Event } from '../entity/event.entity';
 
@@ -27,6 +27,20 @@ export class EventRepository {
     return await this.EventRepository.findOne({
       where: { id },
       relations: ['place', 'program', 'program.place'],
+    });
+  }
+
+  async selectUpcomingEvents(): Promise<Event[]> {
+    const now = new Date();
+
+    return await this.EventRepository.find({
+      where: {
+        reservationCloseDate: MoreThan(now),
+      },
+      relations: ['place'],
+      order: {
+        reservationOpenDate: 'ASC',
+      },
     });
   }
 

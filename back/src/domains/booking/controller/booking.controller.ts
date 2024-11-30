@@ -193,6 +193,6 @@ export class BookingController {
   @ApiOkResponse({ description: '확인 및 오픈 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async reloadOpenTarget() {
-    await this.openBookingService.checkAndOpenReservations();
+    await this.openBookingService.scheduleUpcomingReservations();
   }
 }
