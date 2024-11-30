@@ -46,7 +46,7 @@ jobs:
       run: |
         docker run -d --name frontend-container -p ${{ secrets.FRONT_SERVER_PORT }}:${{ secrets.FRONT_SERVER_PORT }} ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO_FRONTEND }}
 
-    - name: Log in to Docker Hub
+    - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
@@ -71,12 +71,12 @@ jobs:
 
     - name: Access Backend server and deploy
       run: |
-        sshpass -p "${{ secrets.PUBLIC_SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no root@${{ secrets.PUBLIC_SERVER_IP }} \
-          "sshpass -p '${{ secrets.BACKEND_SERVER_PASSWORD }}' ssh -o StrictHostKeyChecking=no root@${{ secrets.BACKEND_SERVER_IP }} \
+        sshpass -p "${{ secrets.PUBLIC_SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.PUBLIC_SERVER_USER }}@${{ secrets.PUBLIC_SERVER_IP }} \
+          "sshpass -p '${{ secrets.BACKEND_SERVER_PASSWORD }}' ssh -o StrictHostKeyChecking=no ${{ secrets.BACKEND_SERVER_USER }}@${{ secrets.BACKEND_SERVER_IP }} \
             './nest/start.sh; exit'"
 
     - name: Access Frontend server and deploy
       run: |
-        sshpass -p "${{ secrets.PUBLIC_SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no root@${{ secrets.PUBLIC_SERVER_IP }} \
-          "sshpass -p '${{ secrets.FRONT_SERVER_PASSWORD }}' ssh -o StrictHostKeyChecking=no root@${{ secrets.FRONT_SERVER_IP }} \
+        sshpass -p "${{ secrets.PUBLIC_SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.PUBLIC_SERVER_USER }}@${{ secrets.PUBLIC_SERVER_IP }} \
+          "sshpass -p '${{ secrets.FRONT_SERVER_PASSWORD }}' ssh -o StrictHostKeyChecking=no ${{ secrets.FRONT_SERVER_USER }}@${{ secrets.FRONT_SERVER_IP }} \
             './front/start.sh'"
