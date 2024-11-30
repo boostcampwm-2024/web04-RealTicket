@@ -16,6 +16,9 @@ export class User {
   @Column({ type: 'varchar', length: 10, name: 'role' })
   role: string;
 
+  @Column({ type: 'boolean', name: 'is_guest' })
+  checkGuest: boolean;
+
   @OneToMany(() => Reservation, (reservation) => reservation.user, { lazy: true })
   reservations: Promise<Reservation[]>;
 }
