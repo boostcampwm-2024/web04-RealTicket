@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
+import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
@@ -30,6 +31,7 @@ export class UserService {
     @Inject() private readonly userRepository: UserRepository,
     @Inject() private readonly redisService: RedisService,
     @Inject() private readonly authService: AuthService,
+    @Inject() private readonly dataSource: DataSource,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -147,5 +149,34 @@ export class UserService {
   async getUserEventTarget(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
     return session.targetEvent;
+  }
+
+  async makeGuestUser() {
+    try {
+      // make guest user
+      const uuid = uuidv4();
+      const guestId = `guest-${uuid}`;
+
+      const guestInfo = await this.userRepository.createUser({
+        loginId: guestId,
+        role: USER_ROLE.USER,
+        checkGuest: true,
+      });
+
+      const guestSession = {
+        id: guestInfo.id,
+        loginId: guestInfo.loginId,
+        userStatus: USER_STATUS.LOGIN,
+        targetEvent: null,
+      };
+
+      this.redis.set(`user-id:${guestId}`, uuid, 'EX', 3600);
+      this.redis.set(`user:${uuid}`, JSON.stringify(guestSession), 'EX', 3600);
+
+      return { sessionId: uuid, userInfo: guestSession };
+    } catch (err) {
+      this.logger.error(err.name, err.stack);
+      throw new InternalServerErrorException('게스트 사용자 생성에 실패하였습니다.');
+    }
   }
 }

@@ -79,6 +79,25 @@ export class UserController {
     return { message: '관리자 회원가입이 성공적으로 완료되었습니다.' };
   }
 
+  @ApiOperation({ summary: '게스트 모드', description: '게스트 모드 요청을 받아 게스트 계정을 생성해준다.' })
+  @ApiOkResponse({
+    description: '게스트 모드 성공',
+    example: {
+      id: 10,
+      loginId: 'guest-a204cf2e-4243-4998-bb6a-4649b040f86f',
+      userStatus: 'LOGIN',
+      targetEvent: null,
+    },
+  })
+  @ApiInternalServerErrorResponse({ description: '게스트를 생성하는데 실패하였습니다.' })
+  @Get('/guest')
+  async useGuestMode(@Res({ passthrough: true }) res: Response) {
+    const { sessionId, userInfo } = await this.userService.makeGuestUser();
+    res.cookie('SID', sessionId, { httpOnly: true });
+
+    return userInfo;
+  }
+
   @ApiOperation({ summary: '로그인', description: 'id, password를 받아 로그인 요청을 처리한다.' })
   @ApiBody({
     type: UserLoginDto,
