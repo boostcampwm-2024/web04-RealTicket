@@ -33,7 +33,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
   }
 
   @Cron(CronExpression.EVERY_HOUR)
-  private async checkAndOpenReservations() {
+  async checkAndOpenReservations() {
     const events = await this.eventRepository.selectEvents();
     const openedEventIds = new Set(await this.getOpenedEventIds());
     const eventsToOpen = events.filter((event) => {
@@ -49,7 +49,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
 
   async getOpenedEventIds() {
     const keys = await this.redis.keys('open-booking:*:opened');
-    const eventIds = keys.map((key) => parseInt(key.split(':')[2]));
+    const eventIds = keys.map((key) => parseInt(key.split(':')[1]));
     return eventIds;
   }
 

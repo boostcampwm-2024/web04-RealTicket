@@ -26,7 +26,6 @@ import { Request } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
-import { AuthService } from '../../../auth/service/auth.service';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -40,17 +39,18 @@ import { WaitingSseDto } from '../dto/waitingSse.dto';
 import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
+import { OpenBookingService } from '../service/open-booking.service';
 import { WaitingQueueService } from '../service/waiting-queue.service';
 
 @Controller('booking')
 export class BookingController {
   constructor(
     private readonly eventEmitter: EventEmitter2,
-    private readonly authService: AuthService,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly waitingQueueService: WaitingQueueService,
+    private readonly openBookingService: OpenBookingService,
   ) {}
 
   @UseGuards(SessionAuthGuard())
@@ -182,5 +182,17 @@ export class BookingController {
     const defaultMaxSize = dto.maxSize;
     const setSize = await this.inBookingService.setInBookingSessionsDefaultMaxSize(defaultMaxSize);
     return new InBookingSizeResDto(setSize);
+  }
+
+  @Post('reload-open-target')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @ApiOperation({
+    summary: 'ADMIN: 오픈 대상 이벤트 재확인',
+    description: '오픈 대상 이벤트를 다시 확인하여 오픈한다.',
+  })
+  @ApiOkResponse({ description: '확인 및 오픈 완료' })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async reloadOpenTarget() {
+    await this.openBookingService.checkAndOpenReservations();
   }
 }
