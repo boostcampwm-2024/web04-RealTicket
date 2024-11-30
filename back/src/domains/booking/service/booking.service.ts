@@ -15,8 +15,6 @@ import { InBookingService } from './in-booking.service';
 import { OpenBookingService } from './open-booking.service';
 import { WaitingQueueService } from './waiting-queue.service';
 
-const OFFSET = 1000 * 60 * 60 * 9;
-
 @Injectable()
 export class BookingService {
   private logger = new Logger(BookingService.name);
@@ -102,7 +100,8 @@ export class BookingService {
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     // eventId를 받아서 해당 이벤트가 존재하는지 확인한다.
     const event = await this.eventService.findEvent({ eventId });
-    const now = new Date(Date.now() + OFFSET);
+    const now = new Date();
+
     const isOpened = await this.openBookingService.isEventOpened(eventId);
 
     if (!isOpened) {
