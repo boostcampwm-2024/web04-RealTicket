@@ -38,6 +38,9 @@ export default function Navbar() {
       toast.warning('예매내역이 삭제되었습니다.');
       return queryClient.refetchQueries({ queryKey: ['reservation'] });
     },
+    onError: () => {
+      toast.error('예매내역 삭제에 실패했습니다.\n 잠시 후 다시 시도해주세요');
+    },
   });
 
   const deletingReservationIdList = useMutationState({
@@ -47,9 +50,9 @@ export default function Navbar() {
 
   const { mutate: requestLogout } = useMutation({
     mutationFn: postLogout,
-    onError: () => {},
     onSuccess: () => {
       if (logout) logout();
+      toast.warning('로그아웃 되었습니다');
     },
   });
 
