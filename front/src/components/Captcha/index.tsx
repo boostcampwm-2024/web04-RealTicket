@@ -32,7 +32,7 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
       setIsValid(false);
       if (InputRef.current) {
         const input = InputRef.current! as HTMLInputElement;
-        input.value = '';
+        setInputData('');
         input.focus();
       }
     }

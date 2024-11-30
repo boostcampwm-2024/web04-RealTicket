@@ -36,7 +36,7 @@ export default function ToastContainer() {
     };
   }, []);
   return (
-    <div className="fixed left-8 top-20 flex flex-col gap-5 overflow-visible transition-all">
+    <div className="fixed left-8 top-20 z-20 flex flex-col gap-5 overflow-visible transition-all">
       {toastList.map((toast) => (
         <Toast
           key={toast.id}

@@ -51,7 +51,7 @@ export default function Toast({ type, text, close }: ToastProps) {
 }
 
 const toastVariant = cva(
-  `flex gap-4 px-4 py-3 relative h-fit w-[300px] items-center rounded border whitespace-pre-line`,
+  `flex gap-4 px-4 py-3 relative h-fit w-[300px] items-center rounded border whitespace-pre-line z-20`,
   {
     variants: {
       type: {

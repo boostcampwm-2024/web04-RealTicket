@@ -4,6 +4,7 @@ import { BASE_URL } from '@/api/axios.ts';
 import { PostSeatData, postSeat } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
 
+import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
 import Separator from '@/components/common/Separator.tsx';
@@ -54,6 +55,7 @@ export default function SectionAndSeat({
         (seat) => seat.seatIndex !== seatIndex || seat.sectionIndex !== sectionIndex,
       );
       setSelectedSeats([...filtered]);
+      toast.error('좌석 선택/취소에 실패했습니다');
     },
     throwOnError: false,
   });
@@ -241,7 +243,13 @@ const renderSeatMap = (
   setSelectedSeats: (seats: SelectedSeat[]) => void,
   maxSelectCount: number,
   selectedSeats: SelectedSeat[],
-  pickSeat: (data: PostSeatData) => void,
+  pickSeat: (
+    data: PostSeatData,
+    mutateOption?: {
+      onSuccess?: () => void;
+      onError?: () => void;
+    },
+  ) => void,
   eventId: number,
   reservingList: PostSeatData[],
 ) => {
@@ -278,23 +286,37 @@ const renderSeatMap = (
           const selectedCount = selectedSeats.length;
           if (isMine) {
             const filtered = selectedSeats.filter((seat) => seatName !== seat.name);
-            pickSeat({
-              sectionIndex: selectedSectionIndex,
-              seatIndex: index,
-              expectedStatus: 'deleted',
-              eventId,
-            });
+            pickSeat(
+              {
+                sectionIndex: selectedSectionIndex,
+                seatIndex: index,
+                expectedStatus: 'deleted',
+                eventId,
+              },
+              {
+                onSuccess: () => {
+                  toast.warning(`${seatName!} 좌석을 취소했습니다`);
+                },
+              },
+            );
             setSelectedSeats(filtered);
             return;
           }
 
           if (maxSelectCount <= selectedCount) return;
-          pickSeat({
-            sectionIndex: selectedSectionIndex,
-            seatIndex: index,
-            expectedStatus: 'reserved',
-            eventId,
-          });
+          pickSeat(
+            {
+              sectionIndex: selectedSectionIndex,
+              seatIndex: index,
+              expectedStatus: 'reserved',
+              eventId,
+            },
+            {
+              onSuccess: () => {
+                toast.success(`${seatName!} 좌석 선택에\n성공했습니다`);
+              },
+            },
+          );
           setSelectedSeats([
             ...selectedSeats,
             { seatIndex: index, sectionIndex: selectedSectionIndex, name: seatName! },

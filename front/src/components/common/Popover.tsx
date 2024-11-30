@@ -115,7 +115,7 @@ const Content = ({ children }: IContent) => {
       {canOpen &&
         createPortal(
           <div
-            className="fixed z-[999] cursor-default"
+            className="fixed z-10 cursor-default"
             style={{
               top: position.x + position.y + 24,
               right: 32,

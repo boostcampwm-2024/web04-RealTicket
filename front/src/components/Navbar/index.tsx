@@ -7,6 +7,7 @@ import { postLogout } from '@/api/user.ts';
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
 
 import ReservationCard from '@/components/Navbar/ReservationCard.tsx';
+import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button';
 import Icon from '@/components/common/Icon';
 import Popover from '@/components/common/Popover';
@@ -34,6 +35,7 @@ export default function Navbar() {
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
     mutationFn: deleteReservation,
     onSuccess: () => {
+      toast.warning('예매내역이 삭제되었습니다.');
       return queryClient.refetchQueries({ queryKey: ['reservation'] });
     },
   });
@@ -83,7 +85,7 @@ export default function Navbar() {
                 )}>
                 <h3 className="px-4 text-left text-heading3">예매 현황</h3>
                 <Separator direction="row" />
-                <div className="flex max-h-[800px] flex-grow flex-col justify-center gap-6 overflow-y-scroll pr-4">
+                <div className="flex max-h-[800px] flex-grow flex-col gap-6 overflow-y-scroll pr-4">
                   {isReservation ? (
                     reservations.map((reservation) => (
                       <ReservationCard
@@ -94,7 +96,9 @@ export default function Navbar() {
                       />
                     ))
                   ) : (
-                    <div className="w-full text-heading2 text-typo-sub">현재 예매된 내역이 없습니다. </div>
+                    <div className="m-auto w-full text-heading2 text-typo-sub">
+                      현재 예매된 내역이 없습니다.{' '}
+                    </div>
                   )}
                 </div>
                 <Separator direction="row" />
