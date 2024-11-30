@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { CustomError } from '@/api/axios.ts';
 import { deleteReservation, getReservation } from '@/api/reservation.ts';
@@ -23,6 +23,7 @@ const RESERVATION_DELETE_MUTATION_KEY = ['reservation'];
 
 export default function Navbar() {
   const { isLogin, userId, logout } = useAuthContext();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: reservations } = useQuery<Reservation[], CustomError>({
     queryKey: [`reservation`],
@@ -51,8 +52,11 @@ export default function Navbar() {
   const { mutate: requestLogout } = useMutation({
     mutationFn: postLogout,
     onSuccess: () => {
-      if (logout) logout();
-      toast.warning('로그아웃 되었습니다');
+      if (logout) {
+        logout();
+        toast.warning('로그아웃 되었습니다');
+        navigate('/', { replace: true });
+      }
     },
   });
 
