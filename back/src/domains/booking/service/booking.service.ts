@@ -150,9 +150,19 @@ export class BookingService {
   async setBookingAmount(sid: string, bookingAmount: number) {
     const isInBooking = await this.inBookingService.isInBooking(sid);
     if (isInBooking) {
+      await this.flushBookedSeats(sid);
       return await this.inBookingService.setBookingAmount(sid, bookingAmount);
     }
     return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
+  }
+
+  private async flushBookedSeats(sid: string) {
+    const bookedSeats = await this.inBookingService.getBookedSeats(sid);
+    if (bookedSeats.length > 0) {
+      const eventId = await this.userService.getUserEventTarget(sid);
+      await Promise.all(bookedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)));
+      await this.inBookingService.removeBookedSeats(sid);
+    }
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {

@@ -104,6 +104,13 @@ export class InBookingService {
     await this.setSession(eventId, session);
   }
 
+  async removeBookedSeats(sid: string) {
+    const eventId = await this.getTargetEventId(sid);
+    const session = await this.getSession(eventId, sid);
+    session.bookedSeats = [];
+    await this.setSession(eventId, session);
+  }
+
   async getIsSaved(sid: string) {
     const eventId = await this.getTargetEventId(sid);
     const session = await this.getSession(eventId, sid);
