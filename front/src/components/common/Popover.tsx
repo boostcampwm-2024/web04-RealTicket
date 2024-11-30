@@ -4,7 +4,9 @@ import {
   ReactElement,
   ReactNode,
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -87,10 +89,26 @@ interface IContent {
 }
 const Content = ({ children }: IContent) => {
   const { isOpen, triggerRef } = usePopoverContext();
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const hasButtonRef = triggerRef && triggerRef.current;
   const canOpen = isOpen && hasButtonRef;
   //TODO 타입 정리필요, 상수 정리
-  const { top, height } = triggerRef!.current!.getBoundingClientRect();
+  const updatePosition = useCallback(() => {
+    if (triggerRef && triggerRef.current) {
+      const trigger = triggerRef.current!;
+      const { top, height } = trigger.getBoundingClientRect();
+      setPosition({ x: top, y: height });
+    }
+  }, [triggerRef]);
+
+  useEffect(() => {
+    if (isOpen) {
+      window.addEventListener('scroll', updatePosition);
+    }
+    return () => {
+      window.removeEventListener('scroll', updatePosition);
+    };
+  }, [isOpen, updatePosition]);
 
   return (
     <>
@@ -99,7 +117,7 @@ const Content = ({ children }: IContent) => {
           <div
             className="fixed z-[999] cursor-default"
             style={{
-              top: top + height + 24,
+              top: position.x + position.y + 24,
               right: 32,
             }}>
             {children}

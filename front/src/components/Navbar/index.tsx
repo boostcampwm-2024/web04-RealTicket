@@ -54,7 +54,7 @@ export default function Navbar() {
   const handleLogOut = () => {
     requestLogout();
   };
-  //TODO 예약 내역
+
   const isReservation = reservations && reservations.length > 0;
   const widthClass = `w-[${POPOVER_WIDTH}px]`;
   return (
@@ -77,7 +77,10 @@ export default function Navbar() {
           <Popover.Overlay>
             <Popover.Content>
               <div
-                className={cx(widthClass, `flex flex-col gap-6 rounded-xl border bg-white p-6 shadow-2xl`)}>
+                className={cx(
+                  widthClass,
+                  `flex max-h-[80vh] min-h-[300px] flex-col gap-6 rounded-xl border bg-white p-6 shadow-2xl`,
+                )}>
                 <h3 className="px-4 text-left text-heading3">예매 현황</h3>
                 <Separator direction="row" />
                 <div className="flex max-h-[800px] flex-col gap-6 overflow-y-scroll pr-4">
