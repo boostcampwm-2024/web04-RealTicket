@@ -96,4 +96,29 @@ export class WaitingQueueService {
     }
     return headOrder;
   }
+
+  async getAllWaitingSids(eventId: number) {
+    return (await this.redis.lrange(`waiting-queue:${eventId}`, 0, -1))
+      .map((item) => {
+        try {
+          const parsed = JSON.parse(item);
+          return parsed?.sid;
+        } catch (e) {
+          return e ? null : null;
+        }
+      })
+      .filter((sid) => sid != null);
+  }
+
+  async clearQueue(eventId: number) {
+    const subscription = this.queueSubscriptionMap.get(eventId);
+    if (subscription) {
+      subscription.complete();
+      this.queueSubscriptionMap.delete(eventId);
+    }
+    const keys = await this.redis.keys(`waiting-queue:${eventId}:*`);
+    if (keys.length > 0) {
+      await this.redis.unlink(...keys);
+    }
+  }
 }
