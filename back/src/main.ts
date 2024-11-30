@@ -11,6 +11,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: winstonLoggerConfig,
   });
+  process.env.TZ = 'Asia/Seoul';
   setupSwagger(app);
   app.enableCors({
     origin: '*',

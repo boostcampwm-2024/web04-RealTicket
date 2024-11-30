@@ -179,4 +179,15 @@ export class InBookingService {
       bookedSeats: session.bookedSeats,
     };
   }
+
+  async getAllInBookingSids(eventId: number) {
+    return this.redis.smembers(this.getEventKey(eventId));
+  }
+
+  async clearInBookingPool(eventId: number) {
+    const keys = await this.redis.keys(`in-booking:${eventId}:*`);
+    if (keys.length > 0) {
+      await this.redis.unlink(...keys);
+    }
+  }
 }

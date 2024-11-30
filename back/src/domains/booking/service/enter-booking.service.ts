@@ -1,6 +1,7 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
 import { UserService } from '../../user/service/user.service';
@@ -13,15 +14,30 @@ export class EnterBookingService {
     private readonly redisService: RedisService,
     private readonly userService: UserService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
 
   async gcEnteringSessions(eventId: number) {
-    setInterval(() => {
+    this.deleteIntervalIfExists(`gc-entering-${eventId}`);
+
+    const interval = setInterval(() => {
       this.removeExpiredSessions(eventId);
       this.eventEmitter.emit('entering-sessions-gc', { eventId });
     }, ENTERING_GC_INTERVAL);
+
+    this.schedulerRegistry.addInterval(`gc-entering-${eventId}`, interval);
+  }
+
+  clearGCInterval(eventId: number) {
+    this.deleteIntervalIfExists(`gc-entering-${eventId}`);
+  }
+
+  private deleteIntervalIfExists(intervalName: string) {
+    if (this.schedulerRegistry.doesExist('interval', intervalName)) {
+      this.schedulerRegistry.deleteInterval(intervalName);
+    }
   }
 
   async addEnteringSession(sid: string) {
@@ -63,5 +79,17 @@ export class EnterBookingService {
   private async removeExpiredSessions(eventId: number) {
     const expiryTimestamp = Date.now() - ENTERING_SESSION_EXPIRY;
     await this.redis.zremrangebyscore(`entering:${eventId}`, 0, expiryTimestamp);
+  }
+
+  async getAllEnteringSids(eventId: number) {
+    return this.redis.zrange(`entering:${eventId}`, 0, -1);
+  }
+
+  async clearEnteringPool(eventId: number) {
+    this.clearGCInterval(eventId);
+    const keys = await this.redis.keys('entering:*');
+    if (keys.length > 0) {
+      await this.redis.unlink(...keys);
+    }
   }
 }

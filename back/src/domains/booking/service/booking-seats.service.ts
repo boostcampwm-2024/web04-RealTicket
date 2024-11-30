@@ -10,7 +10,6 @@ import Redis from 'ioredis';
 import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
@@ -36,7 +35,6 @@ export class BookingSeatsService {
   constructor(
     private redisService: RedisService,
     private inBookingService: InBookingService,
-    private authService: AuthService,
     private eventEmitter: EventEmitter2,
     private readonly userService: UserService,
   ) {
@@ -56,6 +54,18 @@ export class BookingSeatsService {
     }
     const subscription = await this.createSeatSubscription(eventId, seats);
     this.seatsSubscriptionMap.set(eventId, subscription);
+  }
+
+  async clearSeatsSubscription(eventId: number) {
+    const subscription = this.seatsSubscriptionMap.get(eventId);
+    if (subscription) {
+      subscription.complete();
+      this.seatsSubscriptionMap.delete(eventId);
+    }
+    const keys = await this.redis.keys(`event:${eventId}:*`);
+    if (keys.length > 0) {
+      await this.redis.unlink(...keys);
+    }
   }
 
   async bookSeat(sid: string, target: [number, number]) {
