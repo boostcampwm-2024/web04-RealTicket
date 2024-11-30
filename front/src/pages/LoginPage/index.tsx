@@ -51,7 +51,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto mt-[-72px] flex items-center">
+    <div className="mx-auto flex items-center py-8">
       <form
         onSubmit={handleSubmit(submit)}
         className="flex w-[420px] flex-col gap-6 rounded-xl border border-surface-cardBorder px-6 py-8 shadow-2xl">

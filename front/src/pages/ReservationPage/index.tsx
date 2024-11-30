@@ -25,6 +25,7 @@ export default function ReservationPage() {
   const { data: event } = useSuspenseQuery<EventDetail, CustomError>({
     queryKey: [`event`, eventId],
     queryFn: getEventDetail(Number(eventId)),
+    staleTime: Infinity,
   });
   const { place } = event;
   const { data: placeInformation } = useQuery<PlaceInformation, CustomError>({

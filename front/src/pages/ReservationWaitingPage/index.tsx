@@ -23,7 +23,7 @@ export default function ReservationWaitingPage() {
   const navigate = useNavigate();
   const { eventId } = useParams();
   const { data: event } = useSuspenseQuery<EventDetail, CustomError>({
-    queryKey: [`events/${eventId}`],
+    queryKey: ['event', eventId],
     queryFn: getEventDetail(Number(eventId)),
     staleTime: Infinity,
   });

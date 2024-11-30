@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { LoadCanvasTemplate, loadCaptchaEnginge, validateCaptcha } from 'react-simple-captcha';
 
 import Button from '@/components/common/Button.tsx';
@@ -31,7 +32,7 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
       setIsValid(false);
       if (InputRef.current) {
         const input = InputRef.current! as HTMLInputElement;
-        input.value = '';
+        setInputData('');
         input.focus();
       }
     }
@@ -66,8 +67,10 @@ export default function Captcha({ goNextStep }: CaptchaProps) {
       </ul>
 
       <div className="flex gap-4">
-        <Button color={'cancel'}>
-          <span className="text-label1 text-typo-display">취소</span>
+        <Button color={'cancel'} asChild>
+          <Link to={'/'} className="text-label1 text-typo-display">
+            취소
+          </Link>
         </Button>
         <Button color={'primary'} onClick={validateAndGoNextStep}>
           <span className="text-label1 text-typo-display">확인</span>

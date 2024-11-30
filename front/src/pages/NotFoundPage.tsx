@@ -9,7 +9,7 @@ export default function NotFondPage() {
       <div className="flex w-[420px] flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-8">
           <Icon iconName="FileX" color={'warning'} className="h-32 w-32" />
-          <h2 className="text-heading1 text-typo">Not Fond</h2>
+          <h2 className="text-heading1 text-typo">Not Found</h2>
           <span className="text-display1 text-typo">페이지를 찾을 수 없습니다.</span>
         </div>
         <Button asChild>
