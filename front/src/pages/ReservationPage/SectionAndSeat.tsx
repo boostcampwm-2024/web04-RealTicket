@@ -15,7 +15,7 @@ import { padEndArray } from '@/utils/padArray.ts';
 
 import { API } from '@/constants/index.ts';
 import type { EventDetail, PlaceInformation, Section, SectionCoordinate } from '@/type/index.ts';
-import { useMutation, useMutationState } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQueryClient } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { twMerge } from 'tailwind-merge';
 
@@ -69,6 +69,7 @@ export default function SectionAndSeat({
     },
     select: (mutation) => mutation.state.variables as PostSeatData,
   });
+  const queryClient = useQueryClient();
   //TODO 길이 모음 필요 , 상태 관리 필용, 상태 reducer로 변경 필요, pending 중인 state 추출 필요
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
@@ -216,6 +217,7 @@ export default function SectionAndSeat({
               {
                 onSuccess: () => {
                   setReservationResult(selectedSeats);
+                  queryClient.refetchQueries({ queryKey: ['reservation'] });
                   goNextStep();
                 },
               },

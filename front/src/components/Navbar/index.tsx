@@ -83,7 +83,7 @@ export default function Navbar() {
                 )}>
                 <h3 className="px-4 text-left text-heading3">예매 현황</h3>
                 <Separator direction="row" />
-                <div className="flex max-h-[800px] flex-col gap-6 overflow-y-scroll pr-4">
+                <div className="flex max-h-[800px] flex-grow flex-col justify-center gap-6 overflow-y-scroll pr-4">
                   {isReservation ? (
                     reservations.map((reservation) => (
                       <ReservationCard
