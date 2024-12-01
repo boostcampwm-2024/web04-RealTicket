@@ -18,6 +18,15 @@ export class ReservationRepository {
     });
   }
 
+  async findReservationByIdMatchedUserId(userId: number, reservationId: number) {
+    return await this.ReservationRepository.findOne({
+      where: {
+        id: reservationId,
+        user: { id: userId },
+      },
+    });
+  }
+
   async deleteReservationByIdMatchedUserId(userId: number, reservationId: number) {
     return await this.ReservationRepository.softDelete({
       id: reservationId,

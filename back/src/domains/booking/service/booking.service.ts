@@ -155,6 +155,12 @@ export class BookingService {
     }
   }
 
+  async freeSeatsIfEventOpened(eventId: number, seats: [number, number][]) {
+    if (await this.openBookingService.isEventOpened(eventId)) {
+      await Promise.all(seats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)));
+    }
+  }
+
   async getTimeMs(): Promise<ServerTimeDto> {
     try {
       return {
