@@ -92,21 +92,28 @@ export default function SectionAndSeat({
           </>
         )}
         {canViewSeatMap ? (
-          <div
-            className={twMerge(
-              cx(
-                'relative mx-auto grid auto-cols-min gap-4',
-                selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
-              ),
-            )}>
-            <SeatMap
-              selectedSeats={selectedSeats}
-              setSelectedSeats={setSelectedSeats}
-              selectedSection={sections[selectedSection]}
-              maxSelectCount={seatCount}
-              selectedSectionIndex={selectedSection}
-            />
-          </div>
+          <>
+            <div className="text-center">
+              <span className="cursor-default bg-surface-sub p-2 px-8 text-heading2 text-typo-display">
+                stage
+              </span>
+            </div>
+            <div
+              className={twMerge(
+                cx(
+                  'relative mx-auto grid auto-cols-min gap-4',
+                  selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
+                ),
+              )}>
+              <SeatMap
+                selectedSeats={selectedSeats}
+                setSelectedSeats={setSelectedSeats}
+                selectedSection={sections[selectedSection]}
+                maxSelectCount={seatCount}
+                selectedSectionIndex={selectedSection}
+              />
+            </div>
+          </>
         ) : (
           <SectionSelectorMap
             sections={sectionCo}
