@@ -6,6 +6,8 @@ import { postSeatCount } from '@/api/booking.ts';
 import Button from '@/components/common/Button';
 import Separator from '@/components/common/Separator.tsx';
 
+import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
+import type { SeatCount } from '@/type/reservation.ts';
 import { useMutation } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
@@ -15,7 +17,6 @@ interface ISeatCountContentProps {
   goNextStep: () => void;
 }
 //section 선택 페이지는 좌석 선택시에도 사용된다\
-export type SeatCount = (typeof SEAT_COUNT_LIST)[number];
 
 export default function SeatCountContent({ selectCount, goNextStep, seatCount }: ISeatCountContentProps) {
   const { mutate: postSeatCountMutate, isPending } = useMutation({ mutationFn: postSeatCount });
@@ -39,7 +40,11 @@ export default function SeatCountContent({ selectCount, goNextStep, seatCount }:
       <Separator direction="row" />
       <label htmlFor="seatCount" className="flex flex-col gap-4">
         <span className="text-heading2">좌석 개수</span>
-        <select id="seatCount" className="w-full rounded border px-4 py-2" onChange={selectSeatCount}>
+        <select
+          id="seatCount"
+          className="w-full rounded border px-4 py-2"
+          defaultValue={seatCount}
+          onChange={selectSeatCount}>
           {SEAT_COUNT_LIST.map((count) => (
             <option key={count} className="" value={count}>{`${count} 개`}</option>
           ))}
@@ -66,6 +71,4 @@ export default function SeatCountContent({ selectCount, goNextStep, seatCount }:
     </div>
   );
 }
-
-const SEAT_COUNT_LIST = [1, 2, 3, 4] as const;
 const HELP_MESSAGE_LIST = ['최대 4매까지 선택 가능합니다.'];

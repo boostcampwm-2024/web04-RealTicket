@@ -1,3 +1,5 @@
+import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
+
 export interface Reservation {
   id: number;
   programName: string;
@@ -5,3 +7,5 @@ export interface Reservation {
   placeName: string;
   seats: string;
 }
+
+export type SeatCount = (typeof SEAT_COUNT_LIST)[number];

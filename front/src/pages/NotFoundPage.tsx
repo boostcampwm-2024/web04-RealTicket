@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
 
-export default function NotFondPage() {
+export default function NotFoundPage() {
   return (
     <div className="flex h-[100vh] w-full items-center justify-center">
       <div className="flex w-[420px] flex-col items-center gap-8">
