@@ -32,7 +32,7 @@ const GUEST_LOGIN_QUERY_KEY = ['guest'];
 
 export default function Navbar() {
   const { isLogin, userId, logout, login } = useAuthContext();
-  const isGuestLoginPending = useIsFetching({ queryKey: GUEST_LOGIN_QUERY_KEY });
+  const isGuestLoginPending = !!useIsFetching({ queryKey: GUEST_LOGIN_QUERY_KEY });
   const { confirm } = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -42,7 +42,6 @@ export default function Navbar() {
     enabled: isLogin,
     staleTime: Infinity,
   });
-  console.log('isGuestPending' + isGuestLoginPending);
 
   const { mutate: requestDeleteReservation } = useMutation({
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
@@ -71,7 +70,6 @@ export default function Navbar() {
       },
     });
     if (isConfirm) {
-      console.log('진행');
       await queryClient
         .fetchQuery<Guest>({
           queryKey: GUEST_LOGIN_QUERY_KEY,
@@ -88,7 +86,6 @@ export default function Navbar() {
         });
       return;
     }
-    console.log('no');
   };
 
   const deletingReservationIdList = useMutationState({
@@ -166,8 +163,20 @@ export default function Navbar() {
         </Popover.Root>
       ) : (
         <nav className="flex gap-4">
-          <Button size={'middle'} color={'primary'} intent={'outline'} onClick={loginAsGuest}>
-            <span className="text-label2 text-primary">게스트로 입장하기</span>
+          <Button
+            size={'middle'}
+            color={'primary'}
+            intent={'outline'}
+            onClick={loginAsGuest}
+            disabled={isGuestLoginPending}>
+            {isGuestLoginPending ? (
+              <>
+                <Icon iconName="Loading" className="animate-spin" />
+                <span className="f text-label2 text-typo-disable">로그인중..</span>
+              </>
+            ) : (
+              <span className="text-label2 text-primary">게스트로 입장하기</span>
+            )}
           </Button>
           <Button intent={'outline'} color={'primary'} size={'middle'} asChild>
             <Link to={'/signUp'}>
