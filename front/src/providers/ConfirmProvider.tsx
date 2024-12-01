@@ -4,7 +4,7 @@ export const ConfirmContext = createContext<ConfirmContext | null>(null);
 
 interface ButtonContent {
   text: string;
-  color: 'success' | 'error';
+  color: 'success' | 'error' | 'primary';
   handleClick: () => void;
 }
 

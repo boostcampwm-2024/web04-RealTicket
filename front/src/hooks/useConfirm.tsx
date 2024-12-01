@@ -8,7 +8,7 @@ interface ConfirmProps {
   buttons: {
     ok: {
       title: string;
-      color: 'error' | 'success';
+      color: 'error' | 'success' | 'primary';
     };
     cancel: {
       title: string;
@@ -23,7 +23,7 @@ export default function useConfirm() {
   const { confirmValue, setConfirm, clearConfirm } = confirmContext;
 
   const confirm = ({ title, description, buttons }: ConfirmProps) => {
-    const promise = new Promise((resolve, reject) => {
+    const promise = new Promise((resolve) => {
       setConfirm({
         title,
         description,
@@ -34,7 +34,7 @@ export default function useConfirm() {
         },
         cancel: {
           text: buttons.cancel.title,
-          handleClick: () => reject(false),
+          handleClick: () => resolve(false),
         },
       });
     }).finally(() => {
