@@ -51,7 +51,9 @@ export class OpenBookingService implements OnApplicationBootstrap {
   private async scheduleUpcomingReservationsToOpen(comingEvents: Event[]) {
     const now = new Date();
     const openedEventIds = new Set(await this.getOpenedEventIds());
-    const eventToOpen = comingEvents.filter((event) => event.reservationOpenDate <= now);
+    const eventToOpen = comingEvents.filter(
+      (event) => !openedEventIds.has(event.id) && event.reservationOpenDate <= now,
+    );
     const eventsToScheduleOpen = comingEvents.filter(
       (event) => !openedEventIds.has(event.id) && event.reservationOpenDate > now,
     );
