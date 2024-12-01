@@ -5,6 +5,7 @@ import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
+import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 
 type InBookingSession = {
   sid: string;
@@ -26,7 +27,11 @@ export class InBookingService {
   }
 
   async getInBookingSessionsDefaultMaxSize() {
-    return parseInt(await this.redis.get('in-booking:default-max-size'));
+    const defaultMaxSizeData = await this.redis.get('in-booking:default-max-size');
+    if (defaultMaxSizeData) {
+      return parseInt(defaultMaxSizeData);
+    }
+    return IN_BOOKING_DEFAULT_MAX_SIZE;
   }
 
   async setInBookingSessionsDefaultMaxSize(size: number) {
