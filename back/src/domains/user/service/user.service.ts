@@ -7,6 +7,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
@@ -180,6 +181,7 @@ export class UserService {
     }
   }
 
+  @Cron('0 0 0 * * *', { name: 'removeGuestReservation' })
   async removeAllGuest() {
     try {
       const queryRunner = this.dataSource.createQueryRunner();
