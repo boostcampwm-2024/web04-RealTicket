@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import Select from 'react-select';
 
+import { postSeatCount } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
+
+import useConfirm from '@/hooks/useConfirm.tsx';
 
 import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
@@ -10,8 +14,10 @@ import SeatMap from '@/pages/ReservationPage/SeatMap.tsx';
 import SectionSelectorMap from '@/pages/ReservationPage/SectionSelectorMap';
 
 import { getDate, getTime } from '@/utils/date.ts';
+import { changeSeatCountDebounce } from '@/utils/debounce.ts';
 import { padEndArray } from '@/utils/padArray.ts';
 
+import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
 import type { EventDetail, PlaceInformation, SectionCoordinate } from '@/type/index.ts';
 import type { SeatCount } from '@/type/reservation.ts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,6 +37,7 @@ interface ISectionAndSeatProps {
   setReservationResult: (result: SelectedSeat[]) => void;
   event: EventDetail;
   placeInformation: PlaceInformation;
+  selectSeatCount: (count: SeatCount) => void;
 }
 
 //TODO sse로 상태 받아오기, 좌석 선택 요청, 취소, mutation 커스텀 훅 필요
@@ -39,12 +46,16 @@ export default function SectionAndSeat({
   event,
   placeInformation,
   setReservationResult,
+  selectSeatCount,
   goNextStep,
 }: ISectionAndSeatProps) {
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
+  const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
   const queryClient = useQueryClient();
+  const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
+  const { confirm } = useConfirm();
   //TODO 길이 모음 필요 , 상태 관리 필용, 상태 reducer로 변경 필요, pending 중인 state 추출 필요
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
@@ -59,6 +70,8 @@ export default function SectionAndSeat({
   //TODO 커스텀 훅으로 변경
 
   //TODO 폰트 크기 구하기 필요, 레이아웃 반복문으로 만들기
+  const SELECT_OPTION_LIST = SEAT_COUNT_LIST.map((count) => ({ value: count, label: `${count}매` }));
+
   return (
     <div className="flex w-full gap-4">
       <div className="flex w-[70%] flex-col gap-8 px-4 py-2">
@@ -93,11 +106,7 @@ export default function SectionAndSeat({
         )}
         {canViewSeatMap ? (
           <>
-            <div className="text-center">
-              <span className="cursor-default bg-surface-sub p-2 px-8 text-heading2 text-typo-display">
-                stage
-              </span>
-            </div>
+            <StageDirection />
             <div
               className={twMerge(
                 cx(
@@ -134,6 +143,50 @@ export default function SectionAndSeat({
           svgURL={overview}
           viewBoxData={viewBoxData}
         />
+        <Separator direction="row" />
+        <label htmlFor="seatCount" className="flex flex-col gap-4">
+          <span className="text-heading2">좌석 개수</span>
+          <Select
+            menuIsOpen={isOpenSelect}
+            defaultValue={SELECT_OPTION_LIST[seatCount - 1]}
+            isSearchable={false}
+            options={SELECT_OPTION_LIST}
+            onChange={(event) => {
+              if (event) {
+                const count = event.value;
+                setSelectedSeats([]);
+                selectSeatCount(count);
+                changeSeatCountDebounce(() => {
+                  postSeatCountMutate(count);
+                });
+              }
+            }}
+            onFocus={async () => {
+              if (isOpenSelect) return;
+              const isConfirm = await confirm({
+                title: '예매 매수 변경',
+                description: `예매 매수를 변경하면 현재 선택한 좌석이 모두 취소됩니다.\n계속 진행하시겠습니까? `,
+                buttons: {
+                  ok: {
+                    title: '변경하기',
+                    color: 'error',
+                  },
+                  cancel: {
+                    title: '취소',
+                  },
+                },
+              });
+              if (isConfirm) {
+                setIsOpenSelect(true);
+                changeSeatCountDebounce(() => {});
+              }
+            }}
+            onBlur={() => {
+              setIsOpenSelect(false);
+            }}
+          />
+        </label>
+
         <Separator direction="row" />
         <div className="flex flex-col gap-4">
           <h3 className="text-heading2">선택한 좌석</h3>
@@ -192,6 +245,16 @@ export default function SectionAndSeat({
     </div>
   );
 }
+
+const StageDirection = () => {
+  return (
+    <div className="text-center">
+      <span className="cursor-default bg-surface-sub p-2 px-8 text-heading2 text-typo-display">
+        무대 방향(stage)
+      </span>
+    </div>
+  );
+};
 
 const SEAT_STATES = ['선택 가능', '선택 중', '선택 완료', '선택 불가'];
 const getColorClass = (state: string) => {

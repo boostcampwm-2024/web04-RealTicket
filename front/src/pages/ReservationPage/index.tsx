@@ -65,6 +65,7 @@ export default function ReservationPage() {
   if (step === 'selectSeats') {
     return (
       <SectionAndSeat
+        selectSeatCount={selectCount}
         placeInformation={placeInformation!}
         event={event}
         seatCount={seatCount}
