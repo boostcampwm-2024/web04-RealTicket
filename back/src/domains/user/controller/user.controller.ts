@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -96,6 +97,12 @@ export class UserController {
     res.cookie('SID', sessionId, { httpOnly: true });
 
     return userInfo;
+  }
+
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @Delete('/guest')
+  async deleteGuestMode() {
+    return await this.userService.removeAllGuest();
   }
 
   @ApiOperation({ summary: '로그인', description: 'id, password를 받아 로그인 요청을 처리한다.' })
