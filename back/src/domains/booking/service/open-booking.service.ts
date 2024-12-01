@@ -41,6 +41,11 @@ export class OpenBookingService implements OnApplicationBootstrap {
     await this.scheduleUpcomingReservations();
   }
 
+  async initReservation(eventId: number) {
+    await this.closeReservationAnyway(eventId);
+    await this.openReservationById(eventId);
+  }
+
   @Cron(ONE_MINUTE_BEFORE_THE_HOUR)
   async scheduleUpcomingReservations() {
     const comingEvents = await this.eventRepository.selectUpcomingEvents();
@@ -154,6 +159,14 @@ export class OpenBookingService implements OnApplicationBootstrap {
 
   private async registerOpenedEvent(eventId: number) {
     await this.redis.set(`open-booking:${eventId}:opened`, 'true');
+  }
+
+  async closeReservationAnyway(eventId: number) {
+    await this.unlinkOpenedEvent(eventId);
+    await this.clearWaitingService(eventId);
+    await this.clearEnteringService(eventId);
+    await this.seatsUpdateService.clearSeatsSubscription(eventId);
+    await this.clearInBookingService(eventId);
   }
 
   async closeReservation(eventId: number) {

@@ -195,4 +195,16 @@ export class BookingController {
   async reloadOpenTarget() {
     await this.openBookingService.scheduleUpcomingReservations();
   }
+
+  @Post('init/:eventId')
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @ApiOperation({
+    summary: 'ADMIN: 예약 초기화',
+    description: '특정 이벤트의 예약 상태를 초기화한다.',
+  })
+  @ApiOkResponse({ description: '예약 초기화 완료' })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  async initReservation(@Param('eventId') eventId: number) {
+    await this.openBookingService.initReservation(eventId);
+  }
 }
