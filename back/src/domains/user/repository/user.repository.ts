@@ -31,11 +31,9 @@ export class UserRepository {
     return this.userRepository.findOne({ where: { loginId } });
   }
 
-  findOneOrFail({ where }) {
-    if (where) {
-      return where.id;
-    } else {
-      return 'no';
-    }
+  async deleteAllGuest() {
+    return this.userRepository.delete({
+      checkGuest: true,
+    });
   }
 }

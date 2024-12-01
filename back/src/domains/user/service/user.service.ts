@@ -7,6 +7,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
@@ -177,6 +178,20 @@ export class UserService {
     } catch (err) {
       this.logger.error(err.name, err.stack);
       throw new InternalServerErrorException('게스트 사용자 생성에 실패하였습니다.');
+    }
+  }
+
+  @Cron('0 0 0 * * *', { name: 'removeGuestReservation' })
+  async removeAllGuest() {
+    try {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      return this.userRepository.deleteAllGuest();
+    } catch (err) {
+      this.logger.error(err.name, err.stack);
+      throw new InternalServerErrorException('게스트 사용자 삭제에 실패하였습니다.');
     }
   }
 }
