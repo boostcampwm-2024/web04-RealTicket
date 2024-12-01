@@ -6,6 +6,7 @@ import { DataSource, In, QueryRunner } from 'typeorm';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { BookingService } from '../../booking/service/booking.service';
 import { InBookingService } from '../../booking/service/in-booking.service';
 import { Event } from '../../event/entity/event.entity';
 import { Place } from '../../place/entity/place.entity';
@@ -32,6 +33,7 @@ export class ReservationService {
     @Inject() private readonly redisService: RedisService,
     @Inject() private readonly dataSource: DataSource,
     @Inject() private readonly authService: AuthService,
+    @Inject() private readonly bookingService: BookingService,
     @Inject() private readonly inBookingService: InBookingService,
     @Inject() private readonly userService: UserService,
   ) {
@@ -76,9 +78,17 @@ export class ReservationService {
   }
 
   async deleteReservation({ id }: UserParamDto, { reservationId }: ReservationIdDto) {
-    const result = await this.reservationRepository.deleteReservationByIdMatchedUserId(id, reservationId);
-    if (!result.affected)
+    const reservation = await this.reservationRepository.findReservationByIdMatchedUserId(id, reservationId);
+    if (!reservation) {
       throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
+    }
+
+    const eventId = (await reservation.event).id;
+    const reservedSeats = await reservation.reservedSeats;
+    const reservedSeatsData: [number, number][] = reservedSeats.map((seat) => [seat.row - 1, seat.col - 1]);
+    await this.bookingService.freeSeatsIfEventOpened(eventId, reservedSeatsData);
+
+    await this.reservationRepository.deleteReservationByIdMatchedUserId(id, reservationId);
   }
 
   validateReservationLength(seats: ReservationSeatInfoDto[]) {
