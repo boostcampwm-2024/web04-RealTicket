@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useBeforeUnload } from 'react-router-dom';
 import Select from 'react-select';
 
 import { postSeatCount } from '@/api/booking.ts';
@@ -51,25 +52,27 @@ export default function SectionAndSeat({
 }: ISectionAndSeatProps) {
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
+  const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
   const queryClient = useQueryClient();
-  const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
   const { confirm } = useConfirm();
-  //TODO 길이 모음 필요 , 상태 관리 필용, 상태 reducer로 변경 필요, pending 중인 state 추출 필요
+  useBeforeUnload((event) => {
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
   const { name, place, runningDate, runningTime, id: eventId } = event;
+
   const sectionCo = JSON.parse(overviewPoints) as SectionCoordinate[];
   const selectedSectionSeatMap =
     selectedSection !== null && sections.find((_, index) => index == selectedSection);
-
   const viewBoxData = `0 0 ${overviewWidth} ${overviewHeight}`;
   const isSelectionComplete = seatCount <= selectedSeats.length;
   const canViewSeatMap = selectedSection !== null && selectedSectionSeatMap;
-  //TODO 커스텀 훅으로 변경
 
-  //TODO 폰트 크기 구하기 필요, 레이아웃 반복문으로 만들기
   const SELECT_OPTION_LIST = SEAT_COUNT_LIST.map((count) => ({ value: count, label: `${count}매` }));
 
   return (
