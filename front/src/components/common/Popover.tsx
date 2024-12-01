@@ -102,6 +102,7 @@ const Content = ({ children }: IContent) => {
   }, [triggerRef]);
 
   useEffect(() => {
+    updatePosition();
     if (isOpen) {
       window.addEventListener('scroll', updatePosition);
     }
