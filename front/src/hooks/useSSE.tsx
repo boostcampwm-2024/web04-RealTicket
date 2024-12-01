@@ -30,5 +30,6 @@ export default function useSSE<T>({ sseURL }: useSSEProps) {
     };
   }, [sseURL]);
 
-  return { data } as { data: T | null };
+  const isLoading = data === null ? true : false;
+  return { data, isLoading } as { data: T | null; isLoading: boolean };
 }

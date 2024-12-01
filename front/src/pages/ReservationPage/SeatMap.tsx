@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { BASE_URL } from '@/api/axios.ts';
 import type { PostSeatData } from '@/api/booking.ts';
 import { postSeat } from '@/api/booking.ts';
+
+import useSSE from '@/hooks/useSSE.tsx';
 
 import { toast } from '@/components/Toast/index.ts';
 import Icon from '@/components/common/Icon.tsx';
@@ -30,10 +31,6 @@ export default function SeatMap({
   selectedSeats,
 }: SeatMapProps) {
   const { eventId } = useParams();
-  //TODO 이름 헷갈림
-  const [seatStatusList, setSeatStatusList] = useState<boolean[][]>([]);
-  const seatStatus = seatStatusList[selectedSectionIndex];
-  const eventSourceRef = useRef<null | EventSource>(null);
   const { mutate: pickSeat } = useMutation({
     mutationFn: postSeat,
     mutationKey: PICK_SEAT_MUTATION_KEY_LIST,
@@ -58,34 +55,21 @@ export default function SeatMap({
     },
     select: (mutation) => mutation.state.variables as PostSeatData,
   });
-  useEffect(() => {
-    if (eventSourceRef.current === null) {
-      eventSourceRef.current = new EventSource(`${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`, {
-        withCredentials: true,
-      });
-      eventSourceRef.current.onmessage = (event) => {
-        const { seatStatus } = JSON.parse(event.data);
-        if (seatStatus) {
-          setSeatStatusList(seatStatus);
-        }
-      };
-    }
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  }, [eventId]);
-  const canRender = seatStatusList.length !== 0;
+  const { data, isLoading } = useSSE<{ seatStatus: boolean[][] }>({
+    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
+  });
+
+  const seatStatusList = data ? data.seatStatus : null;
+  const selectedSeatStatus = seatStatusList ? seatStatusList[selectedSectionIndex] : null;
+  const canRender = isLoading === false && seatStatusList && seatStatusList.length !== 0;
+
   return (
     <>
-      {/* <Loading /> */}
       {canRender ? (
         renderSeatMap(
           selectedSection,
           selectedSectionIndex,
-          seatStatus,
+          selectedSeatStatus!,
           setSelectedSeats,
           maxSelectCount,
           selectedSeats,
@@ -99,6 +83,7 @@ export default function SeatMap({
     </>
   );
 }
+
 const Loading = () => {
   return (
     <div className="absolute flex w-full items-center justify-center">

@@ -40,9 +40,7 @@ export default function SectionAndSeat({
   placeInformation,
   setReservationResult,
   goNextStep,
-  changeSeatCount,
 }: ISectionAndSeatProps) {
-  console.log(changeSeatCount);
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
@@ -97,7 +95,7 @@ export default function SectionAndSeat({
           <div
             className={twMerge(
               cx(
-                'mx-auto grid auto-cols-min gap-4',
+                'relative mx-auto grid auto-cols-min gap-4',
                 selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
               ),
             )}>
@@ -171,6 +169,7 @@ export default function SectionAndSeat({
                 onSuccess: () => {
                   setReservationResult(selectedSeats);
                   queryClient.refetchQueries({ queryKey: ['reservation'] });
+                  queryClient.invalidateQueries({ queryKey: ['event'] });
                   goNextStep();
                 },
               },
