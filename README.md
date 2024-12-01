@@ -2,7 +2,7 @@
 
 [📚팀 노션](https://chestnut-sense-efd.notion.site/RealTicket-12d313ed69ba805cb271cd1f51f8272b?pvs=4)
 
-## 프로젝트 개요
+# 프로젝트 개요
 
 > 🎟️ “RealTicket”
 
@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/1262b03f-9149-4da0-84c0-55853dd5bf7e
 
 현대에 걸맞는 UX를 추구하는 새로운 티켓팅 서비스
 
-## 팀원 소개
+# 팀원 소개
 
 > 모두 1호선에 살고 있어요
 
@@ -28,3 +28,47 @@ https://github.com/user-attachments/assets/1262b03f-9149-4da0-84c0-55853dd5bf7e
     </tr>
   </tbody>
 </table>
+
+
+# 기능 흐름
+
+### 컨텐츠 선택
+
+![image](https://github.com/user-attachments/assets/479ba59f-b009-4fb4-adeb-45356010f945)
+
+- 예매하고 싶은 컨텐츠를 선택합니다.
+
+### 예매 입장 / 대기 큐
+
+![image](https://github.com/user-attachments/assets/1288e4ba-baf4-48a4-a7ed-e1d50345773f)
+
+- 예매가 오픈되어 있다면 '예매하기'로 이동할 수 있습니다.
+- 예매가 아직 오픈되지 않았다면, '예매하기' 버튼이 비활성화 됩니다.
+  - 이 때 서버 시간을 받아와 남은 시간을 카운트다운 해줍니다.
+- '예매하기'로 진입했으나 사람이 너무 많이 몰렸다면, 대기 큐 페이지로 이동해 순번을 기다리게 됩니다.
+
+### 매크로 방지 확인 / 좌석 개수 선택
+
+![image](https://github.com/user-attachments/assets/944e9131-e263-474b-bb97-32fc011379fd)
+
+- 진입에 성공하면 매크로 방지 문자를 입력하게 됩니다.
+- 그 뒤 예매할 좌석 개수를 선택해야 합니다.
+  - 이는 우리 서비스의 특징을 악용하지 않도록 하는 중요한 과정입니다.
+
+### 좌석 선택
+
+![image](https://github.com/user-attachments/assets/9a3ebe8e-1f31-477a-87a4-7ed235a90420)
+
+- 구역을 선택합니다.
+- 좌석을 선택합니다.
+  - **실시간으로 다른 사용자에 의해 선점되는 좌석을 확인할 수 있습니다.**
+  - 좌석은 **선택과 동시에 선점**되어, 다른 사용자에게 뺏기지 않습니다.
+  - 다시 클릭하여 선점을 해제할 수 있습니다.
+  - 예매하기로 한 갯수만큼 선택해야 예매 확정이 가능합니다.
+
+### 예매 확정
+
+![image](https://github.com/user-attachments/assets/6e8fd7dc-cb4d-41aa-bf2a-6ebc4afde1ec)
+
+- 예매가 확정되었습니다!
+- 내비게이션 바의 사용자 패널에서 예매 정보를 확인/취소할 수 있습니다.
