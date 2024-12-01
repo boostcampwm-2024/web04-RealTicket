@@ -25,6 +25,6 @@ import { WaitingQueueService } from './service/waiting-queue.service';
     WaitingQueueService,
     EnterBookingService,
   ],
-  exports: [InBookingService],
+  exports: [BookingService, InBookingService],
 })
 export class BookingModule {}
