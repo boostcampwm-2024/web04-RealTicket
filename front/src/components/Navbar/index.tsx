@@ -2,9 +2,10 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { CustomError } from '@/api/axios.ts';
 import { deleteReservation, getReservation } from '@/api/reservation.ts';
-import { postLogout } from '@/api/user.ts';
+import { getGuestLogin, postLogout } from '@/api/user.ts';
 
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
+import useConfirm from '@/hooks/useConfirm.tsx';
 
 import ReservationCard from '@/components/Navbar/ReservationCard.tsx';
 import { toast } from '@/components/Toast/index.ts';
@@ -14,15 +15,25 @@ import Popover from '@/components/common/Popover';
 import Separator from '@/components/common/Separator.tsx';
 
 import type { Reservation } from '@/type/reservation.ts';
-import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Guest } from '@/type/user.ts';
+import {
+  useIsFetching,
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 460;
 
 const RESERVATION_DELETE_MUTATION_KEY = ['reservation'];
+const GUEST_LOGIN_QUERY_KEY = ['guest'];
 
 export default function Navbar() {
-  const { isLogin, userId, logout } = useAuthContext();
+  const { isLogin, userId, logout, login } = useAuthContext();
+  const isGuestLoginPending = !!useIsFetching({ queryKey: GUEST_LOGIN_QUERY_KEY });
+  const { confirm } = useConfirm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: reservations } = useQuery<Reservation[], CustomError>({
@@ -31,6 +42,7 @@ export default function Navbar() {
     enabled: isLogin,
     staleTime: Infinity,
   });
+  const sliced = userId?.slice(0, 12);
 
   const { mutate: requestDeleteReservation } = useMutation({
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
@@ -43,6 +55,40 @@ export default function Navbar() {
       toast.error('예매내역 삭제에 실패했습니다.\n 잠시 후 다시 시도해주세요');
     },
   });
+
+  const loginAsGuest = async () => {
+    const isConfirm = await confirm({
+      title: '게스트로 입장하기',
+      description: '게스트 계정은 로그아웃하시면 다시 사용 할 수 없습니다.\n 그래도 입장하시겠습니까?',
+      buttons: {
+        ok: {
+          title: '확인',
+          color: 'success',
+        },
+        cancel: {
+          title: '취소',
+        },
+      },
+    });
+    if (isConfirm) {
+      await queryClient
+        .fetchQuery<Guest>({
+          queryKey: GUEST_LOGIN_QUERY_KEY,
+          queryFn: getGuestLogin,
+        })
+        .then((data) => {
+          const sliced = data.loginId.slice(0, 12);
+          if (login) {
+            login(sliced);
+            toast.success('geust로 로그인 되었습니다');
+          }
+        })
+        .catch(() => {
+          toast.error('로그인에 실패했습니다\n잠시 후 다시 시도해주세요.');
+        });
+      return;
+    }
+  };
 
   const deletingReservationIdList = useMutationState({
     filters: { mutationKey: RESERVATION_DELETE_MUTATION_KEY, status: 'pending' },
@@ -78,7 +124,7 @@ export default function Navbar() {
             render={(togglePopover, triggerRef) => (
               <Button size="middle" intent={'ghost'} onClick={togglePopover} ref={triggerRef}>
                 <Icon iconName="User" />
-                <span className="text-label2 text-typo">{userId}</span>
+                <span className="text-label2 text-typo">{`${sliced} 님`}</span>
                 <Icon iconName="DownArrow" />
               </Button>
             )}
@@ -119,6 +165,21 @@ export default function Navbar() {
         </Popover.Root>
       ) : (
         <nav className="flex gap-4">
+          <Button
+            size={'middle'}
+            color={'primary'}
+            intent={'outline'}
+            onClick={loginAsGuest}
+            disabled={isGuestLoginPending}>
+            {isGuestLoginPending ? (
+              <>
+                <Icon iconName="Loading" className="animate-spin" />
+                <span className="f text-label2 text-typo-disable">로그인중..</span>
+              </>
+            ) : (
+              <span className="text-label2 text-primary">게스트로 입장하기</span>
+            )}
+          </Button>
           <Button intent={'outline'} color={'primary'} size={'middle'} asChild>
             <Link to={'/signUp'}>
               <span className="text-label2 text-primary">회원가입</span>

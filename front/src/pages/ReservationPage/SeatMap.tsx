@@ -139,6 +139,7 @@ const renderSeatMap = (
     if (seat) columnCount++;
     return (
       <div
+        key={`${seatName}${index}`}
         className={`h-6 w-6 ${stateClass}`}
         data-name={seatName}
         onClick={() => {

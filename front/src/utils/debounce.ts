@@ -10,4 +10,4 @@ const setDebounce = (delayTime: number) => {
   };
 };
 
-export const changeSeatCountDebounce = setDebounce(3);
+export const changeSeatCountDebounce = setDebounce(0.5);

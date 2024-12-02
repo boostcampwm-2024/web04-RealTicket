@@ -16,6 +16,7 @@ export const API = {
     CHECK_ID: '/user/checkid',
     LOGOUT: '/user/logout',
     INFORMATION: '/user',
+    LOGIN_AS_GUEST: '/user/guest',
   },
   EVENT: {
     GET_EVENT_DETAIL_MOCK: (id: number) => `/mock/events/${id}`,
