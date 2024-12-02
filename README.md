@@ -109,3 +109,27 @@ RealTicket 이러한 불편함을 해소하기위해 정말 실시간으로 선�
 |백엔드| ![NestJS](https://img.shields.io/badge/-NestJS-E0234E?logo=nestjs&logoColor=white) ![SSE](https://img.shields.io/badge/-SSE-000000?logo=SSE&logoColor=white) ![MySQL](https://img.shields.io/badge/MySQL-4479A1?&logo=MySQL&logoColor=white) ![Redis](https://img.shields.io/badge/redis-E34F26?&logo=Redis&logoColor=white) ![Class Validator](https://img.shields.io/badge/-Class%20Validator-000000?logo=class-validator&logoColor=white)  ![Class transformer](https://img.shields.io/badge/-Class%20Transformer-000000?logo=class-transformer&logoColor=white) ![Scheduler](https://img.shields.io/badge/-Scheduler-000000?logo=scheduler&logoColor=white) ![Winston](https://img.shields.io/badge/-Winston-000000?logo=winston&logoColor=white)  ![Swagger](https://img.shields.io/badge/-Swagger-85EA2D?logo=swagger&logoColor=white) |
 |배포|![nginx](https://img.shields.io/badge/-nginx-009639?logo=nginx&logoColor=white)  ![Ncloud](https://img.shields.io/badge/-Ncloud-03C75A?logo=Ncloud&logoColor=white) ![Docker Hub](https://img.shields.io/badge/-docker%20hub-2496ED?logo=docker-hub&logoColor=white)  ![Git Actions](https://img.shields.io/badge/-githubactions-2088FF?logo=githubactions&logoColor=white) |
 |협업 도구|![Notion](https://img.shields.io/badge/-Notion-000000?logo=notion&logoColor=white) ![GitHub](https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white) ![Slack](https://img.shields.io/badge/-Slack-4A154B?logo=slack&logoColor=white) ![Figma](https://img.shields.io/badge/-Figma-F24E1E?logo=figma&logoColor=white)  |
+
+
+
+----
+# 주요 기능 소개
+## TypeORM
+- [typeorm을 통한 사용한 이유와 entity 생성](https://chestnut-sense-efd.notion.site/TypeOrm-3afe7a39c14a43f09ef9d07b66ca3659?pvs=4)
+- [typeorm 최적화 하기](https://chestnut-sense-efd.notion.site/TypeORM-e104a976e6be434dbecd33d48ad8f0d0?pvs=4)
+
+## SSE를 통한 브로드캐스팅
+- [SSE 선정 이유(웹소켓, 폴링과 비교)](https://www.notion.so/WebSocket-VS-SSE-d8fed9e7c2bc46318b565dc775b6535a?pvs=4)
+- [SSE 브로드캐스트](https://www.notion.so/SSE-60d6e13d559a4376a7959534b26f7516?pvs=4)
+
+## 좌석 현황 및 선점 관리
+- [좌석 현황 및 선점 관리](https://www.notion.so/6fc9fec627034269b473d43116b84f57?pvs=4)
+- [DB 스키마 설계](https://chestnut-sense-efd.notion.site/DB-3ff65e3d59094c08a3b3371e51a5cee5?pvs=4)
+- [Lua 스크립트 적용](https://chestnut-sense-efd.notion.site/Lua-c0aa5206efa748b882c0830f5acc1c87?pvs=4)
+
+## 대기 큐 상태 관리
+- [대기 큐 정책 설계](https://chestnut-sense-efd.notion.site/8800343f85c644eca5dd1e373e4ef4b2?pvs=4)
+
+## 반복적인 API 요청
+- [React Query Cache 기능을 이용한 데이터 공유](https://www.notion.so/24-12-02-5ee838539793492d8e5d613c11ffe67a?pvs=4#150313ed69ba804db09ed9dab85c4f1e)
+
