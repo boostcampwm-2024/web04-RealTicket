@@ -216,8 +216,11 @@ export class OpenBookingService implements OnApplicationBootstrap {
   }
 
   private async resetUserStatus(sid: string) {
-    await this.authService.setUserStatusLogin(sid);
-    await this.userService.setUserEventTarget(sid, 0);
+    const authSession = await this.authService.getUserSession(sid);
+    if (authSession) {
+      await this.authService.setUserStatusLogin(sid);
+      await this.userService.setUserEventTarget(sid, 0);
+    }
   }
 
   private async unlinkOpenedEvent(eventId: number) {
