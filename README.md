@@ -95,3 +95,17 @@ RealTicket 이러한 불편함을 해소하기위해 정말 실시간으로 선�
 
 - 예매가 확정되었습니다!
 - 내비게이션 바의 사용자 패널에서 예매 정보를 확인/취소할 수 있습니다.
+
+----
+
+# 아키텍쳐
+
+## 기술 스택
+
+|도메인|기술 스택|
+|:-:|:-:|
+|공통| ![NPM](https://img.shields.io/badge/-npm-CB3837?logo=npm&logoColor=white) ![typescript](https://shields.io/badge/TypeScript-3178C6?logo=TypeScript&logoColor=white) ![ESLint](https://img.shields.io/badge/-ESLint-4B32C3?logo=eslint&logoColor=white) ![Prettier](https://img.shields.io/badge/-Prettier-F7B93E?logo=prettier&logoColor=white) ![Postman](https://img.shields.io/badge/-Postman-FF6C37?logo=postman&logoColor=white) |
+|프론트 엔드| ![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white) ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/-Tailwind%20CSS-38B2AC?logo=tailwind-css&logoColor=white) ![Axios](https://img.shields.io/badge/-Axios-5A29E4?logo=axios&logoColor=white) ![TanStack Query](https://img.shields.io/badge/-TanStack%20Query-FF4154?logo=react-query&logoColor=white) ![ReactRouter](https://img.shields.io/badge/-React%20Router-CA4245?logo=react-router&logoColor=white) |
+|백엔드| ![NestJS](https://img.shields.io/badge/-NestJS-E0234E?logo=nestjs&logoColor=white) ![SSE](https://img.shields.io/badge/-SSE-000000?logo=SSE&logoColor=white) ![MySQL](https://img.shields.io/badge/MySQL-4479A1?&logo=MySQL&logoColor=white) ![Redis](https://img.shields.io/badge/redis-E34F26?&logo=Redis&logoColor=white) ![Class Validator](https://img.shields.io/badge/-Class%20Validator-000000?logo=class-validator&logoColor=white)  ![Class transformer](https://img.shields.io/badge/-Class%20Transformer-000000?logo=class-transformer&logoColor=white) ![Scheduler](https://img.shields.io/badge/-Scheduler-000000?logo=scheduler&logoColor=white) ![Winston](https://img.shields.io/badge/-Winston-000000?logo=winston&logoColor=white)  ![Swagger](https://img.shields.io/badge/-Swagger-85EA2D?logo=swagger&logoColor=white) |
+|배포|![nginx](https://img.shields.io/badge/-nginx-009639?logo=nginx&logoColor=white)  ![Ncloud](https://img.shields.io/badge/-Ncloud-03C75A?logo=Ncloud&logoColor=white) ![Docker Hub](https://img.shields.io/badge/-docker%20hub-2496ED?logo=docker-hub&logoColor=white)  ![Git Actions](https://img.shields.io/badge/-githubactions-2088FF?logo=githubactions&logoColor=white) |
+|협업 도구|![Notion](https://img.shields.io/badge/-Notion-000000?logo=notion&logoColor=white) ![GitHub](https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white) ![Slack](https://img.shields.io/badge/-Slack-4A154B?logo=slack&logoColor=white) ![Figma](https://img.shields.io/badge/-Figma-F24E1E?logo=figma&logoColor=white)  |
