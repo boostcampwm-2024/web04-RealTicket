@@ -43,6 +43,7 @@ export class EventService {
       ...event,
       name: program.name,
       runningTime: program.runningTime,
+      price: program.price,
       place,
     });
   }
