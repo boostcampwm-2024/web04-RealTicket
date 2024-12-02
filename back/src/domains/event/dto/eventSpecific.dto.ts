@@ -3,10 +3,20 @@ import { ApiProperty } from '@nestjs/swagger';
 import { placeSpecificEventDto } from './placeSpecificEvent.dto';
 
 export class EventSpecificDto {
-  constructor({ id, name, place, runningTime, runningDate, reservationOpenDate, reservationCloseDate }) {
+  constructor({
+    id,
+    name,
+    place,
+    price,
+    runningTime,
+    runningDate,
+    reservationOpenDate,
+    reservationCloseDate,
+  }) {
     this.id = id;
     this.name = name;
     this.place = new placeSpecificEventDto(place);
+    this.price = price;
     this.runningTime = runningTime;
     this.runningDate = runningDate;
     this.reservationOpenDate = reservationOpenDate;
@@ -39,6 +49,14 @@ export class EventSpecificDto {
     },
   })
   place: placeSpecificEventDto;
+
+  @ApiProperty({
+    description: '이벤트 가격',
+    name: 'price',
+    type: 'number',
+    example: 15000,
+  })
+  price: number;
 
   @ApiProperty({
     description: '이벤트 러닝타임(초단위)',
