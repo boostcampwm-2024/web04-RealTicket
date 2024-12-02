@@ -10,13 +10,13 @@ export class User {
   @Column({ type: 'varchar', length: 255, name: 'login_id' })
   loginId: string;
 
-  @Column({ type: 'varchar', length: 255, name: 'login_password' })
-  loginPassword: string;
+  @Column({ type: 'varchar', length: 255, name: 'login_password', nullable: true })
+  loginPassword: string | null;
 
   @Column({ type: 'varchar', length: 10, name: 'role' })
   role: string;
 
-  @Column({ type: 'boolean', name: 'is_guest' })
+  @Column({ type: 'boolean', name: 'is_guest', default: 0 })
   checkGuest: boolean;
 
   @OneToMany(() => Reservation, (reservation) => reservation.user, { lazy: true })
