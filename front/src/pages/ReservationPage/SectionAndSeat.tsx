@@ -151,6 +151,8 @@ export default function SectionAndSeat({
             defaultValue={SELECT_OPTION_LIST[seatCount - 1]}
             isSearchable={false}
             options={SELECT_OPTION_LIST}
+            closeMenuOnSelect={true}
+            blurInputOnSelect={true}
             onChange={(event) => {
               if (event) {
                 const count = event.value;
