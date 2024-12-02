@@ -1,6 +1,7 @@
 # RealTicket
 
 [📚팀 노션](https://chestnut-sense-efd.notion.site/RealTicket-12d313ed69ba805cb271cd1f51f8272b?pvs=4)
+[🎟️RealTicket 홈페이지](http://www.realticket.store/program)
 
 ## 팀 1호선: 팀원 소개
 
