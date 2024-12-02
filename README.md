@@ -110,7 +110,8 @@ RealTicket 이러한 불편함을 해소하기위해 정말 실시간으로 선�
 |배포|![nginx](https://img.shields.io/badge/-nginx-009639?logo=nginx&logoColor=white)  ![Ncloud](https://img.shields.io/badge/-Ncloud-03C75A?logo=Ncloud&logoColor=white) ![Docker Hub](https://img.shields.io/badge/-docker%20hub-2496ED?logo=docker-hub&logoColor=white)  ![Git Actions](https://img.shields.io/badge/-githubactions-2088FF?logo=githubactions&logoColor=white) |
 |협업 도구|![Notion](https://img.shields.io/badge/-Notion-000000?logo=notion&logoColor=white) ![GitHub](https://img.shields.io/badge/-GitHub-181717?logo=github&logoColor=white) ![Slack](https://img.shields.io/badge/-Slack-4A154B?logo=slack&logoColor=white) ![Figma](https://img.shields.io/badge/-Figma-F24E1E?logo=figma&logoColor=white)  |
 
-
+## 아키텍처 설계도
+<img width="992" alt="스크린샷 2024-12-02 19 43 19" src="https://github.com/user-attachments/assets/c4c693e1-56e2-4d06-a3a9-34c0b39431c8">
 
 ----
 # 주요 기능 소개
