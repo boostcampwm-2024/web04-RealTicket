@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useBeforeUnload } from 'react-router-dom';
 import Select from 'react-select';
 
 import { postSeatCount } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
 
 import useConfirm from '@/hooks/useConfirm.tsx';
+import usePreventLeave from '@/hooks/usePreventLeave.tsx';
 
 import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
@@ -57,10 +57,7 @@ export default function SectionAndSeat({
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
-  useBeforeUnload((event) => {
-    event.preventDefault();
-    event.returnValue = '';
-  });
+  usePreventLeave();
 
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
