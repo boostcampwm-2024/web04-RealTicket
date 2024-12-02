@@ -42,6 +42,7 @@ export default function Navbar() {
     enabled: isLogin,
     staleTime: Infinity,
   });
+  const sliced = userId?.slice(0, 12);
 
   const { mutate: requestDeleteReservation } = useMutation({
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
@@ -75,9 +76,10 @@ export default function Navbar() {
           queryKey: GUEST_LOGIN_QUERY_KEY,
           queryFn: getGuestLogin,
         })
-        .then(() => {
+        .then((data) => {
+          const sliced = data.loginId.slice(0, 12);
           if (login) {
-            login('guest');
+            login(sliced);
             toast.success('geust로 로그인 되었습니다');
           }
         })
@@ -122,7 +124,7 @@ export default function Navbar() {
             render={(togglePopover, triggerRef) => (
               <Button size="middle" intent={'ghost'} onClick={togglePopover} ref={triggerRef}>
                 <Icon iconName="User" />
-                <span className="text-label2 text-typo">{`${userId} 님`}</span>
+                <span className="text-label2 text-typo">{`${sliced} 님`}</span>
                 <Icon iconName="DownArrow" />
               </Button>
             )}
