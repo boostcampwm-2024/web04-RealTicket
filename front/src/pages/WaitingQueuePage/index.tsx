@@ -40,6 +40,7 @@ export default function WaitingQueuePage() {
   const { data: event } = useSuspenseQuery<EventDetail>({
     queryKey: ['event', eventId],
     queryFn: getEventDetail(Number(eventId)),
+    staleTime: Infinity,
   });
   const { name, place, runningDate, runningTime } = event;
 

@@ -7,8 +7,10 @@ import { postReservation } from '@/api/reservation.ts';
 import useConfirm from '@/hooks/useConfirm.tsx';
 import usePreventLeave from '@/hooks/usePreventLeave.tsx';
 
+import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button.tsx';
 import Icon from '@/components/common/Icon.tsx';
+import Loading from '@/components/common/Loading.tsx';
 import Separator from '@/components/common/Separator.tsx';
 
 import SeatMap from '@/pages/ReservationPage/SeatMap.tsx';
@@ -53,6 +55,7 @@ export default function SectionAndSeat({
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
+  const [isChangingCount, setIsChangingCount] = useState<boolean>(false);
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
   const queryClient = useQueryClient();
@@ -114,6 +117,7 @@ export default function SectionAndSeat({
                   selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
                 ),
               )}>
+              {isChangingCount && <Dimmed />}
               <SeatMap
                 selectedSeats={selectedSeats}
                 setSelectedSeats={setSelectedSeats}
@@ -155,11 +159,18 @@ export default function SectionAndSeat({
             blurInputOnSelect={true}
             onChange={(event) => {
               if (event) {
+                //TODO 상태변경 너무 많다 관리 필요
                 const count = event.value;
                 setSelectedSeats([]);
                 selectSeatCount(count);
+                setIsChangingCount(true);
+                toast.warning('예매 매수 변경 중입니다.\n잠시만 기다려 주세요.');
                 changeSeatCountDebounce(() => {
-                  postSeatCountMutate(count);
+                  postSeatCountMutate(count, {
+                    onSettled: () => {
+                      setIsChangingCount(false);
+                    },
+                  });
                 });
               }
             }}
@@ -192,7 +203,8 @@ export default function SectionAndSeat({
         <Separator direction="row" />
         <div className="flex flex-col gap-4">
           <h3 className="text-heading2">선택한 좌석</h3>
-          <div className="flex flex-col gap-2">
+          <div className="relative flex flex-col gap-2">
+            {isChangingCount && <Loading className="h-full bg-black/20" />}
             {padEndArray(selectedSeats, seatCount, null).map((item, index) => {
               if (item == null)
                 return (
@@ -247,6 +259,10 @@ export default function SectionAndSeat({
     </div>
   );
 }
+
+const Dimmed = () => {
+  return <div className="absolute left-0 top-0 h-full w-full cursor-not-allowed bg-transparent"></div>;
+};
 
 const StageDirection = () => {
   return (
