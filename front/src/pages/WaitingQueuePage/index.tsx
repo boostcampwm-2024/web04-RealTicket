@@ -51,7 +51,7 @@ export default function WaitingQueuePage() {
   const totalWaiting = data?.totalWaiting;
   const throughputRate = data?.throughputRate;
   const headOrder = data?.headOrder;
-  const restCount = headOrder ? myOrder - headOrder : null;
+  const restCount = headOrder ? myOrder - headOrder + 1 : null;
   const waitingTime = headOrder ? Math.floor(restCount! / (throughputRate! / 1000)) : null;
 
   useEffect(() => {
