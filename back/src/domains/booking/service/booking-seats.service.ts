@@ -14,6 +14,7 @@ import { UserService } from '../../user/service/user.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
+import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
 import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
@@ -183,12 +184,26 @@ export class BookingSeatsService {
 
   private async createSeatSubscription(eventId: number, initialSeats: boolean[][]) {
     const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
-    setInterval(async () => {
-      if (this.isBroadcastActivated(eventId)) {
-        subscription.next(new SeatsSseDto(await this.getSeats(eventId)));
-        this.unActivateNextBroadcast(eventId);
-      }
-    }, SEATS_BROADCAST_INTERVAL);
+    let lastBroadcastTime = Date.now();
+
+    setInterval(
+      async () => {
+        const now = Date.now();
+        const timeSinceLastBroadcast = now - lastBroadcastTime;
+
+        if (timeSinceLastBroadcast >= SSE_MAXIMUM_INTERVAL || this.isBroadcastActivated(eventId)) {
+          const seats = await this.getSeats(eventId);
+          subscription.next(new SeatsSseDto(seats));
+          lastBroadcastTime = Date.now();
+
+          if (this.isBroadcastActivated(eventId)) {
+            this.unActivateNextBroadcast(eventId);
+          }
+        }
+      },
+      Math.min(SEATS_BROADCAST_INTERVAL, SSE_MAXIMUM_INTERVAL),
+    );
+
     return subscription;
   }
 }

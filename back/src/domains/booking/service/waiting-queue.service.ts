@@ -6,6 +6,7 @@ import { map } from 'rxjs/operators';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
+import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { WAITING_BROADCAST_INTERVAL } from '../const/waitingBroadcastInterval.const';
 import { DEFAULT_WAITING_THROUGHPUT_RATE } from '../const/watingThroughputRate.const';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
@@ -80,7 +81,7 @@ export class WaitingQueueService {
             DEFAULT_WAITING_THROUGHPUT_RATE,
           ),
         ),
-      WAITING_BROADCAST_INTERVAL,
+      Math.min(WAITING_BROADCAST_INTERVAL, SSE_MAXIMUM_INTERVAL),
     );
 
     this.queueSubscriptionMap.set(eventId, subscription);
