@@ -1,4 +1,4 @@
-import { getCenterCoordinate, getPathD } from '@/utils/svg.ts';
+import { calculatePolygonCentroid, getPathD } from '@/utils/svg.ts';
 
 import { twMerge } from 'tailwind-merge';
 
@@ -24,18 +24,19 @@ export default function SectionSelectorMap({
       <image href={svgURL} className="h-full w-full"></image>
       {sections.map((section, index) => {
         const { id, points } = section;
-        const [centerX, centerY] = getCenterCoordinate(...points);
+        const [textX, textY] = calculatePolygonCentroid(points);
         const d = getPathD(...points);
         const isActive = selectedSection === index || selectedSection === null;
         return (
           <g key={id} className="hover:cursor-pointer" onClick={() => setSelectedSection(index)}>
             <path className={isActive ? 'fill-primary' : 'fill-surface-sub'} d={d} />
             <text
-              className="fill-typo-display text-[200px]"
+              className="fill-typo text-[200px]"
+              fontWeight={'bold'}
               textAnchor="middle"
               dominantBaseline="middle"
-              x={centerX}
-              y={centerY}>{`${id} 구역`}</text>
+              x={textX}
+              y={textY}>{`${id}`}</text>
           </g>
         );
       })}
