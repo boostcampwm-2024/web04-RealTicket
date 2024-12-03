@@ -109,7 +109,9 @@ export default function WaitingQueuePage() {
     firstWaitingTime.current == null
       ? 0
       : ((firstWaitingTime.current - waitingTime!) / firstWaitingTime.current!) * 100;
-  const canGo = restCount !== null && restCount <= 0;
+
+  const canGo = restCount !== null && restCount < 0;
+
   if (canGo) {
     if (eventId) {
       navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)), { replace: true });
