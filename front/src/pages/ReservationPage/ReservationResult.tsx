@@ -16,10 +16,9 @@ interface IReservationResultProps {
   reservationResult: SelectedSeat[];
 }
 export default function ReservationResult({ event, reservationResult }: IReservationResultProps) {
-  const { name, runningDate, place } = event;
+  const { name, runningDate, place, price } = event;
   //TODO 가격 호출 필요
 
-  const price = 150000;
   const placeName = place.name;
   return (
     <div className="flex flex-col gap-8 rounded-xl border-2 border-e-surface-sub p-6 shadow-xl">
