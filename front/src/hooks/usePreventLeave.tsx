@@ -1,5 +1,4 @@
-import { useBeforeUnload } from 'react-router-dom';
-import { useBlocker } from 'react-router-dom';
+import { useBeforeUnload, useBlocker } from 'react-router-dom';
 
 export default function usePreventLeave() {
   useBlocker(() => {

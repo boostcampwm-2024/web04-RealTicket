@@ -1,0 +1,1 @@
+export const SSE_MAXIMUM_INTERVAL = 30000;

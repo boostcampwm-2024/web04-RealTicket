@@ -23,6 +23,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import { AxiosResponse } from 'axios';
 import { cx } from 'class-variance-authority';
 
 const POPOVER_WIDTH = 460;
@@ -44,14 +45,16 @@ export default function Navbar() {
   });
   const sliced = userId?.slice(0, 12);
 
-  const { mutate: requestDeleteReservation } = useMutation({
+  const { mutate: requestDeleteReservation } = useMutation<AxiosResponse, CustomError, number>({
     mutationKey: RESERVATION_DELETE_MUTATION_KEY,
     mutationFn: deleteReservation,
     onSuccess: () => {
       toast.warning('예매내역이 삭제되었습니다.');
       return queryClient.refetchQueries({ queryKey: ['reservation'] });
     },
-    onError: () => {
+    onError: (error) => {
+      //TODO 예외 관리 필요
+      if (error.status === 500 || error.status === 401 || error.status === 403) return;
       toast.error('예매내역 삭제에 실패했습니다.\n 잠시 후 다시 시도해주세요');
     },
   });

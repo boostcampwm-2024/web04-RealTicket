@@ -1,6 +1,4 @@
-import { RedisService } from '@liaoliaots/nestjs-redis';
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import Redis from 'ioredis';
 import { DataSource, In, QueryRunner } from 'typeorm';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
@@ -21,24 +19,18 @@ import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
 import { ReservationRepository } from '../repository/reservation.repository';
 
-const OFFSET = 1000 * 60 * 60 * 9;
-
 @Injectable()
 export class ReservationService {
-  private redis: Redis;
   private logger: Logger = new Logger(ReservationService.name);
 
   constructor(
     @Inject() private readonly reservationRepository: ReservationRepository,
-    @Inject() private readonly redisService: RedisService,
     @Inject() private readonly dataSource: DataSource,
     @Inject() private readonly authService: AuthService,
     @Inject() private readonly bookingService: BookingService,
     @Inject() private readonly inBookingService: InBookingService,
     @Inject() private readonly userService: UserService,
-  ) {
-    this.redis = this.redisService.getOrThrow();
-  }
+  ) {}
 
   async findUserReservation({ id }: UserParamDto) {
     const reservations: Reservation[] =
@@ -72,7 +64,7 @@ export class ReservationService {
   private makeStringFormatFromReservedSeats(reservedSeats: ReservedSeat[]) {
     return reservedSeats
       .map((seat) => {
-        return `${seat.section}구역 ${seat.row}행 ${seat.col}열`;
+        return `${seat.sectionName}구역 ${seat.row}행 ${seat.col}열`;
       })
       .join(', ');
   }
@@ -83,9 +75,14 @@ export class ReservationService {
       throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
     }
 
-    const eventId = (await reservation.event).id;
     const reservedSeats = await reservation.reservedSeats;
-    const reservedSeatsData: [number, number][] = reservedSeats.map((seat) => [seat.row - 1, seat.col - 1]);
+    const reservedSeatsData: [number, number][] = reservedSeats.map((seat) => {
+      const sectionIndex = seat.sectionIndex;
+      const seatIndex = (seat.row - 1) * seat.colLen + (seat.col - 1);
+      return [sectionIndex, seatIndex];
+    });
+
+    const eventId = (await reservation.event).id;
     await this.bookingService.freeSeatsIfEventOpened(eventId, reservedSeatsData);
 
     await this.reservationRepository.deleteReservationByIdMatchedUserId(id, reservationId);
@@ -152,7 +149,7 @@ export class ReservationService {
         placeName: place.name,
         price: program.price,
         seats: reservedSeatsInfo.map((seat) => {
-          return `${seat.section}구역 ${seat.row}행 ${seat.col}열`;
+          return `${seat.sectionName}구역 ${seat.row}행 ${seat.col}열`;
         }),
       };
     } catch (err) {
@@ -183,7 +180,7 @@ export class ReservationService {
     program: Program,
   ) {
     const reservationData: any = {
-      createdAt: new Date(Date.now() + OFFSET),
+      createdAt: new Date(),
       amount: reservationCreateDto.seats.length,
       program: program,
       event: event[0],
@@ -219,7 +216,9 @@ export class ReservationService {
       }
       return {
         event: { id: event[0].id },
-        section: section.name,
+        sectionName: section.name,
+        sectionIndex: seat.sectionIndex,
+        colLen: section.colLen,
         // 1행부터 시작하도록 행에 +1
         row: Math.floor(seat.seatIndex / section.colLen) + 1,
         // 1열부터 시작하도록 열에 +1

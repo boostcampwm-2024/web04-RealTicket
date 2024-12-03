@@ -7,7 +7,7 @@ import { postSeat } from '@/api/booking.ts';
 import useSSE from '@/hooks/useSSE.tsx';
 
 import { toast } from '@/components/Toast/index.ts';
-import Icon from '@/components/common/Icon.tsx';
+import Loading from '@/components/common/Loading.tsx';
 
 import type { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat.tsx';
 
@@ -83,17 +83,6 @@ export default function SeatMap({
     </>
   );
 }
-
-const Loading = () => {
-  return (
-    <div className="absolute flex w-full items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Icon iconName="Loading" className="h-16 w-16 animate-spin" color={'primary'} />
-        <span className="text-heading3 text-typo">loading..</span>
-      </div>
-    </div>
-  );
-};
 
 const renderSeatMap = (
   selectedSection: Section,
