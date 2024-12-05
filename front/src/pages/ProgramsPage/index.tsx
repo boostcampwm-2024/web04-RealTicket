@@ -18,7 +18,7 @@ export default function ProgramsPage() {
   const programs = data;
   //현재 데이터가 없어서 mock 대체
   return (
-    <ul className="grid grid-cols-[repeat(5,minmax(auto,_1fr))] gap-6 overflow-auto">
+    <ul className="grid grid-cols-[repeat(4,minmax(auto,_1fr))] gap-6 overflow-auto">
       {programs.map((program) => (
         <li key={program.id}>
           <Link to={ROUTE_URL.PROGRAM.PROGRAM_DETAIL(program.id)}>
