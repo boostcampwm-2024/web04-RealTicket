@@ -1,5 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import Redis from 'ioredis';
@@ -20,6 +20,7 @@ import { WaitingQueueService } from './waiting-queue.service';
 @Injectable()
 export class OpenBookingService implements OnApplicationBootstrap {
   private readonly redis: Redis | null;
+  private readonly logger = new Logger(OpenBookingService.name);
 
   constructor(
     private redisService: RedisService,
@@ -48,9 +49,13 @@ export class OpenBookingService implements OnApplicationBootstrap {
 
   @Cron(ONE_MINUTE_BEFORE_THE_HOUR)
   async scheduleUpcomingReservations() {
-    const comingEvents = await this.eventRepository.selectUpcomingEvents();
-    await this.scheduleUpcomingReservationsToOpen(comingEvents);
-    await this.scheduleUpcomingReservationsToClose(comingEvents);
+    try {
+      const comingEvents = await this.eventRepository.selectUpcomingEvents();
+      await this.scheduleUpcomingReservationsToOpen(comingEvents);
+      await this.scheduleUpcomingReservationsToClose(comingEvents);
+    } catch (error) {
+      this.logger.error(error);
+    }
   }
 
   private async scheduleUpcomingReservationsToOpen(comingEvents: Event[]) {

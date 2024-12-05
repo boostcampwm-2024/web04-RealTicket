@@ -10,12 +10,14 @@ import {
 import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserParamDto } from '../../../util/user-injection/userParamDto';
+import { Reservation } from '../../reservation/entity/reservation.entity';
+import { ReservedSeat } from '../../reservation/entity/reservedSeat.entity';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserInfoDto } from '../dto/userInfo.dto';
@@ -183,14 +185,24 @@ export class UserService {
 
   @Cron('0 0 0 * * *', { name: 'removeGuestReservation' })
   async removeAllGuest() {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
     try {
-      const queryRunner = this.dataSource.createQueryRunner();
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
+      const user = await queryRunner.manager.find(User, { where: { checkGuest: true } });
+      const userIds = user.map((u) => u.id);
+
+      const reservationIds = await queryRunner.manager.find(Reservation, { where: { user: In(userIds) } });
+      await queryRunner.manager.delete(ReservedSeat, { reservation: In(reservationIds.map((r) => r.id)) });
+      await queryRunner.manager.delete(Reservation, { user: In(userIds) });
+      await queryRunner.manager.delete(User, { id: In(userIds) });
+
+      await queryRunner.commitTransaction();
 
       return this.userRepository.deleteAllGuest();
     } catch (err) {
       this.logger.error(err.name, err.stack);
+      await queryRunner.rollbackTransaction();
       throw new InternalServerErrorException('게스트 사용자 삭제에 실패하였습니다.');
     }
   }
