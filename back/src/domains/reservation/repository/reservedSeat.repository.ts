@@ -12,4 +12,10 @@ export class ReservedSeatRepository {
     const reservedSeat = this.reservedSeatRepository.create(reservedSeatData);
     return this.reservedSeatRepository.save(reservedSeat);
   }
+
+  async deleteReservedSeatByReservation(reservationId: number) {
+    return await this.reservedSeatRepository.softDelete({
+      reservation: { id: reservationId },
+    });
+  }
 }

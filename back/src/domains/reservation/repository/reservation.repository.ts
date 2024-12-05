@@ -1,12 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { DataSource, MoreThanOrEqual, Repository } from 'typeorm';
 
 import { Reservation } from '../entity/reservation.entity';
 
+import { ReservedSeatRepository } from './reservedSeat.repository';
+
 @Injectable()
 export class ReservationRepository {
-  constructor(@InjectRepository(Reservation) private ReservationRepository: Repository<Reservation>) {}
+  constructor(
+    @InjectRepository(Reservation) private ReservationRepository: Repository<Reservation>,
+    private readonly reservedSeatRepository: ReservedSeatRepository,
+    private readonly dataSource: DataSource,
+  ) {}
 
   async selectAllReservationAfterNowByUserWithAll(userId: number): Promise<Reservation[]> {
     return await this.ReservationRepository.find({
@@ -28,9 +34,12 @@ export class ReservationRepository {
   }
 
   async deleteReservationByIdMatchedUserId(userId: number, reservationId: number) {
-    return await this.ReservationRepository.softDelete({
-      id: reservationId,
-      user: { id: userId },
+    await this.dataSource.transaction(async () => {
+      await this.reservedSeatRepository.deleteReservedSeatByReservation(reservationId);
+      await this.ReservationRepository.softDelete({
+        id: reservationId,
+        user: { id: userId },
+      });
     });
   }
 
