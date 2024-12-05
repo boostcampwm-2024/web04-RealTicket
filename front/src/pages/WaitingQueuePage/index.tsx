@@ -21,13 +21,13 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 
 /*
 이 페이지는 예매 대기 페이지에서 진입된다. 거기에 이벤트 정보가 있다 .
-params의 이벤트 재호출 보다는 reactrouter 의 state를 이요하거나, react query의 cache를 이용하자 
+params의 이벤트 재호출 보다는 reactrouter 의 state를 이요하거나, react query의 cache를 이용하자
 
 
-편의성을 위해서 캐싱된 데이터 이용 
+편의성을 위해서 캐싱된 데이터 이용
 
 progressbar를 어떻게 계산?
-첫 예상 시간을 받고 
+첫 예상 시간을 받고
 TODO sse 커스텀 훅으로 변경
 */
 export default function WaitingQueuePage() {
@@ -96,7 +96,7 @@ export default function WaitingQueuePage() {
       title: '대기 인원',
       content: (
         <span className="text-heading3 text-typo">
-          <span className="text-warning">{totalWaiting}</span> 번
+          <span className="text-warning">{totalWaiting}</span> 명
         </span>
       ),
     },
@@ -112,7 +112,7 @@ export default function WaitingQueuePage() {
       ? 0
       : ((firstWaitingTime.current - waitingTime!) / firstWaitingTime.current!) * 100;
 
-  const canGo = restCount !== null && restCount < 0;
+  const canGo = restCount !== null && restCount <= 0;
 
   if (canGo) {
     if (eventId) {
