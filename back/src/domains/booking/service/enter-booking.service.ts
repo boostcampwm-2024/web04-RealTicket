@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
+import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
 import { ENTERING_GC_INTERVAL, ENTERING_SESSION_EXPIRY } from '../const/enterBooking.const';
 
@@ -12,6 +13,7 @@ export class EnterBookingService {
   private readonly redis: Redis | null;
   constructor(
     private readonly redisService: RedisService,
+    private readonly authService: AuthService,
     private readonly userService: UserService,
     private readonly eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
@@ -78,7 +80,22 @@ export class EnterBookingService {
 
   private async removeExpiredSessions(eventId: number) {
     const expiryTimestamp = Date.now() - ENTERING_SESSION_EXPIRY;
-    await this.redis.zremrangebyscore(`entering:${eventId}`, 0, expiryTimestamp);
+    const key = `entering:${eventId}`;
+
+    const multi = this.redis.multi();
+    multi.zrangebyscore(key, 0, expiryTimestamp);
+    multi.zremrangebyscore(key, 0, expiryTimestamp);
+
+    const results = (await multi.exec()) as [[Error | null, string[]], [Error | null, number]];
+
+    if (results[0][0]) {
+      throw results[0][0];
+    }
+    const expiredSessions = results[0][1];
+
+    expiredSessions.forEach((sid: string) => {
+      this.authService.setUserStatusLogin(sid);
+    });
   }
 
   async getAllEnteringSids(eventId: number) {
