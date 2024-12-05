@@ -96,7 +96,7 @@ export default function WaitingQueuePage() {
       title: '대기 인원',
       content: (
         <span className="text-heading3 text-typo">
-          <span className="text-warning">{totalWaiting}</span> 번
+          <span className="text-warning">{totalWaiting}</span> 명
         </span>
       ),
     },
