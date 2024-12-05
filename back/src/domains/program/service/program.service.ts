@@ -1,5 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import { Event } from 'src/domains/event/entity/event.entity';
+
 import { PlaceMainPageDto } from '../dto/placeMainPage.dto';
 import { ProgramCreationDto } from '../dto/programCreation.dto';
 import { ProgramIdDto } from '../dto/programId.dto';
@@ -39,9 +41,12 @@ export class ProgramService {
   }
 
   private async convertProgramToSpecificDto(program: Program): Promise<ProgramSpecificDto> {
+    const now = new Date();
     const [place, events] = await Promise.all([program.place, program.events]);
-
-    return new ProgramSpecificDto({ ...program, place, events });
+    const openedEvents: Event[] = events.filter((event) => {
+      return event.reservationCloseDate >= now;
+    });
+    return new ProgramSpecificDto({ ...program, place, events: openedEvents });
   }
 
   async create(programCreationDto: ProgramCreationDto): Promise<void> {

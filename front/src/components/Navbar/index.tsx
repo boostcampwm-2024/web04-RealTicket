@@ -83,7 +83,7 @@ export default function Navbar() {
           const sliced = data.loginId.slice(0, 12);
           if (login) {
             login(sliced);
-            toast.success('geust로 로그인 되었습니다');
+            toast.success('guest로 로그인 되었습니다');
           }
         })
         .catch(() => {

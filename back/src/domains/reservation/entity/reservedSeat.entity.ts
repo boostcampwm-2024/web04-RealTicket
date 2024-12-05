@@ -1,14 +1,25 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  DeleteDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 
 import { Event } from '../../event/entity/event.entity';
 
 import { Reservation } from './reservation.entity';
 
 @Entity({ name: 'Reserved_Seat' })
-@Unique(['row', 'col', 'sectionName', 'event'])
+@Unique(['row', 'col', 'sectionName', 'event', 'deletedAt'])
 export class ReservedSeat {
   @PrimaryGeneratedColumn('increment')
   id: number;
+
+  @DeleteDateColumn({ type: 'timestamp', name: 'deleted_at', nullable: true })
+  deletedAt: Date;
 
   @Column({ type: 'varchar', length: 255, name: 'section_name' })
   sectionName: string;
