@@ -54,6 +54,8 @@ export default function WaitingQueuePage() {
   const restCount = headOrder ? myOrder - headOrder + 1 : null;
   const waitingTime = headOrder ? Math.floor(restCount! / (throughputRate! / 1000)) : null;
 
+  const restTimeText = waitingTime == null || waitingTime < 100 ? `1분 이내` : `${waitingTime} 초`;
+
   useEffect(() => {
     if (!myOrder || !eventId) {
       //TODO toast
@@ -101,7 +103,7 @@ export default function WaitingQueuePage() {
     {
       icon: <Icon iconName="Clock" />,
       title: '예상 대기 시간',
-      content: <span className="text-heading3 text-typo">{`${waitingTime} 초`}</span>,
+      content: <span className="text-heading3 text-typo">{restTimeText}</span>,
     },
   ];
 
