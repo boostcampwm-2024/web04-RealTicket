@@ -25,6 +25,7 @@ export interface ProgramDetail {
 export interface EventDetail {
   id: number;
   name: string;
+  price: number;
   place: { id: number; name: string };
   runningTime: number;
   runningDate: string;

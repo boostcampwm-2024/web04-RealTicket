@@ -51,8 +51,10 @@ export default function WaitingQueuePage() {
   const totalWaiting = data?.totalWaiting;
   const throughputRate = data?.throughputRate;
   const headOrder = data?.headOrder;
-  const restCount = headOrder ? myOrder - headOrder : null;
+  const restCount = headOrder ? myOrder - headOrder + 1 : null;
   const waitingTime = headOrder ? Math.floor(restCount! / (throughputRate! / 1000)) : null;
+
+  const restTimeText = waitingTime == null || waitingTime < 100 ? `1분 이내` : `${waitingTime} 초`;
 
   useEffect(() => {
     if (!myOrder || !eventId) {
@@ -101,7 +103,7 @@ export default function WaitingQueuePage() {
     {
       icon: <Icon iconName="Clock" />,
       title: '예상 대기 시간',
-      content: <span className="text-heading3 text-typo">{`${waitingTime} 초`}</span>,
+      content: <span className="text-heading3 text-typo">{restTimeText}</span>,
     },
   ];
 
@@ -109,7 +111,9 @@ export default function WaitingQueuePage() {
     firstWaitingTime.current == null
       ? 0
       : ((firstWaitingTime.current - waitingTime!) / firstWaitingTime.current!) * 100;
-  const canGo = restCount !== null && restCount <= 0;
+
+  const canGo = restCount !== null && restCount < 0;
+
   if (canGo) {
     if (eventId) {
       navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)), { replace: true });
