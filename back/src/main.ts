@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
+import './config/loadDotEnv';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/setupSwagger';
 import { winstonLoggerConfig } from './util/logger/winstonlogger.config';
@@ -14,7 +15,7 @@ async function bootstrap() {
   process.env.TZ = 'Asia/Seoul';
   setupSwagger(app);
   app.enableCors({
-    origin: '*',
+    origin: [process.env.FRONT_URL ?? 'http://localhost:3000'],
     credentials: true,
   });
   app.useGlobalPipes(
