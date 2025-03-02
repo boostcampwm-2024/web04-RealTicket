@@ -1,21 +1,18 @@
 FROM node:20 AS build
 WORKDIR /app
-COPY package*.json ./ 
+COPY package*.json ./
 # Install dependencies
 RUN npm install --legacy-peer-deps
 
 COPY . .
-ARG VITE_ENVIRONMENT
-ARG VITE_API_URL
 
-# Vite가 빌드 시점에 사용할 수 있도록 환경 변수 생성
-RUN echo "VITE_ENVIRONMENT=${VITE_ENVIRONMENT}" >> .env && \
-echo "VITE_API_URL=${VITE_API_URL}" >> .env
+# API 프록싱 활성화
+RUN echo "VITE_API_PROXYING=true" >> .env
 
 RUN npm run build
 
 # Use nginx image for production stage
-FROM nginx:stable-alpine 
+FROM nginx:stable-alpine
 WORKDIR /usr/share/nginx/html
 RUN rm -rf ./*
 COPY --from=build /app/dist/ .
