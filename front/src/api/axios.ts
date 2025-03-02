@@ -6,10 +6,12 @@ import router from '@/routes/index.tsx';
 import axios, { AxiosError, isAxiosError } from 'axios';
 
 //TODO 타입 정의
-const isDevelopEnvironment = import.meta.env.VITE_ENVIRONMENT === 'dev';
-// const isDevelopEnvironment = true;
+const isApiProxying = !!import.meta.env.VITE_API_PROXYING;
+const proxyingUrl = window.location.origin + '/api';
+const apiServerUrl = import.meta.env.VITE_BE_URL ? import.meta.env.VITE_BE_URL : 'http://localhost:8080';
 
-export const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
+export const BASE_URL = isApiProxying ? proxyingUrl : apiServerUrl;
+
 type ErrorData = {
   error: string;
   message: string;
