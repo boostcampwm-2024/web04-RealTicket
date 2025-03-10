@@ -20,8 +20,9 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
 
 @Module({
   imports: [
-    ...(process.env.MOCK_MODE !== 'true'
-      ? [
+    ...(process.env.MOCK_MODE === 'true'
+      ? [MockModule]
+      : [
           TypeOrmModule.forRoot(ormConfig),
           RedisModule.forRoot(redisConfig),
           ScheduleModule.forRoot(),
@@ -33,9 +34,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
           EventModule,
           UserDecoratorModule,
           BenchmarkModule,
-        ]
-      : []),
-    MockModule,
+        ]),
   ],
   controllers: [AppController],
   providers: [AppService],
