@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BenchmarkModule } from './benchmark/benchmark.module';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
 import { BookingModule } from './domains/booking/booking.module';
@@ -31,6 +32,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
           BookingModule,
           EventModule,
           UserDecoratorModule,
+          BenchmarkModule,
         ]
       : []),
     MockModule,
