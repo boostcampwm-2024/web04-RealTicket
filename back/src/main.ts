@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { WsAdapter } from '@nestjs/platform-ws';
 import cookieParser from 'cookie-parser';
 
 import './config/loadDotEnv';
@@ -23,6 +24,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useWebSocketAdapter(new WsAdapter(app));
   app.use(cookieParser());
   app.use(loggerMiddleware(winstonLoggerConfig));
   await app.listen(process.env.PORT ?? 8080);
