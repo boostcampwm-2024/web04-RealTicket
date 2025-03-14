@@ -3,9 +3,8 @@ import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException
 import { Request } from 'express';
 import Redis from 'ioredis';
 
+import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
-
-const EXPIRE_TIME = 3600;
 
 export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STATUS.LOGIN) {
   @Injectable()
@@ -34,7 +33,7 @@ export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STAT
 
       for (const requiredStatus of statusesToCheck) {
         if (USER_LEVEL[session.userStatus] >= USER_LEVEL[requiredStatus]) {
-          await this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + EXPIRE_TIME);
+          await this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + AUTH_EXPIRE_TIME);
           return true;
         }
       }

@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BenchmarkModule } from './benchmark/benchmark.module';
 import redisConfig from './config/redisConfig';
 import ormConfig from './config/typeOrmConfig';
 import { BookingModule } from './domains/booking/booking.module';
@@ -19,8 +20,9 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
 
 @Module({
   imports: [
-    ...(process.env.MOCK_MODE !== 'true'
-      ? [
+    ...(process.env.MOCK_MODE === 'true'
+      ? [MockModule]
+      : [
           TypeOrmModule.forRoot(ormConfig),
           RedisModule.forRoot(redisConfig),
           ScheduleModule.forRoot(),
@@ -31,9 +33,8 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
           BookingModule,
           EventModule,
           UserDecoratorModule,
-        ]
-      : []),
-    MockModule,
+        ]),
+    ...(process.env.BENCHMARK_MODE === 'true' ? [BenchmarkModule] : []),
   ],
   controllers: [AppController],
   providers: [AppService],
