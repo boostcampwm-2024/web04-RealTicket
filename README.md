@@ -1,6 +1,6 @@
 ![Group 1](https://github.com/user-attachments/assets/0a330f32-ca85-4ff7-895f-48b242dfcdd8)
 
-<a href="http://www.realticket.shop/">
+<a href="http://realticket.shop/">
   <img src="https://github.com/user-attachments/assets/9843f504-987b-468c-b951-c2509ce8a958" width="525" alt="Real-Ticket 이용하기(배포 링크)">
 </a>
 
