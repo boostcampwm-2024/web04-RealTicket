@@ -53,6 +53,6 @@ export interface SectionCoordinate {
 export interface Section {
   id: number;
   name: string;
-  seats: boolean[];
+  seats: number[];
   colLen: number;
 }

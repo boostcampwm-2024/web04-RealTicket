@@ -55,7 +55,7 @@ export default function SeatMap({
     },
     select: (mutation) => mutation.state.variables as PostSeatData,
   });
-  const { data, isLoading } = useSSE<{ seatStatus: boolean[][] }>({
+  const { data, isLoading } = useSSE<{ seatStatus: number[][] }>({
     sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
   });
 
@@ -87,7 +87,7 @@ export default function SeatMap({
 const renderSeatMap = (
   selectedSection: Section,
   selectedSectionIndex: number,
-  seatStatus: boolean[],
+  seatStatus: number[],
   setSelectedSeats: (seats: SelectedSeat[]) => void,
   maxSelectCount: number,
   selectedSeats: SelectedSeat[],
@@ -108,23 +108,24 @@ const renderSeatMap = (
     const rowsCount = Math.floor(index / colLen) + 1;
     const isNewLine = index % colLen === 0;
     if (isNewLine) columnCount = 1;
-    const seatName = seat ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
+    const seatName = seat === 1 ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
     const isMine = seatName && selectedSeats.some((selected) => selected.name == seatName);
 
     const isReserving = reservingList.some(
       (reserve) => reserve.seatIndex === index && reserve.sectionIndex === selectedSectionIndex,
     );
-    const isOthers = !seatStatus[index];
+    const isOthers = seatStatus[index] === 0;
     //TODO 삼항 연산자 제거
-    const stateClass = !seat
-      ? 'bg-transparent  pointer-events-none'
-      : isReserving
-        ? 'bg-warning pointer-events-none'
-        : isMine
-          ? 'bg-success cursor-pointer'
-          : isOthers
-            ? `bg-surface-sub pointer-events-none`
-            : 'bg-primary cursor-pointer';
+    const stateClass =
+      seat === 0
+        ? 'bg-transparent  pointer-events-none'
+        : isReserving
+          ? 'bg-warning pointer-events-none'
+          : isMine
+            ? 'bg-success cursor-pointer'
+            : isOthers
+              ? `bg-surface-sub pointer-events-none`
+              : 'bg-primary cursor-pointer';
     if (seat) columnCount++;
     return (
       <div
