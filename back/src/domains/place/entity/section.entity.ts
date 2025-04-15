@@ -14,7 +14,7 @@ export class Section {
   colLen: number;
 
   @Column({ type: 'json', name: 'seats' })
-  seats: boolean[];
+  seats: number[];
 
   @ManyToOne(() => Place, (place) => place.sections, { lazy: true })
   @JoinColumn({ name: 'place_id', referencedColumnName: 'id' })
