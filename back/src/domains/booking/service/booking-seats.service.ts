@@ -24,7 +24,7 @@ import { runUpdateSeatLua } from '../luaScripts/updateSeatLua';
 import { InBookingService } from './in-booking.service';
 
 type SeatStatusObject = {
-  seatStatus: boolean[][];
+  seatStatus: number[][];
 };
 
 @Injectable()
@@ -42,9 +42,9 @@ export class BookingSeatsService {
     this.redis = this.redisService.getOrThrow();
   }
 
-  async openReservation(eventId: number, seats: boolean[][]) {
+  async openReservation(eventId: number, seats: number[][]) {
     seats.forEach((section, sectionIndex) => {
-      const seatBitMap = section.map((seat) => (seat ? '1' : '0')).join('');
+      const seatBitMap = section.map((seat) => seat.toString()).join('');
       const key = `event:${eventId}:section:${sectionIndex}:seats`;
       runInitSectionSeatLua(this.redis, key, seatBitMap);
     });
@@ -152,7 +152,7 @@ export class BookingSeatsService {
     if (!seatStatusBits) {
       throw new InternalServerErrorException('좌석 정보를 가져오는데 실패했습니다.');
     }
-    return seatStatusBits.map((sectionBits) => sectionBits.map((bit) => bit === 1));
+    return seatStatusBits;
   }
 
   subscribeSeats(eventId: number) {
@@ -182,7 +182,7 @@ export class BookingSeatsService {
     return this.broadcastActivateMap.get(eventId);
   };
 
-  private async createSeatSubscription(eventId: number, initialSeats: boolean[][]) {
+  private async createSeatSubscription(eventId: number, initialSeats: number[][]) {
     const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
     let lastBroadcastTime = Date.now();
 
