@@ -6,13 +6,9 @@ import cookieParser from 'cookie-parser';
 import './config/loadDotEnv';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/setupSwagger';
-import { winstonLoggerConfig } from './util/logger/winstonlogger.config';
-import { loggerMiddleware } from './util/logger/winstonlogger.middleware';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: winstonLoggerConfig,
-  });
+  const app = await NestFactory.create(AppModule, {});
   process.env.TZ = 'Asia/Seoul';
   setupSwagger(app);
   app.enableCors({
@@ -26,7 +22,6 @@ async function bootstrap() {
   );
   app.useWebSocketAdapter(new WsAdapter(app));
   app.use(cookieParser());
-  app.use(loggerMiddleware(winstonLoggerConfig));
   await app.listen(process.env.PORT ?? 8080);
 }
 
