@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import { utilities as nestWinstonModuleUtilities, WinstonModule } from 'nest-winston';
+import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import * as winston from 'winston';
 import winstonDaily from 'winston-daily-rotate-file';
 
@@ -18,7 +18,7 @@ const dailyOptions = (level: string) => {
   };
 };
 
-export const winstonLoggerConfig = WinstonModule.createLogger({
+export const winstonConfig = {
   transports: [
     new winston.transports.Console({
       level: 'silly',
@@ -37,4 +37,4 @@ export const winstonLoggerConfig = WinstonModule.createLogger({
     new winstonDaily(dailyOptions('warn')),
     new winstonDaily(dailyOptions('error')),
   ],
-});
+};
