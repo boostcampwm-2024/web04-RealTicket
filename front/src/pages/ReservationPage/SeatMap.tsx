@@ -21,6 +21,7 @@ interface SeatMapProps {
   setSelectedSeats: (seats: SelectedSeat[]) => void;
   maxSelectCount: number;
   selectedSeats: SelectedSeat[];
+  seatSize?: number; // 좌석 크기 prop 추가
 }
 
 export default function SeatMap({
@@ -29,6 +30,7 @@ export default function SeatMap({
   setSelectedSeats,
   maxSelectCount,
   selectedSeats,
+  seatSize = 24, // 기본값
 }: SeatMapProps) {
   const { eventId } = useParams();
   const { mutate: pickSeat } = useMutation({
@@ -76,6 +78,7 @@ export default function SeatMap({
           pickSeat,
           Number(eventId!),
           reservingList,
+          seatSize, // 좌석 크기 전달
         )
       ) : (
         <Loading />
@@ -100,6 +103,7 @@ const renderSeatMap = (
   ) => void,
   eventId: number,
   reservingList: PostSeatData[],
+  seatSize: number, // 좌석 크기 매개변수 추가
 ) => {
   let columnCount = 1;
   const { name, seats, colLen } = selectedSection;
@@ -115,10 +119,10 @@ const renderSeatMap = (
       (reserve) => reserve.seatIndex === index && reserve.sectionIndex === selectedSectionIndex,
     );
     const isOthers = seatStatus[index] === 0;
-    //TODO 삼항 연산자 제거
+
     const stateClass =
       seat === 0
-        ? 'bg-transparent  pointer-events-none'
+        ? 'bg-transparent pointer-events-none'
         : isReserving
           ? 'bg-warning pointer-events-none'
           : isMine
@@ -130,7 +134,14 @@ const renderSeatMap = (
     return (
       <div
         key={`${seatName}${index}`}
-        className={`h-6 w-6 ${stateClass}`}
+        className={`${stateClass} rounded-sm`}
+        style={{
+          width: `${seatSize}px`, // 동적 크기
+          height: `${seatSize}px`, // 동적 크기
+          flexShrink: 0,
+          minWidth: `${seatSize}px`, // 최소 크기 보장
+          minHeight: `${seatSize}px`, // 최소 크기 보장
+        }}
         data-name={seatName}
         onClick={() => {
           const selectedCount = selectedSeats.length;
