@@ -14,28 +14,23 @@ import { PlaceModule } from './domains/place/place.module';
 import { ProgramModule } from './domains/program/program.module';
 import { ReservationModule } from './domains/reservation/reservation.module';
 import { UserModule } from './domains/user/user.module';
-import { MockModule } from './mock/mock.module';
 import { LoggingModule } from './util/logger/logging.module';
 import { UserDecoratorMiddleware } from './util/user-injection/user.decorator.middleware';
 import { UserDecoratorModule } from './util/user-injection/user.decorator.module';
 
 @Module({
   imports: [
-    ...(process.env.MOCK_MODE === 'true'
-      ? [MockModule]
-      : [
-          TypeOrmModule.forRoot(ormConfig),
-          RedisModule.forRoot(redisConfig),
-          ScheduleModule.forRoot(),
-          LoggingModule,
-          ProgramModule,
-          ReservationModule,
-          PlaceModule,
-          UserModule,
-          BookingModule,
-          EventModule,
-          UserDecoratorModule,
-        ]),
+    TypeOrmModule.forRoot(ormConfig),
+    RedisModule.forRoot(redisConfig),
+    ScheduleModule.forRoot(),
+    LoggingModule,
+    ProgramModule,
+    ReservationModule,
+    PlaceModule,
+    UserModule,
+    BookingModule,
+    EventModule,
+    UserDecoratorModule,
     ...(process.env.NODE_ENV === 'benchmark' ? [BenchmarkModule] : []),
   ],
   controllers: [AppController],
