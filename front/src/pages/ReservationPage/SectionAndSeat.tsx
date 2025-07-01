@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Select from 'react-select';
 
 import { postSeatCount } from '@/api/booking.ts';
@@ -24,8 +24,6 @@ import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
 import type { EventDetail, PlaceInformation, SectionCoordinate } from '@/type/index.ts';
 import type { SeatCount } from '@/type/reservation.ts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { cx } from 'class-variance-authority';
-import { twMerge } from 'tailwind-merge';
 
 export interface SelectedSeat {
   sectionIndex: number;
@@ -56,6 +54,8 @@ export default function SectionAndSeat({
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
   const [isChangingCount, setIsChangingCount] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
   const queryClient = useQueryClient();
@@ -75,9 +75,37 @@ export default function SectionAndSeat({
 
   const SELECT_OPTION_LIST = SEAT_COUNT_LIST.map((count) => ({ value: count, label: `${count}매` }));
 
+  // 좌석 수에 따른 자동 크기 계산
+  const calculateSeatSize = (colLen: number) => {
+    if (colLen <= 15) return 28; // 기본 크기
+    if (colLen <= 25) return 24; // 중간 크기
+    if (colLen <= 35) return 20; // 작은 크기
+    return 16; // 최소 크기
+  };
+
+  // 좌석 규모에 따른 초기 줌 레벨 계산
+  const calculateInitialZoom = (colLen: number) => {
+    if (colLen <= 30) return 1.0; // 100% - 소규모
+    if (colLen <= 40) return 0.75; // 75% - 중간 규모
+    return 0.5; // 50% - 대형
+  };
+
+  const seatSize = selectedSectionSeatMap ? calculateSeatSize(selectedSectionSeatMap.colLen) : 28;
+
+  const finalSeatSize = seatSize * zoomLevel;
+
+  // selectedSection이 변경될 때마다 적절한 초기 줌 레벨 설정
+  useEffect(() => {
+    if (selectedSectionSeatMap && typeof selectedSectionSeatMap === 'object') {
+      const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen);
+      setZoomLevel(initialZoom);
+    }
+  }, [selectedSection]);
+
   return (
     <div className="flex w-full gap-4">
-      <div className="flex w-[70%] flex-col gap-8 px-4 py-2">
+      {/* 왼쪽 영역 - 너비 제한 강화 */}
+      <div className="flex w-[70%] min-w-0 flex-col gap-8 px-4 py-2">
         <div className="flex flex-col items-start">
           <h2 className="text-heading1 text-typo">{name}</h2>
         </div>
@@ -110,21 +138,76 @@ export default function SectionAndSeat({
         {canViewSeatMap ? (
           <>
             <StageDirection />
-            <div
-              className={twMerge(
-                cx(
-                  'relative mx-auto grid auto-cols-min gap-4',
-                  selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
-                ),
-              )}>
-              {isChangingCount && <Dimmed />}
-              <SeatMap
-                selectedSeats={selectedSeats}
-                setSelectedSeats={setSelectedSeats}
-                selectedSection={sections[selectedSection]}
-                maxSelectCount={seatCount}
-                selectedSectionIndex={selectedSection}
-              />
+
+            {/* 줌 컨트롤 */}
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
+                className="flex h-8 w-8 items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                disabled={zoomLevel <= 0.5}>
+                <span className="text-lg font-bold">-</span>
+              </button>
+              <span className="min-w-[60px] text-center text-sm font-medium">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <button
+                onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.25))}
+                className="flex h-8 w-8 items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                disabled={zoomLevel >= 2}>
+                <span className="text-lg font-bold">+</span>
+              </button>
+              <button
+                onClick={() => {
+                  const initialZoom = selectedSectionSeatMap
+                    ? calculateInitialZoom(selectedSectionSeatMap.colLen)
+                    : 1;
+                  setZoomLevel(initialZoom);
+                }}
+                className="ml-2 rounded bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600">
+                자동
+              </button>
+            </div>
+
+            {/* 핵심: 부모 너비를 절대 넘지 않는 스크롤 컨테이너 */}
+            <div className="w-full overflow-hidden">
+              <div className="mx-auto w-full overflow-auto p-4" style={{ height: '600px' }}>
+                {/* 배치도 정보 표시 */}
+                <div className="mb-4 text-center">
+                  <div className="inline-flex items-center gap-4 rounded bg-white px-4 py-2 shadow-sm">
+                    <span className="text-sm text-gray-600">{selectedSectionSeatMap?.name}구역</span>
+                    <span className="text-xs text-gray-500">
+                      {selectedSectionSeatMap?.colLen}열 ×{' '}
+                      {Math.ceil(
+                        selectedSectionSeatMap?.seats.filter((s) => s === 1).length /
+                          selectedSectionSeatMap?.colLen,
+                      )}
+                      행
+                    </span>
+                  </div>
+                </div>
+
+                {/* 성능 최적화: transform 대신 직접 크기 변경 */}
+                <div
+                  className="relative grid gap-1"
+                  style={{
+                    gridTemplateColumns: selectedSectionSeatMap
+                      ? `repeat(${selectedSectionSeatMap.colLen}, ${finalSeatSize}px)`
+                      : undefined,
+                    justifyContent: 'center',
+                    width: 'fit-content',
+                    margin: '0 auto',
+                  }}>
+                  {isChangingCount && <Dimmed />}
+                  <SeatMap
+                    selectedSeats={selectedSeats}
+                    setSelectedSeats={setSelectedSeats}
+                    selectedSection={sections[selectedSection]}
+                    maxSelectCount={seatCount}
+                    selectedSectionIndex={selectedSection}
+                    seatSize={finalSeatSize}
+                  />
+                </div>
+              </div>
             </div>
           </>
         ) : (
@@ -138,7 +221,7 @@ export default function SectionAndSeat({
         )}
       </div>
       <Separator direction="col" />
-      <div className="flex flex-col gap-6">
+      <div className="flex w-[30%] min-w-0 flex-col gap-6">
         <SectionSelectorMap
           className="flex-grow-0"
           sections={sectionCo}
