@@ -44,7 +44,7 @@ export class BookingService {
 
   private async collectSeatsIfNotSaved(eventId: number, sid: string) {
     const inBookingSession = await this.inBookingService.getSession(eventId, sid);
-    if (process.env.BENCHMARK_MODE === 'true' && eventId === 1) {
+    if (process.env.NODE_ENV === 'benchmark' && eventId === 1) {
       return;
     }
     if (inBookingSession && !inBookingSession.saved) {
