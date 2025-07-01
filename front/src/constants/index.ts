@@ -8,7 +8,6 @@ export const API = {
     //TODO 단수로
     GET_PROGRAMS: '/program',
     GET_DETAIL: (id: number) => `/program/${id}`,
-    GET_DETAIL_MOCK: (id: number) => `/mock/programs/${id}`,
   },
   USER: {
     SIGNUP: '/user/signup',
@@ -19,7 +18,6 @@ export const API = {
     LOGIN_AS_GUEST: '/user/guest',
   },
   EVENT: {
-    GET_EVENT_DETAIL_MOCK: (id: number) => `/mock/events/${id}`,
     GET_EVENT_DETAIL: (id: number) => `/event/${id}`,
   },
   PLACE: {
@@ -32,7 +30,6 @@ export const API = {
   },
   BOOKING: {
     GET_SEATS_SSE: (id: number) => `/booking/seat/${id}`,
-    GET_SEATS_SSE_MOCK: `/mock/events/seat/1`,
     GET_PERMISSION: (id: number) => `/booking/permission/${id}`,
     POST_COUNT: `/booking/count`,
     POST_SEAT: `/booking`,
