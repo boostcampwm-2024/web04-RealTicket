@@ -16,7 +16,6 @@ export default function ProgramsPage() {
     queryFn: getPrograms,
   });
   const programs = data;
-  //현재 데이터가 없어서 mock 대체
   return (
     <ul className="grid grid-cols-[repeat(4,minmax(auto,_1fr))] gap-6 overflow-auto">
       {programs.map((program) => (
