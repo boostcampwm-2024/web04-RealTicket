@@ -32,30 +32,54 @@
 $ npm install
 ```
 
+### 환경 변수 설정
+'.env' 파일들을 생성하세요:
+```text
+./
+└── back/
+    └── src/
+      └── config/
+          └── .env.dev
+          └── .env.prod
+          └── .env.benchmark
+```
+
+각 환경에 맞는 `.env` 파일을 생성하고, 필요한 환경 변수를 설정하세요. 이 파일들은 데이터베이스 연결 정보, Redis 설정, 프론트엔드 URL 등을 포함합니다.
+
+예시: `.env.dev`:
+```env
+# 데이터베이스 설정
+DATABASE_HOST=localhost
+DATABASE_PASSWORD=0000
+DATABASE_PORT=3306
+DATABASE_SCHEMA=real_ticket
+DATABASE_SYNCHRONIZE=false
+DATABASE_TYPE=mysql
+DATABASE_USERNAME=user
+
+# Redis 설정
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# 프론트엔드 URL
+FRONT_URL=http://localhost:30000
+```
+필요한 환경 변수 목록은 모든 환경(prod, dev, benchmark)에서 동일합니다. 각 환경에 맞게 값을 조정하세요.
+
 ## Compile and run the project
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
+# 개발(watch 모드)
 $ npm run start:dev
 
-# production mode
+# 디버그(watch 모드)
+$ npm run start:dev:debug
+
+# 배포
 $ npm run start:prod
-```
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# 벤치마크
+$ npm run start:benchmark
 ```
 
 ## Deployment
