@@ -1,7 +1,9 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Request, Response } from 'express';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import {
   LoggingDetailType,
@@ -11,7 +13,6 @@ import {
   CachedUserInfo,
   UserInfo,
 } from '../types/logging.types';
-import { winstonLogger } from '../winston.logger';
 
 @Injectable()
 export class RequestLoggingService {
@@ -21,7 +22,10 @@ export class RequestLoggingService {
   private readonly MAX_CACHE_SIZE = 1000;
   private readonly DEFAULT_DETAILS = Object.values(LoggingDetailType);
 
-  constructor(private readonly redisService: RedisService) {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
+    private readonly redisService: RedisService,
+  ) {
     this.redis = this.redisService.getOrThrow();
     setInterval(() => this.cleanupExpiredCache(), 5 * 60 * 1000);
   }
@@ -148,7 +152,7 @@ export class RequestLoggingService {
         return userInfo;
       }
     } catch (error) {
-      winstonLogger.warn(
+      this.logger.warn(
         `Failed to get user info for SID: ${sid} - ${error.message}`,
         'DetailedRequestLogging',
       );
@@ -221,9 +225,9 @@ export class RequestLoggingService {
     const message = parts.join(' | ');
 
     if (type === 'ERR') {
-      winstonLogger.error(message, error?.stack || logData.errorStack, logData.loggerName);
+      this.logger.error(message, error?.stack || logData.errorStack, logData.loggerName);
     } else {
-      winstonLogger.log(message, logData.loggerName);
+      this.logger.http(message, logData.loggerName);
     }
   }
 
