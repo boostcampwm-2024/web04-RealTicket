@@ -6,22 +6,28 @@ import winstonDaily from 'winston-daily-rotate-file';
 
 const logDir = path.join(__dirname, '../../../logs');
 
-const dailyOptions = (level: string) => {
+const dailyOptions = (name: string, level?: string) => {
   return {
-    level,
+    level: level || (process.env.NODE_ENV === 'prod' ? 'info' : 'silly'),
     datePattern: 'YYYY-MM-DD',
-    dirname: logDir + `/${level}`,
-    filename: `%DATE%.${level}.log`,
+    dirname: path.join(logDir, name),
+    filename: `%DATE%.${name}.log`,
     zippedArchive: true,
     maxSize: '20m',
-    maxFiles: '14d',
+    maxFiles: process.env.NODE_ENV === 'prod' ? '30d' : '9999d',
   };
 };
 
 export const winstonConfig = {
+  format: winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
+    winston.format.errors({ stack: true }),
+    winston.format.json(),
+  ),
+
   transports: [
     new winston.transports.Console({
-      level: 'silly',
+      level: process.env.NODE_ENV === 'prod' ? 'warn' : 'debug',
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.ms(),
@@ -33,8 +39,8 @@ export const winstonConfig = {
         }),
       ),
     }),
-    new winstonDaily(dailyOptions('info')),
-    new winstonDaily(dailyOptions('warn')),
-    new winstonDaily(dailyOptions('error')),
+
+    new winstonDaily(dailyOptions('critical', 'warn')),
+    new winstonDaily(dailyOptions('all')),
   ],
 };
