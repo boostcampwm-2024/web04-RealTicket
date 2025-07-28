@@ -31,7 +31,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
     BookingModule,
     EventModule,
     UserDecoratorModule,
-    ...(process.env.NODE_ENV === 'benchmark' ? [BenchmarkModule] : []),
+    ...(process.env.BENCHMARK_MODE === 'true' ? [BenchmarkModule] : []),
   ],
   controllers: [AppController],
   providers: [AppService],
