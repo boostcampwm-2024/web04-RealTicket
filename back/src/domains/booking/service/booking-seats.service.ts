@@ -155,18 +155,17 @@ export class BookingSeatsService {
     return seatStatusBits;
   }
 
-  subscribeSeats(eventId: number) {
-    return this.seatsSubscriptionMap
-      .get(eventId)
-      .asObservable()
-      .pipe(
-        map((data) => {
-          return {
-            data,
-            retry: SEATS_SSE_RETRY_TIME,
-          };
-        }),
-      );
+  getSeatsObservable(eventId: number) {
+    return this.seatsSubscriptionMap.get(eventId).asObservable();
+  }
+
+  subscribeSeatsSSE(eventId: number) {
+    return this.getSeatsObservable(eventId).pipe(
+      map((data) => ({
+        data,
+        retry: SEATS_SSE_RETRY_TIME,
+      })),
+    );
   }
 
   @OnEvent('seats-status-changed')
