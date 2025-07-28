@@ -101,7 +101,7 @@ export class BookingController {
     const sid = req.cookies['SID'];
     await this.bookingService.setInBookingFromEntering(sid);
 
-    const observable = this.bookingSeatsService.subscribeSeats(eventId);
+    const observable = this.bookingSeatsService.subscribeSeatsSSE(eventId);
 
     req.on('close', () => {
       this.eventEmitter.emit('seats-sse-close', { sid });

@@ -144,12 +144,12 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private setupEventSubscription(eventId: number): void {
     if (!this.eventSubscriptions.has(eventId)) {
-      const observable = this.bookingSeatsService.subscribeSeats(eventId);
+      const observable = this.bookingSeatsService.getSeatsObservable(eventId);
 
-      const subscription = observable.subscribe((data) => {
+      const subscription = observable.subscribe(async (seatData) => {
         this.broadcastToEvent(eventId, {
           type: 'seats-update',
-          data: data.data,
+          data: seatData,
         });
       });
 
