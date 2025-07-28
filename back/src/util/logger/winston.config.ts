@@ -7,15 +7,29 @@ import winstonDaily from 'winston-daily-rotate-file';
 const logDir = path.join(__dirname, '../../../logs');
 
 const dailyOptions = (name: string, level?: string) => {
-  return {
-    level: level || (process.env.NODE_ENV === 'prod' ? 'info' : 'silly'),
-    datePattern: 'YYYY-MM-DD',
-    dirname: path.join(logDir, name),
-    filename: `%DATE%.${name}.log`,
-    zippedArchive: true,
-    maxSize: '20m',
-    maxFiles: process.env.NODE_ENV === 'prod' ? '30d' : '9999d',
-  };
+  const baseLevel = level || (process.env.LOGGING_MODE === 'prod' ? 'info' : 'silly');
+
+  if (process.env.LOG_SAVE_MODE === 'prod') {
+    return {
+      level: baseLevel,
+      datePattern: 'YYYY-MM-DD',
+      dirname: path.join(logDir, name),
+      filename: `%DATE%.${name}.log`,
+      zippedArchive: process.env.LOG_ZIP === 'true',
+      maxSize: process.env.LOG_MAX_SIZE,
+      maxFiles: process.env.LOG_MAX_LIFE,
+    };
+  } else {
+    const timestamp = new Date().toISOString().replace(/T/, '-').replace(/:/g, '-').replace(/\..+/, '');
+    return {
+      level: baseLevel,
+      dirname: path.join(logDir, name),
+      filename: `${timestamp}-%i.${name}.log`,
+      zippedArchive: process.env.LOG_ZIP === 'true',
+      maxSize: process.env.LOG_MAX_SIZE,
+      maxFiles: process.env.LOG_MAX_LIFE,
+    };
+  }
 };
 
 export const winstonConfig = {
@@ -27,7 +41,7 @@ export const winstonConfig = {
 
   transports: [
     new winston.transports.Console({
-      level: process.env.NODE_ENV === 'prod' ? 'warn' : 'debug',
+      level: process.env.LOGGING_MODE === 'prod' ? 'warn' : 'debug',
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.ms(),
