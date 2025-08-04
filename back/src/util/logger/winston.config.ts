@@ -4,6 +4,8 @@ import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import * as winston from 'winston';
 import winstonDaily from 'winston-daily-rotate-file';
 
+import { getLocalISOString } from '../date-util';
+
 const logDir = path.join(__dirname, '../../../logs');
 
 const dailyOptions = (name: string, level?: string) => {
@@ -13,21 +15,35 @@ const dailyOptions = (name: string, level?: string) => {
     return {
       level: baseLevel,
       datePattern: 'YYYY-MM-DD',
-      dirname: path.join(logDir, name),
+      dirname: path.join(logDir, process.env.LOG_SAVE_MODE, name),
       filename: `%DATE%.${name}.log`,
       zippedArchive: process.env.LOG_ZIP === 'true',
       maxSize: process.env.LOG_MAX_SIZE,
       maxFiles: process.env.LOG_MAX_LIFE,
+      utc: false,
+      options: {
+        flags: 'a',
+      },
     };
   } else {
-    const timestamp = new Date().toISOString().replace(/T/, '-').replace(/:/g, '-').replace(/\..+/, '');
+    const runTimestamp = getLocalISOString()
+      .replace('T', '_')
+      .replace('Z', '')
+      .replaceAll(':', '-')
+      .split('.')[0];
+    const HMSstamp = runTimestamp.split('_')[1];
     return {
       level: baseLevel,
-      dirname: path.join(logDir, name),
-      filename: `${timestamp}-%i.${name}.log`,
+      datePattern: 'YYYY-MM-DD',
+      dirname: path.join(logDir, process.env.LOG_SAVE_MODE, name, 'start-at_' + runTimestamp),
+      filename: `%DATE%_${HMSstamp}.${name}.log`,
       zippedArchive: process.env.LOG_ZIP === 'true',
       maxSize: process.env.LOG_MAX_SIZE,
       maxFiles: process.env.LOG_MAX_LIFE,
+      utc: false,
+      options: {
+        flags: 'a',
+      },
     };
   }
 };

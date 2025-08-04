@@ -9,7 +9,6 @@ import { setupSwagger } from './config/setupSwagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {});
-  process.env.TZ = 'Asia/Seoul';
   setupSwagger(app);
   app.enableCors({
     origin: [process.env.FRONT_URL ?? 'http://localhost:3000'],

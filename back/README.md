@@ -13,7 +13,7 @@ $ npm install
     - (dev/release)
 
 ### 환경 변수 설정
-다음과 같은 환경 변수 파일들을 "새로" 생성하세요:
+다음과 같이 환경 변수 파일들을 **"새로"** 생성하세요:
 
 ```text
 ./
@@ -22,6 +22,7 @@ $ npm install
         └── config/
             └── .env.development
             └── .env.production
+            └── .env.sample - (생성되어 있음)(참고용)
 ```
 
 #### 기본 환경 변수 파일(NODE_ENV)
@@ -32,6 +33,9 @@ $ npm install
 
 예시: `.env.development`:
 ```env
+# 표준 시간 설정
+TZ=Asia/Seoul
+
 # 데이터베이스 설정
 DATABASE_HOST=localhost
 DATABASE_PASSWORD=0000
@@ -55,7 +59,7 @@ LOG_ZIP=true
 ```
 
 #### 실행 모드별 환경 변수 파일(EXEC_MODE)
-장소적 환경과 별개로, 동작 모드를 설정하는 환경 변수가 `.env.execMode.(모드)`에 "이미" 정의되어 있습니다.
+장소적 환경과 별개로, 동작 모드를 설정하는 환경 변수가 `.env.execMode.(모드)`에 **"이미"** 정의되어 있습니다.
 
 `.env.execMode.release`는 실제 서비스에 사용되는 설정으로, 임의로 변경하지 않는 것을 권장합니다.
 
@@ -66,6 +70,9 @@ LOG_ZIP=true
 ```env
 # 로깅 모드
 LOGGING_MODE=dev
+
+# 로그 저장 모드
+LOG_SAVE_MODE=dev
 
 # 벤치마크 모드
 BENCHMARK_MODE=true
