@@ -1,7 +1,7 @@
 import { parse } from 'url';
 
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Logger, Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   WebSocketGateway,
@@ -11,7 +11,9 @@ import {
 } from '@nestjs/websockets';
 import { parse as parseCookie } from 'cookie';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Subscription } from 'rxjs';
+import { Logger as WinstonLogger } from 'winston';
 import { Server } from 'ws';
 import * as WebSocket from 'ws';
 
@@ -38,13 +40,13 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server: Server;
 
   readonly redis: Redis;
-  private logger = new Logger();
   private clients = new Set<CustomWebSocket>();
   private eventClients = new Map<number, Set<CustomWebSocket>>();
   private eventSubscriptions = new Map<number, Subscription>();
   private eventConnectionCounts = new Map<number, number>();
 
   constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
     private readonly bookingService: BookingService,
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly eventEmitter: EventEmitter2,
@@ -82,10 +84,10 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   async handleConnection(client: CustomWebSocket, req: Request): Promise<void> {
-    this.logger.log('seats WS connected', req.url);
     this.clients.add(client);
 
     const { eventId, sid } = this.parseConnectionParams(req);
+    this.logger.verbose(`[SEATS-WS-CONNECTED] Event ${eventId} | SID ${sid}`);
 
     if (!this.validateEventId(eventId, client, req)) {
       return;
@@ -187,7 +189,7 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.eventConnectionCounts.set(eventId, currentCount - 1);
       }
     }
-    this.logger.log('seats WS disconnected', client.sid, client.eventId);
+    this.logger.verbose(`[SEATS-WS-DISCONNECTED] Event ${client.eventId} | SID ${client.sid}`);
   }
 
   private broadcastToEvent(eventId: number, message: any): void {
