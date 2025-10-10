@@ -1,1 +1,3 @@
-export const SEATS_SSE_RETRY_TIME = 5000;
+export const SEATS_SSE_RETRY_INTERVAL = 1000;
+
+export const SEATS_SSE_RETRY_TIMEOUT = 5000;

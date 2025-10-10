@@ -12,7 +12,7 @@ import { map } from 'rxjs/operators';
 
 import { UserService } from '../../user/service/user.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
-import { SEATS_SSE_RETRY_TIME } from '../const/seatsSseRetryTime.const';
+import { SEATS_SSE_RETRY_INTERVAL } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
@@ -163,7 +163,7 @@ export class BookingSeatsService {
     return this.getSeatsObservable(eventId).pipe(
       map((data) => ({
         data,
-        retry: SEATS_SSE_RETRY_TIME,
+        retry: SEATS_SSE_RETRY_INTERVAL,
       })),
     );
   }
