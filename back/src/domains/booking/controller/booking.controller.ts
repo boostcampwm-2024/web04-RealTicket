@@ -13,6 +13,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -26,6 +27,7 @@ import { Request } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { SEATS_SSE_RETRY_TIMEOUT } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -51,6 +53,7 @@ export class BookingController {
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly waitingQueueService: WaitingQueueService,
     private readonly openBookingService: OpenBookingService,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
   @UseGuards(SessionAuthGuard())
@@ -99,12 +102,22 @@ export class BookingController {
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
     const sid = req.cookies['SID'];
+
+    if (this.schedulerRegistry.doesExist('timeout', `sse-closing-${sid}`)) {
+      this.schedulerRegistry.deleteTimeout(`sse-closing-${sid}`);
+    }
+
     await this.bookingService.setInBookingFromEntering(sid);
 
     const observable = this.bookingSeatsService.subscribeSeatsSSE(eventId);
 
     req.on('close', () => {
-      this.eventEmitter.emit('seats-sse-close', { sid });
+      this.schedulerRegistry.addTimeout(
+        `sse-closing-${sid}`,
+        setTimeout(() => {
+          this.eventEmitter.emit('seats-sse-close', { sid });
+        }, SEATS_SSE_RETRY_TIMEOUT),
+      );
     });
 
     return observable;
