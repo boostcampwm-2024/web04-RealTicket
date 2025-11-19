@@ -146,6 +146,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     await this.seatsUpdateService.openReservation(eventId, initialSeats);
 
     await this.enterBookingService.gcEnteringSessions(eventId);
+    await this.inBookingService.gcReconnectingSessions(eventId);
 
     await this.registerOpenedEvent(eventId);
   }
@@ -218,6 +219,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
       await this.resetUserStatus(sid);
     }
     await this.inBookingService.clearInBookingPool(eventId);
+    await this.inBookingService.clearReconnectingPool(eventId);
   }
 
   private async resetUserStatus(sid: string) {

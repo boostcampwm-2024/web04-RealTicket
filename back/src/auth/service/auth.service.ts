@@ -49,6 +49,16 @@ export class AuthService {
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
   }
 
+  async setUserStatusReconnectingSelecting(sid: string) {
+    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (session.userStatus === USER_STATUS.ADMIN) return;
+
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.RECONNECTING_SELECTING }),
+    );
+  }
+
   async setUserStatusAdmin(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
 
