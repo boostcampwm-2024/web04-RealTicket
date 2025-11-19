@@ -23,6 +23,7 @@ export class AuthService {
 
   async setUserStatusLogin(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
@@ -30,6 +31,7 @@ export class AuthService {
 
   async setUserStatusWaiting(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
@@ -37,6 +39,7 @@ export class AuthService {
 
   async setUserStatusEntering(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }));
@@ -44,6 +47,7 @@ export class AuthService {
 
   async setUserStatusSelectingSeat(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
@@ -51,6 +55,7 @@ export class AuthService {
 
   async setUserStatusReconnectingSelecting(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
     await this.redis.set(
@@ -61,6 +66,7 @@ export class AuthService {
 
   async setUserStatusAdmin(sid: string) {
     const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    if (!session) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
   }
