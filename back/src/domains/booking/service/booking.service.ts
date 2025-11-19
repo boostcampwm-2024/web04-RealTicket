@@ -135,9 +135,10 @@ export class BookingService {
 
   private async isInsertableInBooking(eventId: number): Promise<boolean> {
     const inBookingCount = await this.inBookingService.getInBookingSessionCount(eventId);
+    const inBookingReconnectingCount = await this.inBookingService.getReconnectingSessionCount(eventId);
     const enteringCount = await this.enterBookingService.getEnteringSessionCount(eventId);
     const maxSize = await this.inBookingService.getInBookingSessionsMaxSize(eventId);
-    return inBookingCount + enteringCount < maxSize;
+    return inBookingCount + inBookingReconnectingCount + enteringCount < maxSize;
   }
 
   async setBookingAmount(sid: string, bookingAmount: number) {

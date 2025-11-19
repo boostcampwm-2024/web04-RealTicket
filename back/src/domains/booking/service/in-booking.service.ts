@@ -1,11 +1,16 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
+import {
+  SEATS_SSE_RETRY_TIMEOUT,
+  RECONNECTING_SELECTING_GC_INTERVAL,
+} from '../const/seatsSseRetryTime.const';
 
 type InBookingSession = {
   sid: string;
@@ -22,6 +27,7 @@ export class InBookingService {
     private redisService: RedisService,
     private readonly userService: UserService,
     private eventEmitter: EventEmitter2,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -191,6 +197,71 @@ export class InBookingService {
 
   async clearInBookingPool(eventId: number) {
     const keys = await this.redis.keys(`in-booking:${eventId}:*`);
+    if (keys.length > 0) {
+      await this.redis.unlink(...keys);
+    }
+  }
+
+  async gcReconnectingSessions(eventId: number) {
+    this.deleteReconnectingIntervalIfExists(`gc-reconnecting-${eventId}`);
+
+    const interval = setInterval(() => {
+      this.removeExpiredReconnectingSessions(eventId);
+    }, RECONNECTING_SELECTING_GC_INTERVAL);
+
+    this.schedulerRegistry.addInterval(`gc-reconnecting-${eventId}`, interval);
+  }
+
+  clearReconnectingGCInterval(eventId: number) {
+    this.deleteReconnectingIntervalIfExists(`gc-reconnecting-${eventId}`);
+  }
+
+  private deleteReconnectingIntervalIfExists(intervalName: string) {
+    if (this.schedulerRegistry.doesExist('interval', intervalName)) {
+      this.schedulerRegistry.deleteInterval(intervalName);
+    }
+  }
+
+  async addReconnectingSession(sid: string) {
+    const eventId = await this.userService.getUserEventTarget(sid);
+    const timestamp = Date.now();
+    await this.redis.zadd(`reconnecting:${eventId}`, timestamp, sid);
+    return true;
+  }
+
+  async removeReconnectingSession(sid: string) {
+    const eventId = await this.userService.getUserEventTarget(sid);
+    await this.redis.zrem(`reconnecting:${eventId}`, sid);
+    return true;
+  }
+
+  async getReconnectingSessionCount(eventId: number) {
+    return this.redis.zcard(`reconnecting:${eventId}`);
+  }
+
+  private async removeExpiredReconnectingSessions(eventId: number) {
+    const expiryTimestamp = Date.now() - SEATS_SSE_RETRY_TIMEOUT;
+    const key = `reconnecting:${eventId}`;
+
+    const multi = this.redis.multi();
+    multi.zrangebyscore(key, 0, expiryTimestamp);
+    multi.zremrangebyscore(key, 0, expiryTimestamp);
+
+    const results = (await multi.exec()) as [[Error | null, string[]], [Error | null, number]];
+
+    if (results[0][0]) {
+      throw results[0][0];
+    }
+    const expiredSessions = results[0][1];
+
+    expiredSessions.forEach((sid: string) => {
+      this.eventEmitter.emit('seats-sse-close', { sid });
+    });
+  }
+
+  async clearReconnectingPool(eventId: number) {
+    this.clearReconnectingGCInterval(eventId);
+    const keys = await this.redis.keys(`reconnecting:${eventId}:*`);
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
     }
