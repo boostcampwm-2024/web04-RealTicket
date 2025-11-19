@@ -13,7 +13,6 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SchedulerRegistry } from '@nestjs/schedule';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -27,7 +26,7 @@ import { Request } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
-import { SEATS_SSE_RETRY_TIMEOUT } from '../const/seatsSseRetryTime.const';
+import { AuthService } from '../../../auth/service/auth.service';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -48,12 +47,12 @@ import { WaitingQueueService } from '../service/waiting-queue.service';
 export class BookingController {
   constructor(
     private readonly eventEmitter: EventEmitter2,
+    private readonly authService: AuthService,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly waitingQueueService: WaitingQueueService,
     private readonly openBookingService: OpenBookingService,
-    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
   @UseGuards(SessionAuthGuard())
@@ -93,7 +92,9 @@ export class BookingController {
   }
 
   @Sse('seat/:eventId')
-  @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
+  @UseGuards(
+    SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT, USER_STATUS.RECONNECTING_SELECTING]),
+  )
   @ApiOperation({
     summary: '실시간 좌석 예약 현황 SSE',
     description: '실시간으로 좌석 예약 현황을 조회한다.',
@@ -103,21 +104,20 @@ export class BookingController {
   async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
     const sid = req.cookies['SID'];
 
-    if (this.schedulerRegistry.doesExist('timeout', `sse-closing-${sid}`)) {
-      this.schedulerRegistry.deleteTimeout(`sse-closing-${sid}`);
-    }
+    const session = await this.authService.getUserSession(sid);
 
-    await this.bookingService.setInBookingFromEntering(sid);
+    if (session.userStatus === USER_STATUS.ENTERING) {
+      await this.bookingService.setInBookingFromEntering(sid);
+    } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
+      await this.inBookingService.removeReconnectingSession(sid);
+      await this.authService.setUserStatusSelectingSeat(sid);
+    }
 
     const observable = this.bookingSeatsService.subscribeSeatsSSE(eventId);
 
     req.on('close', () => {
-      this.schedulerRegistry.addTimeout(
-        `sse-closing-${sid}`,
-        setTimeout(() => {
-          this.eventEmitter.emit('seats-sse-close', { sid });
-        }, SEATS_SSE_RETRY_TIMEOUT),
-      );
+      this.authService.setUserStatusReconnectingSelecting(sid);
+      this.inBookingService.addReconnectingSession(sid);
     });
 
     return observable;
