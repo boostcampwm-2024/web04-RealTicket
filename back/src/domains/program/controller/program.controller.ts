@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -28,9 +29,11 @@ import {
   ApiParam,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
+import { AuthService } from 'src/auth/service/auth.service';
 
 import { ProgramCreationDto } from '../dto/programCreation.dto';
 import { ProgramIdDto } from '../dto/programId.dto';
@@ -41,7 +44,10 @@ import { ProgramService } from '../service/program.service';
 @Controller('program')
 @UseInterceptors(ClassSerializerInterceptor)
 export class ProgramController {
-  constructor(private readonly programService: ProgramService) {}
+  constructor(
+    private readonly programService: ProgramService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -50,8 +56,16 @@ export class ProgramController {
   })
   @ApiOkResponse({ description: '프로그램 전체 목록 조회 성공', type: ProgramMainPageDto, isArray: true })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
-  async findAllProgram() {
+  async findAllProgram(@Req() req: Request) {
     try {
+      const sid = req.cookies['SID'];
+      if (sid) {
+        const session = await this.authService.getUserSession(sid);
+        if (session && session.userStatus !== USER_STATUS.ADMIN) {
+          await this.authService.setUserStatusLogin(sid);
+        }
+      }
+
       const programs: ProgramMainPageDto[] = await this.programService.findMainPageProgramData();
       return programs;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
