@@ -84,9 +84,10 @@ export default function SectionAndSeat({
   };
 
   // 좌석 규모에 따른 초기 줌 레벨 계산
-  const calculateInitialZoom = (colLen: number) => {
-    if (colLen <= 30) return 1.0; // 100% - 소규모
-    if (colLen <= 40) return 0.75; // 75% - 중간 규모
+  const calculateInitialZoom = (colLen: number, rowLen: number) => {
+    const maxDimension = Math.max(colLen, rowLen);
+    if (maxDimension <= 30) return 1.0; // 100% - 소규모
+    if (maxDimension <= 40) return 0.75; // 75% - 중간 규모
     return 0.5; // 50% - 대형
   };
 
@@ -97,7 +98,8 @@ export default function SectionAndSeat({
   // selectedSection이 변경될 때마다 적절한 초기 줌 레벨 설정
   useEffect(() => {
     if (selectedSectionSeatMap && typeof selectedSectionSeatMap === 'object') {
-      const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen);
+      const rowLen = selectedSectionSeatMap.seats.length / selectedSectionSeatMap.colLen;
+      const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen, rowLen);
       setZoomLevel(initialZoom);
     }
   }, [selectedSection]);
@@ -158,10 +160,13 @@ export default function SectionAndSeat({
               </button>
               <button
                 onClick={() => {
-                  const initialZoom = selectedSectionSeatMap
-                    ? calculateInitialZoom(selectedSectionSeatMap.colLen)
-                    : 1;
-                  setZoomLevel(initialZoom);
+                  if (selectedSectionSeatMap) {
+                    const rowLen = selectedSectionSeatMap.seats.length / selectedSectionSeatMap.colLen;
+                    const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen, rowLen);
+                    setZoomLevel(initialZoom);
+                  } else {
+                    setZoomLevel(1);
+                  }
                 }}
                 className="ml-2 rounded bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600">
                 자동
