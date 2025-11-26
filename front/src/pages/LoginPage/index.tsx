@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 
 import { type CustomError } from '@/api/axios.ts';
-import { type UserData, postLogin } from '@/api/user.ts';
+import { type UserData, getGuestLogin, postLogin } from '@/api/user.ts';
 
 import { useAuthContext } from '@/hooks/useAuthContext.tsx';
+import useConfirm from '@/hooks/useConfirm.tsx';
 import useForm from '@/hooks/useForm';
 
 import { toast } from '@/components/Toast/index.ts';
@@ -15,9 +16,11 @@ import Input from '@/components/common/Input';
 import { lengthValidate } from '@/pages/LoginPage/validate.ts';
 
 import { LOGIN_FAILED_MESSAGE } from '@/constants/user.ts';
-import type { LoginForm } from '@/type/user.ts';
-import { useMutation } from '@tanstack/react-query';
+import type { Guest, LoginForm } from '@/type/user.ts';
+import { useIsFetching, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
+
+const GUEST_LOGIN_QUERY_KEY = ['guest'];
 
 export default function LoginPage() {
   type ResponseData = {
@@ -30,7 +33,11 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginForm>();
   const { login } = useAuthContext();
+  const { confirm } = useConfirm();
   const navigation = useNavigate();
+  const queryClient = useQueryClient();
+  const isGuestLoginPending = !!useIsFetching({ queryKey: GUEST_LOGIN_QUERY_KEY });
+
   const { mutate, isPending, error } = useMutation<AxiosResponse<ResponseData>, CustomError, UserData>({
     mutationFn: postLogin,
     onError: () => {
@@ -47,6 +54,41 @@ export default function LoginPage() {
   const submit = async (data: LoginForm) => {
     const { id, password } = data;
     mutate({ loginId: id, loginPassword: password });
+  };
+
+  const loginAsGuest = async () => {
+    const isConfirm = await confirm({
+      title: '게스트로 입장하기',
+      description: '게스트 계정은 로그아웃하시면 다시 사용 할 수 없습니다.\n 그래도 입장하시겠습니까?',
+      buttons: {
+        ok: {
+          title: '확인',
+          color: 'success',
+        },
+        cancel: {
+          title: '취소',
+        },
+      },
+    });
+    if (isConfirm) {
+      await queryClient
+        .fetchQuery<Guest>({
+          queryKey: GUEST_LOGIN_QUERY_KEY,
+          queryFn: getGuestLogin,
+        })
+        .then((data) => {
+          const sliced = data.loginId.slice(0, 12);
+          if (login) {
+            login(sliced);
+            toast.success('guest로 로그인 되었습니다');
+            navigation('/');
+          }
+        })
+        .catch(() => {
+          toast.error('로그인에 실패했습니다\n잠시 후 다시 시도해주세요.');
+        });
+      return;
+    }
   };
 
   return (
@@ -89,6 +131,21 @@ export default function LoginPage() {
             </>
           ) : (
             <span className="text-label1 text-typo-display">로그인</span>
+          )}
+        </Button>
+        <Button
+          type="button"
+          intent="outline"
+          color="primary"
+          onClick={loginAsGuest}
+          disabled={isGuestLoginPending || isPending}>
+          {isGuestLoginPending ? (
+            <>
+              <Icon iconName="Loading" className="animate-spin" />
+              <span className="text-label1 text-typo-disable">로그인중..</span>
+            </>
+          ) : (
+            <span className="text-label1 text-primary">게스트로 입장하기</span>
           )}
         </Button>
       </form>
