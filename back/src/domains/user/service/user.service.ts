@@ -150,8 +150,14 @@ export class UserService {
   }
 
   async getUserEventTarget(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
-    return session.targetEvent;
+    const sessionData = await this.redis.get(`user:${sid}`);
+
+    if (!sessionData) {
+      return null;
+    }
+
+    const session = JSON.parse(sessionData);
+    return session?.targetEvent ?? null;
   }
 
   async makeGuestUser() {
