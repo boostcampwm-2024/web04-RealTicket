@@ -224,6 +224,9 @@ export class InBookingService {
 
   async addReconnectingSession(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+    if (eventId === null) {
+      return false;
+    }
     const timestamp = Date.now();
     await this.redis.zadd(`reconnecting:${eventId}`, timestamp, sid);
     return true;
@@ -231,6 +234,9 @@ export class InBookingService {
 
   async removeReconnectingSession(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+    if (eventId === null) {
+      return false;
+    }
     await this.redis.zrem(`reconnecting:${eventId}`, sid);
     return true;
   }
