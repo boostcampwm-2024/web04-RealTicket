@@ -44,6 +44,11 @@ export class EnterBookingService {
 
   async addEnteringSession(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new Error('입장중 상태에 추가할 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     const timestamp = Date.now();
     await this.redis.zadd(`entering:${eventId}`, timestamp, sid);
     return true;
@@ -51,9 +56,25 @@ export class EnterBookingService {
 
   async removeEnteringSession(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new Error('입장중 상태에서 제거할 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     await this.redis.zrem(`entering:${eventId}`, sid);
     await this.removeBookingAmount(sid);
     return true;
+  }
+
+  async isEntering(sid: string) {
+    const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      return false;
+    }
+
+    const isMember = await this.redis.zscore(`entering:${eventId}`, sid);
+    return isMember !== null;
   }
 
   async getEnteringSessionCount(eventId: number) {

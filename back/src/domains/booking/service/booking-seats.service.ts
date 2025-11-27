@@ -71,6 +71,11 @@ export class BookingSeatsService {
 
   async bookSeat(sid: string, target: [number, number]) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new BadRequestException('좌석을 점유하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     const bookedSeat = await this.inBookingService.getBookedSeats(sid);
     const bookingAmount = await this.inBookingService.getBookingAmount(sid);
     const bookedAmount = bookedSeat.length;
@@ -88,6 +93,11 @@ export class BookingSeatsService {
 
   async unBookSeat(sid: string, target: [number, number]) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new BadRequestException('좌석 점유를 취소하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     const bookedSeat = await this.inBookingService.getBookedSeats(sid);
     const bookedAmount = bookedSeat.length;
 
