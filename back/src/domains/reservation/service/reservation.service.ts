@@ -105,6 +105,11 @@ export class ReservationService {
       const session = await this.authService.getUserSession(sid);
       const userId = session.id;
       const eventId = await this.userService.getUserEventTarget(sid);
+
+      if (eventId === null) {
+        throw new BadRequestException('예약 확정하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
+      }
+
       const { bookingAmount, bookedSeats } = await this.inBookingService.getBookAmountAndBookedSeats(
         sid,
         eventId,
