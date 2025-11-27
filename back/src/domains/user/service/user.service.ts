@@ -4,14 +4,16 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { DataSource, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { Logger as WinstonLogger } from 'winston';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { AuthService } from '../../../auth/service/auth.service';
@@ -27,7 +29,6 @@ import { UserRepository } from '../repository/user.repository';
 
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger(UserService.name);
   private readonly redis: Redis;
 
   constructor(
@@ -35,6 +36,8 @@ export class UserService {
     @Inject() private readonly redisService: RedisService,
     @Inject() private readonly authService: AuthService,
     @Inject() private readonly dataSource: DataSource,
+    @Inject() private readonly eventEmitter: EventEmitter2,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -134,7 +137,14 @@ export class UserService {
 
   async logoutUser(sid: string, { loginId }: UserParamDto) {
     try {
-      if ((await this.authService.removeSession(sid, loginId)) > 0) {
+      const sessionData = await this.redis.get(`user:${sid}`);
+      if (sessionData) {
+        this.eventEmitter.emit('logout-start', { sid, sessionData });
+        if ((await this.authService.removeSession(sid, loginId)) > 0) {
+          return { message: '로그아웃 되었습니다.' };
+        }
+      } else {
+        this.logger.warn(`세션이 존재하지 않는 사용자 로그아웃 시도: SID=${sid}, loginId=${loginId}`);
         return { message: '로그아웃 되었습니다.' };
       }
     } catch (err) {

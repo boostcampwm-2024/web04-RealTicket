@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../../auth/auth.module';
+import { EventModule } from '../event/event.module';
 
 import { UserController } from './controller/user.controller';
 import { User } from './entity/user.entity';
@@ -10,7 +11,7 @@ import { UserRepository } from './repository/user.repository';
 import { UserService } from './service/user.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), AuthModule],
+  imports: [TypeOrmModule.forFeature([User]), AuthModule, EventModule],
   providers: [UserService, UserRepository],
   controllers: [UserController],
   exports: [UserService, UserRepository],
