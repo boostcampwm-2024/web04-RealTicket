@@ -1,8 +1,10 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { UserService } from '../../user/service/user.service';
@@ -28,6 +30,7 @@ export class InBookingService {
     private readonly userService: UserService,
     private eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -320,6 +323,41 @@ export class InBookingService {
     const keys = await this.redis.keys(`reconnecting:${eventId}:*`);
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
+    }
+  }
+
+  @OnEvent('logout-start')
+  async handleLogoutStart(payload: { sid: string; sessionData: string }) {
+    try {
+      const { sid, sessionData } = payload;
+
+      const userSession = JSON.parse(sessionData);
+      const eventId = userSession?.targetEvent;
+
+      if (!eventId || eventId === 0) {
+        return;
+      }
+
+      const inBookingSession = await this.getSession(eventId, sid);
+
+      if (!inBookingSession) {
+        return;
+      }
+
+      const bookedSeats = inBookingSession.bookedSeats;
+
+      if (bookedSeats && bookedSeats.length > 0) {
+        this.eventEmitter.emit('logout-release-seats', {
+          sid,
+          eventId,
+          bookedSeats,
+        });
+      }
+
+      await this.removeInBooking(eventId, sid);
+      await this.redis.zrem(`reconnecting:${eventId}`, sid);
+    } catch (error) {
+      this.logger.error(`(로그아웃) InBooking 세션 정리 실패: ${error.message}`, error.stack);
     }
   }
 }
