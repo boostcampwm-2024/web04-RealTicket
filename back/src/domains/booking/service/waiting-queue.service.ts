@@ -43,6 +43,11 @@ export class WaitingQueueService {
 
   async pushQueue(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new Error('대기큐에 추가할 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     if (!this.queueSubscriptionMap.get(eventId)) {
       await this.createQueueSubscription(eventId);
     }

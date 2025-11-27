@@ -35,6 +35,11 @@ export class BookingService {
   async onSeatsSseDisconnected(event: { sid: string }) {
     const sid = event.sid;
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      return;
+    }
+
     if (await this.openBookingService.isEventOpened(eventId)) {
       await this.collectSeatsIfNotSaved(eventId, sid);
       await this.inBookingService.emitSession(sid);
@@ -92,6 +97,11 @@ export class BookingService {
 
   async setInBookingFromEntering(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new BadRequestException('좌석 선택 상태로 이동할 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
 
     await this.enterBookingService.removeEnteringSession(sid);
@@ -113,6 +123,11 @@ export class BookingService {
 
   private async getForwarded(sid: string) {
     const eventId = await this.userService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new BadRequestException('permission할 세션의 대상 이벤트를 불러올 수 없습니다.');
+    }
+
     const isInsertable = await this.isInsertableInBooking(eventId);
 
     if (isInsertable) {
@@ -147,6 +162,11 @@ export class BookingService {
       await this.flushBookedSeats(sid);
       return await this.inBookingService.setBookingAmount(sid, bookingAmount);
     }
+
+    const isEntering = await this.enterBookingService.isEntering(sid);
+    if (!isEntering) {
+      throw new BadRequestException('예매 수량을 설정할 수 없는 상태입니다.');
+    }
     return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
   }
 
@@ -154,6 +174,11 @@ export class BookingService {
     const bookedSeats = await this.inBookingService.getBookedSeats(sid);
     if (bookedSeats.length > 0) {
       const eventId = await this.userService.getUserEventTarget(sid);
+
+      if (eventId === null) {
+        throw new BadRequestException('좌석을 회수할 세션의 대상 이벤트를 불러올 수 없습니다.');
+      }
+
       await Promise.all(bookedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)));
       await this.inBookingService.removeBookedSeats(sid);
     }
