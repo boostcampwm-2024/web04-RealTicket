@@ -2,13 +2,16 @@ import { RedisService } from '@liaoliaots/nestjs-redis';
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { Logger as WinstonLogger } from 'winston';
 
 import { UserService } from '../../user/service/user.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
@@ -38,6 +41,7 @@ export class BookingSeatsService {
     private inBookingService: InBookingService,
     private eventEmitter: EventEmitter2,
     private readonly userService: UserService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -214,5 +218,24 @@ export class BookingSeatsService {
     );
 
     return subscription;
+  }
+
+  @OnEvent('logout-release-seats')
+  async handleLogoutReleaseSeats(payload: { sid: string; eventId: number; bookedSeats: [number, number][] }) {
+    try {
+      const { sid, eventId, bookedSeats } = payload;
+
+      for (const seat of bookedSeats) {
+        try {
+          await this.updateSeatDeleted(eventId, seat);
+        } catch (error) {
+          this.logger.warn(
+            `(로그아웃) 좌석 방출 실패: [${seat[0]}, ${seat[1]}], SID: ${sid}, ${error.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(`(로그아웃) 좌석 방출 실패: ${error.message}`, error.stack);
+    }
   }
 }
