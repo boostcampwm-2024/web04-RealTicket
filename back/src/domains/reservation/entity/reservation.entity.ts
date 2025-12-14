@@ -19,10 +19,17 @@ export class Reservation {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ type: 'timestamp', name: 'created_at' })
+  @Column({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'created_at',
+  })
   createdAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamp', name: 'deleted_at', nullable: true })
+  @DeleteDateColumn({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'deleted_at',
+    nullable: true,
+  })
   deletedAt: Date;
 
   @Column({ type: 'int', name: 'amount' })
