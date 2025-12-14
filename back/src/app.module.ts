@@ -1,13 +1,10 @@
-import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BenchmarkModule } from './benchmark/benchmark.module';
-import redisConfig from './config/redisConfig';
-import ormConfig from './config/typeOrmConfig';
+import { getDatabaseModule, getRedisModule } from './config/moduleFactory';
 import { BookingModule } from './domains/booking/booking.module';
 import { EventModule } from './domains/event/event.module';
 import { PlaceModule } from './domains/place/place.module';
@@ -20,8 +17,8 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(ormConfig),
-    RedisModule.forRoot(redisConfig),
+    getDatabaseModule(),
+    getRedisModule(),
     ScheduleModule.forRoot(),
     LoggingModule,
     ProgramModule,
