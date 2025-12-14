@@ -11,13 +11,22 @@ export class Event {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ type: 'timestamp', name: 'running_date' })
+  @Column({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'running_date',
+  })
   runningDate: Date;
 
-  @Column({ type: 'timestamp', name: 'reservation_open_date' })
+  @Column({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'reservation_open_date',
+  })
   reservationOpenDate: Date;
 
-  @Column({ type: 'timestamp', name: 'reservation_close_date' })
+  @Column({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'reservation_close_date',
+  })
   reservationCloseDate: Date;
 
   @ManyToOne(() => Program, (program) => program.events, { lazy: true })
