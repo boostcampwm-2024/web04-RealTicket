@@ -27,6 +27,10 @@ interface CustomWebSocket extends WebSocket {
   eventId?: number;
 }
 
+type SeatStatusObject = {
+  seatStatus: number[][];
+};
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -44,6 +48,7 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private eventClients = new Map<number, Set<CustomWebSocket>>();
   private eventSubscriptions = new Map<number, Subscription>();
   private eventConnectionCounts = new Map<number, number>();
+  private latestSeatsData = new Map<number, SeatStatusObject>();
 
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
@@ -87,7 +92,6 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.clients.add(client);
 
     const { eventId, sid } = this.parseConnectionParams(req);
-    this.logger.verbose(`[SEATS-WS-CONNECTED] Event ${eventId} | SID ${sid}`);
 
     if (!this.validateEventId(eventId, client, req)) {
       return;
@@ -110,6 +114,16 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.addClientToEvent(client, eventId);
     this.setupEventSubscription(eventId);
+
+    const latestData = this.latestSeatsData.get(eventId);
+    if (latestData && client.readyState === WebSocket.OPEN) {
+      client.send(
+        JSON.stringify({
+          type: 'seats-update',
+          data: latestData,
+        }),
+      );
+    }
   }
 
   private parseConnectionParams(req: Request): { eventId: number; sid: string } {
@@ -149,6 +163,7 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const observable = this.bookingSeatsService.getSeatsObservable(eventId);
 
       const subscription = observable.subscribe(async (seatData) => {
+        this.latestSeatsData.set(eventId, seatData);
         this.broadcastToEvent(eventId, {
           type: 'seats-update',
           data: seatData,
@@ -179,6 +194,7 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (currentCount <= 1) {
         this.eventConnectionCounts.delete(eventId);
         this.eventClients.delete(eventId);
+        this.latestSeatsData.delete(eventId);
 
         const subscription = this.eventSubscriptions.get(eventId);
         if (subscription) {
@@ -189,7 +205,6 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.eventConnectionCounts.set(eventId, currentCount - 1);
       }
     }
-    this.logger.verbose(`[SEATS-WS-DISCONNECTED] Event ${client.eventId} | SID ${client.sid}`);
   }
 
   private broadcastToEvent(eventId: number, message: any): void {
