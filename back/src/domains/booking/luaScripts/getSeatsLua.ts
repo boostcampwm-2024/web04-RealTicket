@@ -2,20 +2,36 @@ import Redis from 'ioredis';
 
 const getSeatsLua = `
   local eventId = KEYS[1]
-  local sectionsLen = redis.call('GET', 'event:'..eventId..':sections:len')
+  local sectionsLen = tonumber(redis.call('GET', 'event:'..eventId..':sections:len'))
+  if not sectionsLen then return nil end
   
   local placeResult = {}
-  for i = 0, tonumber(sectionsLen)-1 do
-    local seatsLen = redis.call('GET', 'event:'..eventId..':section:'..i..':seats:len')
-    local sectionResult = {}
-    for j = 0, tonumber(seatsLen)-1 do
-      local seat = redis.call('GETBIT', 'event:'..eventId..':section:'..i..':seats', j)
-      if not (seat == 0 or seat == 1) then
-        return nil
+  local bitMasks = {128, 64, 32, 16, 8, 4, 2, 1}
+  
+  for i = 0, sectionsLen - 1 do
+      local sectionKey = 'event:'..eventId..':section:'..i..':seats'
+      local seatsLen = tonumber(redis.call('GET', sectionKey..':len'))
+      if not seatsLen then return nil end
+      
+      local byteLen = math.ceil(seatsLen / 8)
+      local rawBytes = redis.call('GETRANGE', sectionKey, 0, byteLen - 1)
+      
+      local sectionResult = {}
+      local resultIndex = 1
+      
+      for byteIndex = 1, byteLen do
+          local byte = string.byte(rawBytes, byteIndex) or 0
+          
+          for bitPos = 1, 8 do
+              if resultIndex > seatsLen then break end
+              sectionResult[resultIndex] = math.floor(byte / bitMasks[bitPos]) % 2
+              resultIndex = resultIndex + 1
+          end
+          
+          if resultIndex > seatsLen then break end
       end
-      table.insert(sectionResult, seat)
-    end
-    table.insert(placeResult, sectionResult)  
+      
+      table.insert(placeResult, sectionResult)
   end
   
   return placeResult
