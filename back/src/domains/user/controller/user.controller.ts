@@ -25,6 +25,7 @@ import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { AuthService } from '../../../auth/service/auth.service';
 import { User } from '../../../util/user-injection/user.decorator';
 import { UserParamDto } from '../../../util/user-injection/userParamDto';
 import { USER_ROLE } from '../const/userRole';
@@ -36,7 +37,10 @@ import { UserService } from '../service/user.service';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(@Inject() private readonly userService: UserService) {}
+  constructor(
+    @Inject() private readonly userService: UserService,
+    @Inject() private readonly authService: AuthService,
+  ) {}
 
   @ApiOperation({ summary: '회원가입', description: 'id, password를 받아 회원가입 요청을 처리한다.' })
   @ApiBody({
@@ -93,7 +97,7 @@ export class UserController {
   @ApiInternalServerErrorResponse({ description: '게스트를 생성하는데 실패하였습니다.' })
   @Get('/guest')
   async useGuestMode(@Res({ passthrough: true }) res: Response) {
-    const { sessionId, userInfo } = await this.userService.makeGuestUser();
+    const { sessionId, userInfo } = await this.authService.makeGuestUser();
     res.cookie('SID', sessionId, { httpOnly: true });
 
     return userInfo;
@@ -121,7 +125,7 @@ export class UserController {
   @ApiUnauthorizedResponse({ description: '로그인 실패 또는 등록되지 않은 사용자' })
   @Post('login')
   async login(@Body() userLoginDto: UserLoginDto, @Res({ passthrough: true }) res: Response) {
-    const { sessionId, userInfo } = await this.userService.validateUser(
+    const { sessionId, userInfo } = await this.authService.validateUser(
       userLoginDto.loginId,
       userLoginDto.loginPassword,
     );
@@ -154,7 +158,7 @@ export class UserController {
   @Post('logout')
   async getUserLogout(@Req() req: Request, @User() user: UserParamDto) {
     const sid = req.cookies['SID'];
-    return await this.userService.logoutUser(sid, user);
+    return await this.authService.logoutUser(sid, user.loginId);
   }
 
   @ApiOperation({ summary: '사용자 정보', description: '사용자 정보 요청을 처리한다. 사용자 ID를 불러온다.' })
@@ -163,6 +167,6 @@ export class UserController {
   @Get()
   @UseGuards(SessionAuthGuard())
   async getUserInfo(@Req() req: Request) {
-    return await this.userService.getUserInfo(req.cookies['SID']);
+    return await this.authService.getUserInfo(req.cookies['SID']);
   }
 }
