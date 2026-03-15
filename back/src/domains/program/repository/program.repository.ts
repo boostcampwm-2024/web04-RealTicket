@@ -47,7 +47,10 @@ export class ProgramRepository {
     try {
       return await this.ProgramRepository.delete(id);
     } catch (error) {
-      if (error.code === 'ER_ROW_IS_REFERENCED_2')
+      if (
+        error.code === 'ER_ROW_IS_REFERENCED_2' ||
+        (error instanceof QueryFailedError && error.message.includes('FOREIGN KEY constraint failed'))
+      )
         throw new ConflictException('해당 프로그램에 대한 이벤트가 존재합니다.');
       throw error;
     }
