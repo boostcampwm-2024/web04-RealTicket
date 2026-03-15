@@ -56,7 +56,7 @@ export class PlaceService {
   }
 
   async createPlace(placeCreationDto: PlaceCreationDto) {
-    this.placeRepository.storePlace({
+    return await this.placeRepository.storePlace({
       ...placeCreationDto,
       sections: [],
     });
