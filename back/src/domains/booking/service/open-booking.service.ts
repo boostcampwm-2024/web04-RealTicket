@@ -8,7 +8,6 @@ import { AuthService } from '../../../auth/service/auth.service';
 import { Event } from '../../event/entity/event.entity';
 import { EventRepository } from '../../event/repository/event.reposiotry';
 import { SectionRepository } from '../../place/repository/section.repository';
-import { UserService } from '../../user/service/user.service';
 import { ONE_MINUTE_BEFORE_THE_HOUR } from '../const/cronExpressions.const';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 
@@ -27,7 +26,6 @@ export class OpenBookingService implements OnApplicationBootstrap {
     private eventRepository: EventRepository,
     private sectionRepository: SectionRepository,
     private authService: AuthService,
-    private userService: UserService,
     private inBookingService: InBookingService,
     private seatsUpdateService: BookingSeatsService,
     private waitingQueueService: WaitingQueueService,
@@ -226,7 +224,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     const authSession = await this.authService.getUserSession(sid);
     if (authSession) {
       await this.authService.setUserStatusLogin(sid);
-      await this.userService.setUserEventTarget(sid, 0);
+      await this.authService.setUserEventTarget(sid, 0);
     }
   }
 

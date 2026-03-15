@@ -1,10 +1,7 @@
-import { RedisService } from '@liaoliaots/nestjs-redis';
 import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { UserService } from '../../user/service/user.service';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 
@@ -17,24 +14,19 @@ import { WaitingQueueService } from './waiting-queue.service';
 @Injectable()
 export class BookingService {
   private logger = new Logger(BookingService.name);
-  private readonly redis: Redis | null;
   constructor(
-    private readonly redisService: RedisService,
     private readonly authService: AuthService,
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
-    private readonly userService: UserService,
     private readonly enterBookingService: EnterBookingService,
-  ) {
-    this.redis = this.redisService.getOrThrow();
-  }
+  ) {}
 
   @OnEvent('seats-sse-close')
   async onSeatsSseDisconnected(event: { sid: string }) {
     const sid = event.sid;
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       return;
@@ -96,7 +88,7 @@ export class BookingService {
   }
 
   async setInBookingFromEntering(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new BadRequestException('좌석 선택 상태로 이동할 세션의 대상 이벤트를 불러올 수 없습니다.');
@@ -116,13 +108,13 @@ export class BookingService {
       throw new BadRequestException('예약이 오픈되지 않았습니다.');
     }
 
-    await this.userService.setUserEventTarget(sid, eventId);
+    await this.authService.setUserEventTarget(sid, eventId);
 
     return await this.getForwarded(sid);
   }
 
   private async getForwarded(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new BadRequestException('permission할 세션의 대상 이벤트를 불러올 수 없습니다.');
@@ -173,7 +165,7 @@ export class BookingService {
   private async flushBookedSeats(sid: string) {
     const bookedSeats = await this.inBookingService.getBookedSeats(sid);
     if (bookedSeats.length > 0) {
-      const eventId = await this.userService.getUserEventTarget(sid);
+      const eventId = await this.authService.getUserEventTarget(sid);
 
       if (eventId === null) {
         throw new BadRequestException('좌석을 회수할 세션의 대상 이벤트를 불러올 수 없습니다.');

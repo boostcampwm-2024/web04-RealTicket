@@ -7,7 +7,6 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { UserService } from '../../user/service/user.service';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 import {
   SEATS_SSE_RETRY_TIMEOUT,
@@ -27,7 +26,6 @@ export class InBookingService {
   constructor(
     private readonly authService: AuthService,
     private redisService: RedisService,
-    private readonly userService: UserService,
     private eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
@@ -191,7 +189,7 @@ export class InBookingService {
     } else if (eventId !== 0) {
       await this.removeInBooking(eventId, sid);
       await this.authService.setUserStatusLogin(sid);
-      await this.userService.setUserEventTarget(sid, 0);
+      await this.authService.setUserEventTarget(sid, 0);
     }
   }
 
@@ -204,7 +202,7 @@ export class InBookingService {
   }
 
   private getTargetEventId(sid: string) {
-    return this.userService.getUserEventTarget(sid);
+    return this.authService.getUserEventTarget(sid);
   }
 
   private getSessionKey(eventId: number, sid: string) {
@@ -276,7 +274,7 @@ export class InBookingService {
   }
 
   async addReconnectingSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
     if (eventId === null) {
       return false;
     }
@@ -286,7 +284,7 @@ export class InBookingService {
   }
 
   async removeReconnectingSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
     if (eventId === null) {
       return false;
     }
