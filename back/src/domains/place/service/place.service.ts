@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
@@ -28,16 +22,17 @@ export class PlaceService {
   async getSeats(placeId: number): Promise<SeatInfoDto> {
     try {
       const place: Place = await this.placeRepository.selectPlace(placeId);
+
+      if (!place) {
+        throw new NotFoundException(`해당 장소[${placeId}]가 존재하지 않습니다.`);
+      }
+
       const sectionNameList = place.sections;
       const secitons = await Promise.all(
         sectionNameList.map(async (sectionName) => {
           return await this.sectionRepository.findById(parseInt(sectionName, 10));
         }),
       );
-
-      if (!place) {
-        throw new BadRequestException('해당 장소가 존재하지 않습니다.');
-      }
 
       return {
         id: place.id,
@@ -50,6 +45,7 @@ export class PlaceService {
         },
       };
     } catch (err) {
+      if (err instanceof NotFoundException) throw err;
       this.logger.error(err);
       throw new InternalServerErrorException('서버 오류 발생');
     }
