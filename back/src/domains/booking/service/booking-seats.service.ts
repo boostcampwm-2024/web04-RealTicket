@@ -30,10 +30,15 @@ type SeatStatusObject = {
   seatStatus: number[][];
 };
 
+type SeatSubscription = {
+  subject: BehaviorSubject<SeatStatusObject>;
+  interval: NodeJS.Timeout;
+};
+
 @Injectable()
 export class BookingSeatsService {
   private readonly redis: Redis | null;
-  private seatsSubscriptionMap = new Map<number, BehaviorSubject<SeatStatusObject>>();
+  private seatsSubscriptionMap = new Map<number, SeatSubscription>();
   private broadcastActivateMap = new Map<number, boolean>();
 
   constructor(
@@ -57,16 +62,18 @@ export class BookingSeatsService {
     if (this.seatsSubscriptionMap.has(eventId)) {
       throw new InternalServerErrorException('이미 해당 이벤트의 좌석 구독이 존재합니다.');
     }
-    const subscription = await this.createSeatSubscription(eventId, seats);
-    this.seatsSubscriptionMap.set(eventId, subscription);
+    const seatSubscription = await this.createSeatSubscription(eventId, seats);
+    this.seatsSubscriptionMap.set(eventId, seatSubscription);
   }
 
   async clearSeatsSubscription(eventId: number) {
-    const subscription = this.seatsSubscriptionMap.get(eventId);
-    if (subscription) {
-      subscription.complete();
+    const seatSubscription = this.seatsSubscriptionMap.get(eventId);
+    if (seatSubscription) {
+      clearInterval(seatSubscription.interval);
+      seatSubscription.subject.complete();
       this.seatsSubscriptionMap.delete(eventId);
     }
+    this.broadcastActivateMap.delete(eventId);
     const keys = await this.redis.keys(`event:${eventId}:*`);
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
@@ -170,7 +177,11 @@ export class BookingSeatsService {
   }
 
   getSeatsObservable(eventId: number) {
-    return this.seatsSubscriptionMap.get(eventId).asObservable();
+    const subscription = this.seatsSubscriptionMap.get(eventId);
+    if (!subscription) {
+      throw new InternalServerErrorException('해당 이벤트의 좌석 구독이 존재하지 않습니다.');
+    }
+    return subscription.subject.asObservable();
   }
 
   subscribeSeatsSSE(eventId: number) {
@@ -195,29 +206,33 @@ export class BookingSeatsService {
     return this.broadcastActivateMap.get(eventId);
   };
 
-  private async createSeatSubscription(eventId: number, initialSeats: number[][]) {
-    const subscription = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
+  private async createSeatSubscription(eventId: number, initialSeats: number[][]): Promise<SeatSubscription> {
+    const subject = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
     let lastBroadcastTime = Date.now();
 
-    setInterval(
+    const interval = setInterval(
       async () => {
         const now = Date.now();
         const timeSinceLastBroadcast = now - lastBroadcastTime;
 
         if (timeSinceLastBroadcast >= SSE_MAXIMUM_INTERVAL || this.isBroadcastActivated(eventId)) {
-          const seats = await this.getSeats(eventId);
-          subscription.next(new SeatsSseDto(seats));
-          lastBroadcastTime = Date.now();
+          try {
+            const seats = await this.getSeats(eventId);
+            subject.next(new SeatsSseDto(seats));
+            lastBroadcastTime = Date.now();
 
-          if (this.isBroadcastActivated(eventId)) {
-            this.unActivateNextBroadcast(eventId);
+            if (this.isBroadcastActivated(eventId)) {
+              this.unActivateNextBroadcast(eventId);
+            }
+          } catch (error) {
+            this.logger.error(`좌석 브로드캐스트 실패: eventId=${eventId}`, error);
           }
         }
       },
       Math.min(SEATS_BROADCAST_INTERVAL, SSE_MAXIMUM_INTERVAL),
     );
 
-    return subscription;
+    return { subject, interval };
   }
 
   @OnEvent('logout-release-seats')
