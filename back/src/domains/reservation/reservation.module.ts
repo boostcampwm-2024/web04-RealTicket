@@ -5,7 +5,6 @@ import { AuthModule } from '../../auth/auth.module';
 import { BookingModule } from '../booking/booking.module';
 import { EventModule } from '../event/event.module';
 import { PlaceModule } from '../place/place.module';
-import { UserModule } from '../user/user.module';
 
 import { ReservationController } from './controller/reservation.controller';
 import { Reservation } from './entity/reservation.entity';
@@ -18,11 +17,9 @@ import { ReservationService } from './service/reservation.service';
   imports: [
     TypeOrmModule.forFeature([Reservation, ReservedSeat]),
     EventModule,
-    UserModule,
     PlaceModule,
     AuthModule,
     BookingModule,
-    UserModule,
   ],
   controllers: [ReservationController],
   providers: [ReservationService, ReservationRepository, ReservedSeatRepository],
