@@ -13,7 +13,7 @@ import { BehaviorSubject } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Logger as WinstonLogger } from 'winston';
 
-import { UserService } from '../../user/service/user.service';
+import { AuthService } from '../../../auth/service/auth.service';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_INTERVAL } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
@@ -43,9 +43,9 @@ export class BookingSeatsService {
 
   constructor(
     private redisService: RedisService,
+    private readonly authService: AuthService,
     private inBookingService: InBookingService,
     private eventEmitter: EventEmitter2,
-    private readonly userService: UserService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -81,7 +81,7 @@ export class BookingSeatsService {
   }
 
   async bookSeat(sid: string, target: [number, number]) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new BadRequestException('좌석을 점유하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
@@ -103,7 +103,7 @@ export class BookingSeatsService {
   }
 
   async unBookSeat(sid: string, target: [number, number]) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new BadRequestException('좌석 점유를 취소하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
