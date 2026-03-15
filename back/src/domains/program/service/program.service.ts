@@ -49,8 +49,8 @@ export class ProgramService {
     return new ProgramSpecificDto({ ...program, place, events: openedEvents });
   }
 
-  async create(programCreationDto: ProgramCreationDto): Promise<void> {
-    await this.programRepository.storeProgram({
+  async create(programCreationDto: ProgramCreationDto) {
+    return await this.programRepository.storeProgram({
       ...programCreationDto,
       placeId: programCreationDto.placeId,
     });

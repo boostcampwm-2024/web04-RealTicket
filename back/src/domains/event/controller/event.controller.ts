@@ -92,7 +92,7 @@ export class EventController {
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createEvent(@Body() eventCreationDto: EventCreationDto) {
     try {
-      await this.eventService.create(eventCreationDto);
+      return await this.eventService.create(eventCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException || NotFoundException) throw error;
       throw new InternalServerErrorException('서버 오류 발생');
