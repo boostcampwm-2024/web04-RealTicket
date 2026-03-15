@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
 
 import { AppModule } from 'src/app.module';
+import { BookingService } from 'src/domains/booking/service/booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 /**
@@ -217,4 +218,72 @@ export async function createEvent(
   const res = await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid).send(body).expect(201);
 
   return res.body.id;
+}
+
+// ─── Booking Helpers ───
+
+/**
+ * 관리자 권한으로 이벤트 예약을 초기화하고 오픈한다.
+ */
+export function openEventReservation(app: INestApplication, adminSid: string, eventId: number) {
+  return withAuth(supertest(app.getHttpServer()).post(`/booking/init/${eventId}`), adminSid);
+}
+
+/**
+ * 이벤트 입장 허가를 요청한다.
+ */
+export function requestPermission(app: INestApplication, sid: string, eventId: number) {
+  return withAuth(supertest(app.getHttpServer()).get(`/booking/permission/${eventId}`), sid);
+}
+
+/**
+ * 예매 인원 수를 설정한다.
+ */
+export function setBookingCount(app: INestApplication, sid: string, bookingAmount: number) {
+  return withAuth(supertest(app.getHttpServer()).post('/booking/count'), sid).send({ bookingAmount });
+}
+
+/**
+ * 좌석 점유/취소 요청을 보낸다.
+ */
+export function bookSeat(
+  app: INestApplication,
+  sid: string,
+  eventId: number,
+  sectionIndex: number,
+  seatIndex: number,
+  expectedStatus: 'reserved' | 'deleted',
+) {
+  return withAuth(supertest(app.getHttpServer()).post('/booking'), sid).send({
+    eventId,
+    sectionIndex,
+    seatIndex,
+    expectedStatus,
+  });
+}
+
+/**
+ * SSE 연결을 우회하여 ENTERING → SELECTING_SEAT 상태 전환을 수행한다.
+ * 반드시 setBookingCount 호출 후 사용해야 한다.
+ */
+export async function transitionToSelectingSeat(app: INestApplication, sid: string) {
+  const bookingService = app.get(BookingService);
+  await bookingService.setInBookingFromEntering(sid);
+}
+
+/**
+ * 유저를 좌석 선택 상태(SELECTING_SEAT)까지 한 번에 진행시킨다.
+ * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환
+ */
+export async function setupSelectingSeat(
+  app: INestApplication,
+  adminSid: string,
+  eventId: number,
+  userSid: string,
+  bookingAmount: number = 1,
+) {
+  await openEventReservation(app, adminSid, eventId).expect(201);
+  await requestPermission(app, userSid, eventId).expect(200);
+  await setBookingCount(app, userSid, bookingAmount).expect(201);
+  await transitionToSelectingSeat(app, userSid);
 }
