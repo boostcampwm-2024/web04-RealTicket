@@ -5,7 +5,6 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { UserService } from '../../user/service/user.service';
 import { ENTERING_GC_INTERVAL, ENTERING_SESSION_EXPIRY } from '../const/enterBooking.const';
 
 @Injectable()
@@ -14,7 +13,6 @@ export class EnterBookingService {
   constructor(
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
-    private readonly userService: UserService,
     private readonly eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {
@@ -43,7 +41,7 @@ export class EnterBookingService {
   }
 
   async addEnteringSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new Error('입장중 상태에 추가할 세션의 대상 이벤트를 불러올 수 없습니다.');
@@ -55,7 +53,7 @@ export class EnterBookingService {
   }
 
   async removeEnteringSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       throw new Error('입장중 상태에서 제거할 세션의 대상 이벤트를 불러올 수 없습니다.');
@@ -67,7 +65,7 @@ export class EnterBookingService {
   }
 
   async isEntering(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
       return false;

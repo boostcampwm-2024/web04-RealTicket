@@ -1,19 +1,57 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
+import { Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
+import { USER_ROLE } from '../../domains/user/const/userRole';
+import { UserInfoDto } from '../../domains/user/dto/userInfo.dto';
+import { User } from '../../domains/user/entity/user.entity';
+import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_STATUS } from '../const/userStatus.const';
 
 @Injectable()
 export class AuthService {
   private readonly redis: Redis | null;
+  private readonly logger = new Logger(AuthService.name);
 
-  constructor(private redisService: RedisService) {
+  constructor(
+    private redisService: RedisService,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @Optional() @Inject() private readonly eventEmitter?: EventEmitter2,
+  ) {
     this.redis = this.redisService.getOrThrow();
   }
 
+  private parseSessionData(sessionData: string | null) {
+    if (!sessionData) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(sessionData);
+    } catch (error) {
+      this.logger.warn(`Invalid session format: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return null;
+    }
+  }
+
+  private async getParsedSession(sid: string) {
+    return this.parseSessionData(await this.redis.get(`user:${sid}`));
+  }
+
   async getUserIdFromSession(sid: string): Promise<[number | null, string | null]> {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return [null, null];
     const userId = session.id;
     const userLoginId = session.loginId;
@@ -22,7 +60,7 @@ export class AuthService {
   }
 
   async setUserStatusLogin(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
@@ -30,7 +68,7 @@ export class AuthService {
   }
 
   async setUserStatusWaiting(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
@@ -38,7 +76,7 @@ export class AuthService {
   }
 
   async setUserStatusEntering(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
@@ -46,7 +84,7 @@ export class AuthService {
   }
 
   async setUserStatusSelectingSeat(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
@@ -54,7 +92,7 @@ export class AuthService {
   }
 
   async setUserStatusReconnectingSelecting(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
@@ -65,7 +103,7 @@ export class AuthService {
   }
 
   async setUserStatusAdmin(sid: string) {
-    const session = JSON.parse(await this.redis.get(`user:${sid}`));
+    const session = await this.getParsedSession(sid);
     if (!session) return;
 
     this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
@@ -76,7 +114,125 @@ export class AuthService {
     return this.redis.unlink(`user:${sid}`);
   }
 
+  async validateUser(id: string, password: string) {
+    try {
+      const keyOfUserId = `user-id:${id}`;
+      const oldSessionId = await this.redis.get(keyOfUserId);
+
+      if (oldSessionId) {
+        await this.redis.unlink(`user:${oldSessionId}`);
+      }
+
+      const user = await this.userRepository.findOne({ where: { loginId: id } });
+      if (!user) {
+        throw new UnauthorizedException('아이디와 비밀번호를 다시 확인해주세요.');
+      }
+
+      const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
+      if (!checkPasswordValid) {
+        throw new UnauthorizedException('아이디와 비밀번호를 다시 확인해주세요.');
+      }
+
+      const cachedUserInfo = {
+        id: user.id,
+        loginId: user.loginId,
+        userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
+        targetEvent: null,
+      };
+
+      const sessionId = uuidv4();
+      const userInfoDto: UserInfoDto = new UserInfoDto();
+      userInfoDto.loginId = user.loginId;
+
+      await this.redis.set(`user-id:${id}`, sessionId, 'EX', AUTH_EXPIRE_TIME);
+      await this.redis.set(`user:${sessionId}`, JSON.stringify(cachedUserInfo), 'EX', AUTH_EXPIRE_TIME);
+
+      return { sessionId: sessionId, userInfo: userInfoDto };
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
+      throw new InternalServerErrorException('서버에서 문제가 발생했습니다.');
+    }
+  }
+
+  async getUserInfo(sid: string) {
+    try {
+      const userInfo = await this.getUserSession(sid);
+      const userInfoDto: UserInfoDto = new UserInfoDto();
+      userInfoDto.loginId = userInfo.loginId;
+      return userInfoDto;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('사용자 정보를 불러오는데 실패했습니다.');
+    }
+  }
+
+  async logoutUser(sid: string, loginId: string) {
+    try {
+      const sessionData = await this.redis.get(`user:${sid}`);
+      if (sessionData) {
+        this.eventEmitter?.emit('logout-start', { sid, sessionData });
+        if ((await this.removeSession(sid, loginId)) > 0) {
+          return { message: '로그아웃 하였습니다.' };
+        }
+      } else {
+        this.logger.warn(`세션 없는 로그아웃 요청: SID=${sid}, loginId=${loginId}`);
+        return { message: '로그아웃 하였습니다.' };
+      }
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('로그아웃에 실패했습니다.');
+    }
+  }
+
+  async setUserEventTarget(sid: string, eventId: number) {
+    const session = await this.getParsedSession(sid);
+    if (!session) {
+      return;
+    }
+
+    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
+  }
+
+  async getUserEventTarget(sid: string) {
+    const session = await this.getParsedSession(sid);
+    if (!session) {
+      return null;
+    }
+
+    return session?.targetEvent ?? null;
+  }
+
+  async makeGuestUser() {
+    try {
+      const uuid = uuidv4();
+      const guestId = `guest-${uuid}`;
+
+      const guestInfo = await this.userRepository.save({
+        loginId: guestId,
+        role: USER_ROLE.USER,
+        checkGuest: true,
+      });
+
+      const guestSession = {
+        id: guestInfo.id,
+        loginId: guestInfo.loginId,
+        userStatus: USER_STATUS.LOGIN,
+        targetEvent: null,
+      };
+
+      this.redis.set(`user-id:${guestId}`, uuid, 'EX', AUTH_EXPIRE_TIME);
+      this.redis.set(`user:${uuid}`, JSON.stringify(guestSession), 'EX', AUTH_EXPIRE_TIME);
+
+      return { sessionId: uuid, userInfo: guestSession };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('게스트 사용자 생성에 실패했습니다.');
+    }
+  }
+
   async getUserSession(sid: string) {
-    return JSON.parse(await this.redis.get(`user:${sid}`));
+    return this.getParsedSession(sid);
   }
 }
