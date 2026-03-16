@@ -17,6 +17,8 @@ import {
   requestPermission,
   setBookingCount,
   setupSelectingSeat,
+  simulateSseCloseTimeout,
+  simulateSseDisconnect,
   transitionToSelectingSeat,
   withAuth,
 } from './helpers/e2e-setup';
@@ -223,6 +225,49 @@ describe('Reservation (e2e)', () => {
       // 6. 예매 내역 조회
       const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
       expect(listRes.body.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('1회차 예매 확정 → SSE 해제 → 2회차 예매 (상태 순환 검증)', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userSid = await loginAsUser(app, 'flow0002', 'pass1234');
+
+      // ── 1회차: 입장 → 좌석 점유 → 예매 확정 ──
+      await requestPermission(app, userSid, eventId).expect(200);
+      await setBookingCount(app, userSid, 1).expect(201);
+      await transitionToSelectingSeat(app, userSid);
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
+
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
+        .expect(201);
+
+      // ── SSE 해제: 페이지 이동 시뮬레이션 ──
+      await simulateSseDisconnect(app, userSid);
+      await simulateSseCloseTimeout(app, userSid);
+
+      // 상태가 LOGIN으로 복귀했는지 확인
+      await bookSeat(app, userSid, eventId, 0, 1, 'reserved').expect(401);
+
+      // ── 2회차: 같은 유저가 다시 예매 플로우 진입 ──
+      const permRes = await requestPermission(app, userSid, eventId).expect(200);
+      expect(permRes.body.enteringStatus).toBe(true);
+
+      await setBookingCount(app, userSid, 1).expect(201);
+      await transitionToSelectingSeat(app, userSid);
+
+      // 1회차에서 점유한 좌석(0,0)은 예매 확정됐으므로 여전히 점유 중
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(409);
+
+      // 다른 좌석 점유 → 2회차 예매 확정
+      await bookSeat(app, userSid, eventId, 0, 1, 'reserved').expect(201);
+
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 1 }] })
+        .expect(201);
+
+      // 예매 내역에 2건 존재
+      const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
+      expect(listRes.body.length).toBeGreaterThanOrEqual(2);
     });
   });
 });
