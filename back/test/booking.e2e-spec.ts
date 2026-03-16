@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import supertest from 'supertest';
 
+import { AuthService } from 'src/auth/service/auth.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
@@ -16,6 +17,9 @@ import {
   openEventReservation,
   requestPermission,
   setBookingCount,
+  setupSelectingSeat,
+  simulateSseCloseTimeout,
+  simulateSseDisconnect,
   transitionToSelectingSeat,
   withAuth,
 } from './helpers/e2e-setup';
@@ -260,6 +264,98 @@ describe('Booking (e2e)', () => {
       await withAuth(supertest(app.getHttpServer()).post('/booking/in-booking-pool-size/default'), userSid)
         .send({ maxSize: 100 })
         .expect(401);
+    });
+  });
+
+  // ─── SSE 연결 해제 ───
+
+  describe('SSE 연결 해제 시나리오', () => {
+    it('예매 확정 후 SSE 해제 → 좌석 회수되지 않음 (saved=true)', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userSid = await loginAsUser(app, 'sseuser1', 'pass1234');
+      await requestPermission(app, userSid, eventId).expect(200);
+      await setBookingCount(app, userSid, 1).expect(201);
+      await transitionToSelectingSeat(app, userSid);
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
+
+      // 예매 확정 → saved=true
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
+        .expect(201);
+
+      // SSE 해제 1차: 상태 → RECONNECTING_SELECTING
+      await simulateSseDisconnect(app, userSid);
+
+      const authService = app.get(AuthService);
+      const session = await authService.getUserSession(userSid);
+      expect(session.userStatus).toBe('RECONNECTING_SELECTING');
+
+      // SSE 해제 2차: 타임아웃 만료 → 정리
+      await simulateSseCloseTimeout(app, userSid);
+
+      // 좌석이 여전히 점유 상태인지 확인 — 이벤트 재초기화 없이 다른 유저가 같은 좌석 점유 시도
+      const user2Sid = await loginAsUser(app, 'sseuser2', 'pass1234');
+      await requestPermission(app, user2Sid, eventId).expect(200);
+      await setBookingCount(app, user2Sid, 1).expect(201);
+      await transitionToSelectingSeat(app, user2Sid);
+      await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved').expect(409);
+    });
+
+    it('예매 미확정 상태에서 SSE 해제 → 좌석 회수됨 (saved=false)', async () => {
+      const userSid = await loginAsUser(app, 'sseuser3', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, userSid, 1);
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
+
+      // 예매 확정 없이 SSE 해제
+      await simulateSseDisconnect(app, userSid);
+      await simulateSseCloseTimeout(app, userSid);
+
+      // 좌석이 회수됐으므로 다른 유저가 점유 가능
+      const user2Sid = await loginAsUser(app, 'sseuser4', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, user2Sid, 1);
+      await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved').expect(201);
+    });
+
+    it('SSE 해제 후 세션이 LOGIN 상태로 복귀', async () => {
+      const userSid = await loginAsUser(app, 'sseuser5', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, userSid, 1);
+
+      await simulateSseDisconnect(app, userSid);
+      await simulateSseCloseTimeout(app, userSid);
+
+      // LOGIN 상태 → 좌석 점유 불가 (401)
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(401);
+    });
+
+    it('SSE 해제 후 대기열 다음 유저가 입장', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      // maxSize=1로 제한
+      await withAuth(
+        supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
+        adminSid,
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
+
+      // user1 입장 → SELECTING_SEAT
+      const user1Sid = await loginAsUser(app, 'sseuser6', 'pass1234');
+      await requestPermission(app, user1Sid, eventId).expect(200);
+      await setBookingCount(app, user1Sid, 1).expect(201);
+      await transitionToSelectingSeat(app, user1Sid);
+
+      // user2 대기열 진입
+      const user2Sid = await loginAsUser(app, 'sseuser7', 'pass1234');
+      const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
+      expect(waitRes.body.waitingStatus).toBe(true);
+
+      // user1 SSE 해제 → 슬롯 반환 → user2 입장
+      await simulateSseDisconnect(app, user1Sid);
+      await simulateSseCloseTimeout(app, user1Sid);
+
+      // user2가 ENTERING 상태가 됐으므로 인원 설정 가능
+      const countRes = await setBookingCount(app, user2Sid, 1).expect(201);
+      expect(countRes.body.bookingAmount).toBe(1);
     });
   });
 
