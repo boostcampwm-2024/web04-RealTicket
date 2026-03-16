@@ -109,7 +109,7 @@ export class BookingController {
     if (session.userStatus === USER_STATUS.ENTERING) {
       await this.bookingService.setInBookingFromEntering(sid);
     } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
-      await this.inBookingService.removeReconnectingSession(sid);
+      await this.inBookingService.removeReconnectingSession(eventId, sid);
       await this.authService.setUserStatusSelectingSeat(sid);
     }
 
@@ -121,7 +121,7 @@ export class BookingController {
         await this.bookingService.onSeatsSseDisconnected({ sid });
       } else {
         await this.authService.setUserStatusReconnectingSelecting(sid);
-        await this.inBookingService.addReconnectingSession(sid);
+        await this.inBookingService.addReconnectingSession(eventId, sid);
       }
     });
 
