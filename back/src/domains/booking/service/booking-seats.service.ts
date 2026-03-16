@@ -87,19 +87,14 @@ export class BookingSeatsService {
       throw new BadRequestException('좌석을 점유하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
     }
 
-    const bookedSeat = await this.inBookingService.getBookedSeats(sid);
-    const bookingAmount = await this.inBookingService.getBookingAmount(sid);
-    const bookedAmount = bookedSeat.length;
+    await this.inBookingService.validateAndAddBookedSeat(eventId, sid, target);
 
-    if (bookingAmount <= bookedAmount) {
-      throw new BadRequestException('예약 가능한 좌석 수를 초과했습니다.');
+    try {
+      return await this.updateSeatReserved(eventId, target);
+    } catch (error) {
+      await this.inBookingService.removeBookedSeat(eventId, sid, target);
+      throw error;
     }
-
-    const result = await this.updateSeatReserved(eventId, target);
-    if (result) {
-      await this.inBookingService.addBookedSeat(sid, target);
-    }
-    return result;
   }
 
   async unBookSeat(sid: string, target: [number, number]) {
@@ -109,21 +104,14 @@ export class BookingSeatsService {
       throw new BadRequestException('좌석 점유를 취소하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
     }
 
-    const bookedSeat = await this.inBookingService.getBookedSeats(sid);
-    const bookedAmount = bookedSeat.length;
+    await this.inBookingService.validateAndRemoveBookedSeat(eventId, sid, target);
 
-    if (bookedAmount === 0) {
-      throw new BadRequestException('취소할 수 있는 좌석이 없습니다.');
+    try {
+      return await this.updateSeatDeleted(eventId, target);
+    } catch (error) {
+      await this.inBookingService.addBookedSeat(eventId, sid, target);
+      throw error;
     }
-    if (!bookedSeat.some((seat) => seat[0] === target[0] && seat[1] === target[1])) {
-      throw new BadRequestException('예약하지 않은 좌석입니다.');
-    }
-
-    const result = await this.updateSeatDeleted(eventId, target);
-    if (result) {
-      await this.inBookingService.removeBookedSeat(sid, target);
-    }
-    return result;
   }
 
   async updateSeatReserved(eventId: number, target: [number, number]) {

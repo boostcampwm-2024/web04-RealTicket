@@ -144,7 +144,7 @@ export class ReservationService {
 
       await queryRunner.commitTransaction();
 
-      await this.inBookingService.setIsSaved(sid, true);
+      await this.inBookingService.setIsSaved(eventId, sid, true);
 
       return {
         programName: program.name,

@@ -282,8 +282,9 @@ export async function transitionToSelectingSeat(app: INestApplication, sid: stri
 export async function simulateSseDisconnect(app: INestApplication, sid: string) {
   const authService = app.get(AuthService);
   const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
   await authService.setUserStatusReconnectingSelecting(sid);
-  await inBookingService.addReconnectingSession(sid);
+  await inBookingService.addReconnectingSession(eventId, sid);
 }
 
 /**
@@ -296,8 +297,10 @@ export async function simulateSseDisconnect(app: INestApplication, sid: string) 
  * 4. 대기열 다음 유저 입장
  */
 export async function simulateSseCloseTimeout(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
   const inBookingService = app.get(InBookingService);
-  await inBookingService.removeReconnectingSession(sid);
+  const eventId = await authService.getUserEventTarget(sid);
+  await inBookingService.removeReconnectingSession(eventId, sid);
 
   const bookingService = app.get(BookingService);
   await bookingService.onSeatsSseDisconnected({ sid });
