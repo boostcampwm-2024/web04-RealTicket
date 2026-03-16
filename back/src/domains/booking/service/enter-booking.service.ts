@@ -40,37 +40,19 @@ export class EnterBookingService {
     }
   }
 
-  async addEnteringSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-
-    if (eventId === null) {
-      throw new Error('입장중 상태에 추가할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async addEnteringSession(eventId: number, sid: string) {
     const timestamp = Date.now();
     await this.redis.zadd(`entering:${eventId}`, timestamp, sid);
     return true;
   }
 
-  async removeEnteringSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-
-    if (eventId === null) {
-      throw new Error('입장중 상태에서 제거할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async removeEnteringSession(eventId: number, sid: string) {
     await this.redis.zrem(`entering:${eventId}`, sid);
     await this.removeBookingAmount(sid);
     return true;
   }
 
-  async isEntering(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-
-    if (eventId === null) {
-      return false;
-    }
-
+  async isEntering(eventId: number, sid: string) {
     const isMember = await this.redis.zscore(`entering:${eventId}`, sid);
     return isMember !== null;
   }
@@ -81,7 +63,7 @@ export class EnterBookingService {
 
   async setBookingAmount(sid: string, bookingAmount: number) {
     await this.redis.set(`entering:${sid}:temp-booking-amount`, bookingAmount);
-    return parseInt(await this.redis.get(`entering:${sid}:temp-booking-amount`));
+    return bookingAmount;
   }
 
   async getBookingAmount(sid: string) {
@@ -89,7 +71,7 @@ export class EnterBookingService {
     if (!bookingAmountData) {
       return 0;
     }
-    return parseInt(await this.redis.get(`entering:${sid}:temp-booking-amount`));
+    return parseInt(bookingAmountData);
   }
 
   async removeBookingAmount(sid: string) {

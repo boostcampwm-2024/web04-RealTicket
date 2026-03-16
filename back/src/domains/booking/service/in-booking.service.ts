@@ -1,5 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
@@ -43,14 +43,13 @@ export class InBookingService {
 
   async setInBookingSessionsDefaultMaxSize(size: number) {
     await this.redis.set('in-booking:default-max-size', size);
-    const defaultMaxSize = parseInt(await this.redis.get('in-booking:default-max-size'));
-    return defaultMaxSize;
+    return size;
   }
 
   async setInBookingSessionsMaxSize(eventId: number, size: number) {
     await this.redis.set(`in-booking:${eventId}:max-size`, size);
     this.eventEmitter.emit('in-booking-max-size-changed', { eventId });
-    return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
+    return size;
   }
 
   async setAllInBookingSessionsMaxSize(size: number) {
@@ -59,17 +58,10 @@ export class InBookingService {
 
     this.eventEmitter.emit('all-in-booking-max-size-changed');
 
-    const lastKey = keys[keys.length - 1];
-    return parseInt(await this.redis.get(lastKey));
+    return size;
   }
 
-  async isInBooking(sid: string) {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      return false;
-    }
-
+  async isInBooking(eventId: number, sid: string) {
     const session = await this.getSession(eventId, sid);
     return !!session;
   }
@@ -85,13 +77,7 @@ export class InBookingService {
     return true;
   }
 
-  async setBookingAmount(sid: string, amount: number): Promise<number> {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('예매 수량을 설정할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async setBookingAmount(eventId: number, sid: string, amount: number): Promise<number> {
     const session = await this.getSession(eventId, sid);
 
     session.bookingAmount = amount;
@@ -100,93 +86,50 @@ export class InBookingService {
     return amount;
   }
 
-  async getBookingAmount(sid: string): Promise<number> {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('예매 수량을 조회할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async getBookingAmount(eventId: number, sid: string): Promise<number> {
     const session = await this.getSession(eventId, sid);
     return session.bookingAmount;
   }
 
-  async addBookedSeat(sid: string, seat: [number, number]): Promise<void> {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('점유한 좌석을 추가할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async addBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
     const session = await this.getSession(eventId, sid);
     session.bookedSeats.push(seat);
     await this.setSession(eventId, session);
   }
 
-  async getBookedSeats(sid: string): Promise<[number, number][]> {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
+  async getBookedSeats(eventId: number, sid: string): Promise<[number, number][]> {
+    const session = await this.getSession(eventId, sid);
+    if (!session) {
       return [];
     }
-
-    const session = await this.getSession(eventId, sid);
     return session.bookedSeats;
   }
 
-  async removeBookedSeat(sid: string, seat: [number, number]): Promise<void> {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('점유한 좌석을 제거할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async removeBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
     const session = await this.getSession(eventId, sid);
     session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== seat[0] || s[1] !== seat[1]);
     await this.setSession(eventId, session);
   }
 
-  async removeBookedSeats(sid: string) {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('점유한 좌석을 모두 제거할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async removeBookedSeats(eventId: number, sid: string) {
     const session = await this.getSession(eventId, sid);
     session.bookedSeats = [];
     await this.setSession(eventId, session);
   }
 
-  async getIsSaved(sid: string) {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('예약 저장 여부를 조회할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async getIsSaved(eventId: number, sid: string) {
     const session = await this.getSession(eventId, sid);
     return session.saved;
   }
 
-  async setIsSaved(sid: string, saved: boolean) {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      throw new Error('예약 저장 여부를 설정할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  async setIsSaved(eventId: number, sid: string, saved: boolean) {
     const session = await this.getSession(eventId, sid);
     session.saved = saved;
     await this.setSession(eventId, session);
   }
 
-  async emitSession(sid: string) {
-    const eventId = await this.getTargetEventId(sid);
-
-    if (eventId === null) {
-      return;
-    } else if (eventId !== 0) {
+  async emitSession(eventId: number, sid: string) {
+    if (eventId !== 0) {
       await this.removeInBooking(eventId, sid);
       await this.authService.setUserStatusLogin(sid);
       await this.authService.setUserEventTarget(sid, 0);
@@ -199,10 +142,6 @@ export class InBookingService {
 
   async getInBookingSessionCount(eventId: number): Promise<number> {
     return this.redis.scard(this.getEventKey(eventId));
-  }
-
-  private getTargetEventId(sid: string) {
-    return this.authService.getUserEventTarget(sid);
   }
 
   private getSessionKey(eventId: number, sid: string) {
@@ -242,6 +181,46 @@ export class InBookingService {
     };
   }
 
+  async validateAndAddBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
+    const session = await this.getSession(eventId, sid);
+    if (!session) {
+      throw new BadRequestException('좌석 선택 세션이 존재하지 않습니다.');
+    }
+    if (session.bookingAmount <= session.bookedSeats.length) {
+      throw new BadRequestException('예약 가능한 좌석 수를 초과했습니다.');
+    }
+    session.bookedSeats.push(target);
+    await this.setSession(eventId, session);
+  }
+
+  async validateAndRemoveBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
+    const session = await this.getSession(eventId, sid);
+    if (!session || session.bookedSeats.length === 0) {
+      throw new BadRequestException('취소할 수 있는 좌석이 없습니다.');
+    }
+    if (!session.bookedSeats.some((seat) => seat[0] === target[0] && seat[1] === target[1])) {
+      throw new BadRequestException('예약하지 않은 좌석입니다.');
+    }
+    session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== target[0] || s[1] !== target[1]);
+    await this.setSession(eventId, session);
+  }
+
+  async flushAndSetBookingAmount(
+    eventId: number,
+    sid: string,
+    amount: number,
+  ): Promise<{ flushedSeats: [number, number][] }> {
+    const session = await this.getSession(eventId, sid);
+    if (!session) {
+      return { flushedSeats: [] };
+    }
+    const flushedSeats = [...session.bookedSeats];
+    session.bookedSeats = [];
+    session.bookingAmount = amount;
+    await this.setSession(eventId, session);
+    return { flushedSeats };
+  }
+
   async getAllInBookingSids(eventId: number) {
     return this.redis.smembers(this.getEventKey(eventId));
   }
@@ -273,21 +252,13 @@ export class InBookingService {
     }
   }
 
-  async addReconnectingSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-    if (eventId === null) {
-      return false;
-    }
+  async addReconnectingSession(eventId: number, sid: string) {
     const timestamp = Date.now();
     await this.redis.zadd(`reconnecting:${eventId}`, timestamp, sid);
     return true;
   }
 
-  async removeReconnectingSession(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-    if (eventId === null) {
-      return false;
-    }
+  async removeReconnectingSession(eventId: number, sid: string) {
     await this.redis.zrem(`reconnecting:${eventId}`, sid);
     return true;
   }

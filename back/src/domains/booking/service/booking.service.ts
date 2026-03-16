@@ -34,7 +34,7 @@ export class BookingService {
 
     if (await this.openBookingService.isEventOpened(eventId)) {
       await this.collectSeatsIfNotSaved(eventId, sid);
-      await this.inBookingService.emitSession(sid);
+      await this.inBookingService.emitSession(eventId, sid);
       await this.letInNextWaiting(eventId);
     }
   }
@@ -82,7 +82,7 @@ export class BookingService {
       if (!item) {
         break;
       }
-      await this.enterBookingService.addEnteringSession(item.sid);
+      await this.enterBookingService.addEnteringSession(eventId, item.sid);
       await this.authService.setUserStatusEntering(item.sid);
     }
   }
@@ -96,7 +96,7 @@ export class BookingService {
 
     const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
 
-    await this.enterBookingService.removeEnteringSession(sid);
+    await this.enterBookingService.removeEnteringSession(eventId, sid);
     await this.inBookingService.insertInBooking(eventId, sid, bookingAmount);
     await this.authService.setUserStatusSelectingSeat(sid);
   }
@@ -110,20 +110,14 @@ export class BookingService {
 
     await this.authService.setUserEventTarget(sid, eventId);
 
-    return await this.getForwarded(sid);
+    return await this.getForwarded(eventId, sid);
   }
 
-  private async getForwarded(sid: string) {
-    const eventId = await this.authService.getUserEventTarget(sid);
-
-    if (eventId === null) {
-      throw new BadRequestException('permission할 세션의 대상 이벤트를 불러올 수 없습니다.');
-    }
-
+  private async getForwarded(eventId: number, sid: string) {
     const isInsertable = await this.isInsertableInBooking(eventId);
 
     if (isInsertable) {
-      await this.enterBookingService.addEnteringSession(sid);
+      await this.enterBookingService.addEnteringSession(eventId, sid);
       await this.authService.setUserStatusEntering(sid);
       return {
         waitingStatus: false,
@@ -132,7 +126,7 @@ export class BookingService {
     }
 
     await this.authService.setUserStatusWaiting(sid);
-    const userOrder = await this.waitingQueueService.pushQueue(sid);
+    const userOrder = await this.waitingQueueService.pushQueue(eventId, sid);
     return {
       waitingStatus: true,
       enteringStatus: false,
@@ -149,31 +143,32 @@ export class BookingService {
   }
 
   async setBookingAmount(sid: string, bookingAmount: number) {
-    const isInBooking = await this.inBookingService.isInBooking(sid);
-    if (isInBooking) {
-      await this.flushBookedSeats(sid);
-      return await this.inBookingService.setBookingAmount(sid, bookingAmount);
+    const eventId = await this.authService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new BadRequestException('예매 수량을 설정할 세션의 대상 이벤트를 불러올 수 없습니다.');
     }
 
-    const isEntering = await this.enterBookingService.isEntering(sid);
+    const isInBooking = await this.inBookingService.isInBooking(eventId, sid);
+    if (isInBooking) {
+      const { flushedSeats } = await this.inBookingService.flushAndSetBookingAmount(
+        eventId,
+        sid,
+        bookingAmount,
+      );
+      if (flushedSeats.length > 0) {
+        await Promise.all(
+          flushedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)),
+        );
+      }
+      return bookingAmount;
+    }
+
+    const isEntering = await this.enterBookingService.isEntering(eventId, sid);
     if (!isEntering) {
       throw new BadRequestException('예매 수량을 설정할 수 없는 상태입니다.');
     }
     return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
-  }
-
-  private async flushBookedSeats(sid: string) {
-    const bookedSeats = await this.inBookingService.getBookedSeats(sid);
-    if (bookedSeats.length > 0) {
-      const eventId = await this.authService.getUserEventTarget(sid);
-
-      if (eventId === null) {
-        throw new BadRequestException('좌석을 회수할 세션의 대상 이벤트를 불러올 수 없습니다.');
-      }
-
-      await Promise.all(bookedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)));
-      await this.inBookingService.removeBookedSeats(sid);
-    }
   }
 
   async freeSeatsIfEventOpened(eventId: number, seats: [number, number][]) {
