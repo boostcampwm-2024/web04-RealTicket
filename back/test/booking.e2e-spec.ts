@@ -1,7 +1,10 @@
+import http from 'http';
+
 import { INestApplication } from '@nestjs/common';
 import supertest from 'supertest';
 
 import { AuthService } from 'src/auth/service/auth.service';
+import { SEATS_BROADCAST_INTERVAL } from 'src/domains/booking/const/seatsBroadcastInterval.const';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
@@ -356,6 +359,83 @@ describe('Booking (e2e)', () => {
       // user2가 ENTERING 상태가 됐으므로 인원 설정 가능
       const countRes = await setBookingCount(app, user2Sid, 1).expect(201);
       expect(countRes.body.bookingAmount).toBe(1);
+    });
+  });
+
+  // ─── SSE 좌석 브로드캐스트 타이밍 ───
+
+  describe('SSE 좌석 브로드캐스트', () => {
+    it(`좌석 변경 후 ${SEATS_BROADCAST_INTERVAL}ms 이내에 브로드캐스트 수신`, async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      // SSE 구독용 유저: ENTERING 상태까지 진행
+      const sseSid = await loginAsUser(app, 'bcastusr1', 'pass1234');
+      await requestPermission(app, sseSid, eventId).expect(200);
+      await setBookingCount(app, sseSid, 1).expect(201);
+
+      // 좌석 변경용 유저: SELECTING_SEAT 상태까지 진행
+      const actorSid = await loginAsUser(app, 'bcastusr2', 'pass1234');
+      await requestPermission(app, actorSid, eventId).expect(200);
+      await setBookingCount(app, actorSid, 1).expect(201);
+      await transitionToSelectingSeat(app, actorSid);
+
+      const server = app.getHttpServer();
+      if (!server.listening) {
+        await new Promise<void>((res) => server.listen(0, res));
+      }
+      const port = server.address().port;
+
+      const broadcastTime = await new Promise<number>((resolve, reject) => {
+        const TOLERANCE = 200;
+        const timeout = setTimeout(() => {
+          req.destroy();
+          reject(new Error(`브로드캐스트가 ${SEATS_BROADCAST_INTERVAL + TOLERANCE}ms 내에 도착하지 않음`));
+        }, SEATS_BROADCAST_INTERVAL + TOLERANCE);
+
+        let initialReceived = false;
+        let changeRequestedAt: number;
+        let buffer = '';
+
+        const req = http.get(
+          `http://127.0.0.1:${port}/booking/seat/${eventId}`,
+          { headers: { Cookie: `SID=${sseSid}` } },
+          (res) => {
+            res.on('data', (chunk: Buffer) => {
+              buffer += chunk.toString();
+
+              // SSE 이벤트는 빈 줄(\n\n)로 구분
+              const events = buffer.split('\n\n');
+              buffer = events.pop() || '';
+
+              for (const event of events) {
+                if (!event.trim()) continue;
+
+                if (!initialReceived) {
+                  // 초기 브로드캐스트 무시 → 좌석 변경 수행
+                  initialReceived = true;
+                  changeRequestedAt = Date.now();
+                  bookSeat(app, actorSid, eventId, 0, 0, 'reserved').expect(201).catch(reject);
+                } else {
+                  // 변경 후 첫 브로드캐스트
+                  const elapsed = Date.now() - changeRequestedAt;
+                  clearTimeout(timeout);
+                  req.destroy();
+                  resolve(elapsed);
+                }
+              }
+            });
+          },
+        );
+
+        req.on('error', (err) => {
+          if (err.message !== 'socket hang up') {
+            clearTimeout(timeout);
+            reject(err);
+          }
+        });
+      });
+
+      expect(broadcastTime).toBeLessThanOrEqual(SEATS_BROADCAST_INTERVAL + 200);
     });
   });
 
