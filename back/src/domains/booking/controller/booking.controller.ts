@@ -115,9 +115,14 @@ export class BookingController {
 
     const observable = this.bookingSeatsService.subscribeSeatsSSE(eventId);
 
-    req.on('close', () => {
-      this.authService.setUserStatusReconnectingSelecting(sid);
-      this.inBookingService.addReconnectingSession(sid);
+    req.on('close', async () => {
+      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+      if (inBookingSession?.saved) {
+        await this.bookingService.onSeatsSseDisconnected({ sid });
+      } else {
+        await this.authService.setUserStatusReconnectingSelecting(sid);
+        await this.inBookingService.addReconnectingSession(sid);
+      }
     });
 
     return observable;
