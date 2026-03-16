@@ -4,7 +4,9 @@ import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
 
 import { AppModule } from 'src/app.module';
+import { AuthService } from 'src/auth/service/auth.service';
 import { BookingService } from 'src/domains/booking/service/booking.service';
+import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 /**
@@ -269,6 +271,36 @@ export function bookSeat(
 export async function transitionToSelectingSeat(app: INestApplication, sid: string) {
   const bookingService = app.get(BookingService);
   await bookingService.setInBookingFromEntering(sid);
+}
+
+/**
+ * SSE 연결 해제 시 발생하는 1차 처리를 시뮬레이션한다.
+ * req.on('close') 핸들러가 수행하는 동작:
+ * - 유저 상태를 RECONNECTING_SELECTING으로 변경
+ * - reconnecting 세션 풀에 등록
+ */
+export async function simulateSseDisconnect(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  await authService.setUserStatusReconnectingSelecting(sid);
+  await inBookingService.addReconnectingSession(sid);
+}
+
+/**
+ * SSE 연결 해제 후 재연결 타임아웃이 만료됐을 때의 정리 로직을 시뮬레이션한다.
+ * 실제로는 removeExpiredReconnectingSessions가 reconnecting 풀에서 제거한 뒤
+ * seats-sse-close 이벤트를 발행한다. 이 순서를 재현한다:
+ * 1. reconnecting 풀에서 제거
+ * 2. 미저장 좌석 회수
+ * 3. in-booking 세션 정리 (상태 → LOGIN)
+ * 4. 대기열 다음 유저 입장
+ */
+export async function simulateSseCloseTimeout(app: INestApplication, sid: string) {
+  const inBookingService = app.get(InBookingService);
+  await inBookingService.removeReconnectingSession(sid);
+
+  const bookingService = app.get(BookingService);
+  await bookingService.onSeatsSseDisconnected({ sid });
 }
 
 /**
