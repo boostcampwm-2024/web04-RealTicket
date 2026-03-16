@@ -14,11 +14,11 @@
     "start:prod:watch": "cross-env NODE_ENV=production EXEC_MODE=dev nest start --watch",
     "start:prod:compiled": "cross-env NODE_ENV=development EXEC_MODE=dev node dist/main",
     "start:prod:debug": "cross-env NODE_ENV=production EXEC_MODE=dev nest start --debug 0.0.0.0:9229 --watch",
-    "test": "cross-env NODE_ENV=test jest",
-    "test:watch": "cross-env NODE_ENV=test jest --watch",
+    "test": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json",
+    "test:unit": "cross-env NODE_ENV=test jest",
+    "test:watch": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json --watch",
     "test:cov": "cross-env NODE_ENV=test jest --coverage",
     "test:debug": "cross-env NODE_ENV=test node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "lint": "eslint --fix",
     "prettier": "prettier -w"
@@ -108,6 +108,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   }
 }

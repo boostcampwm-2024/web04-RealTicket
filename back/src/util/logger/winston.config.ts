@@ -70,7 +70,8 @@ export const winstonConfig = {
       ),
     }),
 
-    new winstonDaily(dailyOptions('critical', 'warn')),
-    new winstonDaily(dailyOptions('all')),
+    ...(process.env.LOG_SAVE_MODE
+      ? [new winstonDaily(dailyOptions('critical', 'warn')), new winstonDaily(dailyOptions('all'))]
+      : []),
   ],
 };

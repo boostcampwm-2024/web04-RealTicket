@@ -48,7 +48,7 @@ export class EventService {
     });
   }
 
-  async create(eventCreationDto: EventCreationDto): Promise<void> {
+  async create(eventCreationDto: EventCreationDto) {
     this.validateEventDate(eventCreationDto);
     const program: Program = await this.programRepository.selectProgramWithPlace(eventCreationDto.programId);
     if (!program) throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]가 없습니다.`);
@@ -56,7 +56,7 @@ export class EventService {
     if (!program.place)
       throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]의 장소가 없습니다.`);
 
-    await this.eventRepository.storeEvent({ ...eventCreationDto, program, place });
+    return await this.eventRepository.storeEvent({ ...eventCreationDto, program, place });
   }
 
   private validateEventDate({
