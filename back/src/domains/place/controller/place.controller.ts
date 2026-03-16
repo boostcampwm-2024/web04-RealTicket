@@ -90,7 +90,7 @@ export class PlaceController {
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createPlace(@Body() placeCreationDto: PlaceCreationDto) {
     try {
-      await this.placeService.createPlace(placeCreationDto);
+      return await this.placeService.createPlace(placeCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('서버 내부 오류');

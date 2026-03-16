@@ -116,7 +116,7 @@ export class ProgramController {
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createProgram(@Body() programCreationDto: ProgramCreationDto) {
     try {
-      await this.programService.create(programCreationDto);
+      return await this.programService.create(programCreationDto);
     } catch (error) {
       if (error instanceof BadRequestException || NotFoundException) throw error;
       throw new InternalServerErrorException('서버 오류 발생');
