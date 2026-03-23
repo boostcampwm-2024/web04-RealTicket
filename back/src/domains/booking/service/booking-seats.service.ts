@@ -7,10 +7,10 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { Response } from 'express';
 import Redis from 'ioredis';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { BehaviorSubject } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
@@ -23,6 +23,7 @@ import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
 import { runSetSectionsLenLua } from '../luaScripts/setSectionsLenLua';
 import { runUpdateSeatLua } from '../luaScripts/updateSeatLua';
+import { SseBroadcaster } from '../sse/sse-broadcaster';
 
 import { InBookingService } from './in-booking.service';
 
@@ -40,6 +41,7 @@ export class BookingSeatsService {
   private readonly redis: Redis | null;
   private seatsSubscriptionMap = new Map<number, SeatSubscription>();
   private broadcastActivateMap = new Map<number, boolean>();
+  private readonly sseBroadcaster: SseBroadcaster<SeatStatusObject>;
 
   constructor(
     private redisService: RedisService,
@@ -49,6 +51,7 @@ export class BookingSeatsService {
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
+    this.sseBroadcaster = new SseBroadcaster('seats', this.logger, { retryMs: SEATS_SSE_RETRY_INTERVAL });
   }
 
   async openReservation(eventId: number, seats: number[][]) {
@@ -64,9 +67,11 @@ export class BookingSeatsService {
     }
     const seatSubscription = await this.createSeatSubscription(eventId, seats);
     this.seatsSubscriptionMap.set(eventId, seatSubscription);
+    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
   }
 
   async clearSeatsSubscription(eventId: number) {
+    this.sseBroadcaster.stopBroadcast(eventId);
     const seatSubscription = this.seatsSubscriptionMap.get(eventId);
     if (seatSubscription) {
       clearInterval(seatSubscription.interval);
@@ -172,13 +177,12 @@ export class BookingSeatsService {
     return subscription.subject.asObservable();
   }
 
-  subscribeSeatsSSE(eventId: number) {
-    return this.getSeatsObservable(eventId).pipe(
-      map((data) => ({
-        data,
-        retry: SEATS_SSE_RETRY_INTERVAL,
-      })),
-    );
+  addSseClient(eventId: number, res: Response, sid: string): void {
+    this.sseBroadcaster.addClient(eventId, res, sid);
+  }
+
+  removeSseClient(eventId: number, res: Response): void {
+    this.sseBroadcaster.removeClient(eventId, res);
   }
 
   @OnEvent('seats-status-changed')
