@@ -1,13 +1,16 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { Response } from 'express';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { BehaviorSubject } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Logger as WinstonLogger } from 'winston';
 
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { WAITING_BROADCAST_INTERVAL } from '../const/waitingBroadcastInterval.const';
 import { DEFAULT_WAITING_THROUGHPUT_RATE } from '../const/watingThroughputRate.const';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
+import { SseBroadcaster } from '../sse/sse-broadcaster';
 
 type WaitingSituation = {
   headOrder: number;
@@ -15,28 +18,35 @@ type WaitingSituation = {
   throughputRate: number;
 };
 
+type QueueSubscription = {
+  subject: BehaviorSubject<WaitingSituation>;
+  interval: NodeJS.Timeout;
+};
+
 @Injectable()
 export class WaitingQueueService {
   private readonly redis: Redis | null;
-  private queueSubscriptionMap = new Map<number, BehaviorSubject<WaitingSituation>>();
+  private queueSubscriptionMap = new Map<number, QueueSubscription>();
+  private readonly sseBroadcaster: SseBroadcaster<WaitingSituation>;
 
-  constructor(private redisService: RedisService) {
+  constructor(
+    private redisService: RedisService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
+  ) {
     this.redis = this.redisService.getOrThrow();
+    this.sseBroadcaster = new SseBroadcaster('waiting', this.logger);
   }
 
-  subscribeQueue(eventId: number) {
-    return this.queueSubscriptionMap
-      .get(eventId)
-      .asObservable()
-      .pipe(
-        map((data) => {
-          return { data };
-        }),
-      );
+  addSseClient(eventId: number, res: Response, sid: string): void {
+    this.sseBroadcaster.addClient(eventId, res, sid);
+  }
+
+  removeSseClient(eventId: number, res: Response): void {
+    this.sseBroadcaster.removeClient(eventId, res);
   }
 
   async pushQueue(eventId: number, sid: string) {
-    if (!this.queueSubscriptionMap.get(eventId)) {
+    if (!this.queueSubscriptionMap.has(eventId)) {
       await this.createQueueSubscription(eventId);
     }
     const order = await this.redis.incr(`waiting-queue:${eventId}:order`);
@@ -64,10 +74,10 @@ export class WaitingQueueService {
       totalWaiting: 0,
       throughputRate: DEFAULT_WAITING_THROUGHPUT_RATE,
     };
-    const subscription = new BehaviorSubject<WaitingSituation>(initialSituation);
-    setInterval(
+    const subject = new BehaviorSubject<WaitingSituation>(initialSituation);
+    const interval = setInterval(
       async () =>
-        subscription.next(
+        subject.next(
           new WaitingSseDto(
             await this.getHeadOrder(eventId),
             await this.getQueueSize(eventId),
@@ -77,8 +87,9 @@ export class WaitingQueueService {
       Math.min(WAITING_BROADCAST_INTERVAL, SSE_MAXIMUM_INTERVAL),
     );
 
-    this.queueSubscriptionMap.set(eventId, subscription);
-    return subscription;
+    this.queueSubscriptionMap.set(eventId, { subject, interval });
+    this.sseBroadcaster.startBroadcast(eventId, subject.asObservable());
+    return subject;
   }
 
   private async getHeadOrder(eventId: number) {
@@ -105,9 +116,11 @@ export class WaitingQueueService {
   }
 
   async clearQueue(eventId: number) {
-    const subscription = this.queueSubscriptionMap.get(eventId);
-    if (subscription) {
-      subscription.complete();
+    this.sseBroadcaster.stopBroadcast(eventId);
+    const queueSubscription = this.queueSubscriptionMap.get(eventId);
+    if (queueSubscription) {
+      clearInterval(queueSubscription.interval);
+      queueSubscription.subject.complete();
       this.queueSubscriptionMap.delete(eventId);
     }
     const keys = await this.redis.keys(`waiting-queue:${eventId}:*`);

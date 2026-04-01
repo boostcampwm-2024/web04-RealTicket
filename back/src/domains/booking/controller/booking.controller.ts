@@ -7,7 +7,7 @@ import {
   ParseIntPipe,
   Post,
   Req,
-  Sse,
+  Res,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -22,7 +22,7 @@ import {
   ApiOperation,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
@@ -65,7 +65,7 @@ export class BookingController {
     return await this.bookingService.isAdmission(eventId, sid);
   }
 
-  @Sse('re-permission/:eventId')
+  @Get('re-permission/:eventId')
   @UseGuards(SessionAuthGuard(USER_STATUS.WAITING))
   @ApiOperation({
     summary: '대기큐 현황 SSE',
@@ -73,8 +73,13 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: WaitingSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async subscribeWaitingQueue(@Param('eventId') eventId: number) {
-    return this.waitingQueueService.subscribeQueue(eventId);
+  async subscribeWaitingQueue(@Param('eventId') eventId: number, @Req() req: Request, @Res() res: Response) {
+    const sid = req.cookies['SID'];
+    this.waitingQueueService.addSseClient(eventId, res, sid);
+
+    req.on('close', () => {
+      this.waitingQueueService.removeSseClient(eventId, res);
+    });
   }
 
   @Post('count')
@@ -91,7 +96,7 @@ export class BookingController {
     return new BookingAmountResDto(result);
   }
 
-  @Sse('seat/:eventId')
+  @Get('seat/:eventId')
   @UseGuards(
     SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT, USER_STATUS.RECONNECTING_SELECTING]),
   )
@@ -101,7 +106,11 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
+  async getReservationStatusByEventId(
+    @Param('eventId') eventId: number,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const sid = req.cookies['SID'];
 
     const session = await this.authService.getUserSession(sid);
@@ -113,9 +122,11 @@ export class BookingController {
       await this.authService.setUserStatusSelectingSeat(sid);
     }
 
-    const observable = this.bookingSeatsService.subscribeSeatsSSE(eventId);
+    this.bookingSeatsService.addSseClient(eventId, res, sid);
 
     req.on('close', async () => {
+      this.bookingSeatsService.removeSseClient(eventId, res);
+
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
       if (inBookingSession?.saved) {
         await this.bookingService.onSeatsSseDisconnected({ sid });
@@ -124,8 +135,6 @@ export class BookingController {
         await this.inBookingService.addReconnectingSession(eventId, sid);
       }
     });
-
-    return observable;
   }
 
   @Post('')
