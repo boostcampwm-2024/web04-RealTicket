@@ -337,3 +337,39 @@ export async function setupSelectingSeat(
   await setBookingCount(app, userSid, bookingAmount).expect(201);
   await transitionToSelectingSeat(app, userSid);
 }
+
+/**
+ * WAITING_QUEUE SSE 타임아웃 초과를 시뮬레이션한다.
+ * 실제 서버에는 WAITING 유저의 자동 타임아웃 GC가 없으므로,
+ * "시스템이 오랫동안 재연결하지 않은 유저를 정리"하는 동작을 직접 재현한다:
+ * 1. Redis 큐(waiting-queue:{eventId})에서 해당 sid를 제거
+ * 2. 유저 상태를 LOGIN으로 복귀
+ */
+export async function simulateWaitingSseTimeout(app: INestApplication, sid: string): Promise<void> {
+  const authService = app.get(AuthService);
+  const eventId = await authService.getUserEventTarget(sid);
+
+  if (eventId === null) {
+    throw new Error(`simulateWaitingSseTimeout: sid=${sid}의 targetEvent가 null입니다.`);
+  }
+
+  // TestRedisService.getOrThrow()로 ioredis 인스턴스를 가져와 lrange/lrem 직접 호출
+  const redis = getRedisService(app).getOrThrow();
+  const queueKey = `waiting-queue:${eventId}`;
+  const items = await redis.lrange(queueKey, 0, -1);
+  for (const item of items) {
+    try {
+      const parsed = JSON.parse(item);
+      if (parsed.sid === sid) {
+        await redis.lrem(queueKey, 1, item);
+        break;
+      }
+    } catch {
+      // JSON 파싱 실패 항목은 무시
+    }
+  }
+
+  // getAllWaitingSids가 큐 없음을 캐치할 수 있도록 queueSubscription 정리는 하지 않음
+  // (실제 timeout 처리와 동일하게 상태만 변경)
+  await authService.setUserStatusLogin(sid);
+}
