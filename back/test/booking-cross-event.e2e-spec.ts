@@ -125,6 +125,30 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
     });
   });
 
+  describe('clearEnteringPool 버그 회귀', () => {
+    it('ISO-05: clearEnteringPool(이벤트A) 후 이벤트B의 entering:temp-booking-amount 키 보존', async () => {
+      // 이벤트 B에 userB 진입: ENTERING 상태 + setBookingCount → temp-booking-amount 키 생성
+      await openEventReservation(app, adminSid, eventId2).expect(201);
+      const userBSid = await loginAsUser(app, 'iso05userb', 'pass1234');
+      await requestPermission(app, userBSid, eventId2).expect(200);
+      await setBookingCount(app, userBSid, 1).expect(201);
+      // 이 시점에서 Redis에 entering:{userBSid}:temp-booking-amount = '1' 키가 존재해야 함
+
+      // 키 존재 확인 (사전 검증)
+      const redis = getRedisService(app).getOrThrow();
+      const key = `entering:${userBSid}:temp-booking-amount`;
+      const valueBefore = await redis.get(key);
+      expect(valueBefore).toBe('1'); // setBookingCount(1)이 설정한 값
+
+      // 이벤트 A에 clearEnteringPool 트리거: openEventReservation은 initReservation → closeReservationAnyway → clearEnteringPool(eventIdA) 호출
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      // ISO-05: 이벤트 B의 entering 키가 여전히 존재해야 함 (버그 수정 후 기대 동작)
+      const valueAfter = await redis.get(key);
+      expect(valueAfter).toBe('1'); // 이벤트 A 정리로 삭제되면 안 됨
+    });
+  });
+
   describe('이벤트 A WAITING 이탈 → 이벤트 B 간섭 없음', () => {
     it('ISO-01: 이벤트 A WAITING 타임아웃 후 이벤트 B permission → 200 반환', async () => {
       // 이벤트 A 오픈 + maxSize=1로 2번째 유저를 WAITING 진입시킴
