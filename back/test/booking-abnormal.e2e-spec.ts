@@ -216,5 +216,49 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       const res = await bookSeat(app, userSid, eventId, 0, 0, 'reserved');
       expect(res.status).toBe(403);
     });
+
+    // ABN-07: 이미 취소된 좌석 재취소 → 400
+    // 실제 동작: unBookSeat → validateAndRemoveBookedSeat → bookedSeats.length===0 → BadRequestException(400)
+    // updateSeatDeleted의 ConflictException(409)은 bookedSeats 검증 이후에 위치하므로 도달하지 않음
+    it('ABN-07: 이미 취소된(deleted) 좌석을 다시 취소 → 400', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userSid = await loginAsUser(app, 'abn07user1', 'pass1234');
+
+      // SELECTING_SEAT 진입
+      await requestPermission(app, userSid, eventId).expect(200);
+      await setBookingCount(app, userSid, 1).expect(201);
+      await transitionToSelectingSeat(app, userSid);
+
+      // 좌석 점유 → 취소 (정상 흐름)
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
+      await bookSeat(app, userSid, eventId, 0, 0, 'deleted').expect(201);
+      // 이 시점에서 좌석 상태: available(bit=1), bookedSeats에서도 제거됨
+
+      // 이미 취소된 좌석 재취소 → validateAndRemoveBookedSeat → bookedSeats 없음 → 400
+      const res = await bookSeat(app, userSid, eventId, 0, 0, 'deleted');
+      expect(res.status).toBe(400);
+    });
+
+    // ABN-08: bookingAmount=1인데 좌석 2개 선택 후 예매 확정 시도 → 400
+    it('ABN-08: bookingAmount(1) 초과 좌석 점유 시도 → 400', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userSid = await loginAsUser(app, 'abn08user1', 'pass1234');
+
+      // SELECTING_SEAT 진입 (bookingAmount=1)
+      await requestPermission(app, userSid, eventId).expect(200);
+      await setBookingCount(app, userSid, 1).expect(201);
+      await transitionToSelectingSeat(app, userSid);
+
+      // 1번째 좌석 점유 (정상, bookedSeats.length=0 < bookingAmount=1)
+      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
+
+      // 2번째 좌석 점유 시도 → validateAndAddBookedSeat → bookingAmount(1) <= bookedSeats.length(1) → 400
+      const res = await bookSeat(app, userSid, eventId, 0, 1, 'reserved');
+      expect(res.status).toBe(400);
+
+      // 상태 오염 없음 확인: 기존 점유 좌석(0,0)은 여전히 유지
+      const session = await authService.getUserSession(userSid);
+      expect(session.userStatus).toBe('SELECTING_SEAT');
+    });
   });
 });
