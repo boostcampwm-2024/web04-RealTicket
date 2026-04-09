@@ -307,6 +307,21 @@ export async function simulateSseCloseTimeout(app: INestApplication, sid: string
 }
 
 /**
+ * 타임아웃 내 재연결을 시뮬레이션한다.
+ * GET /booking/seat/:eventId 컨트롤러의 RECONNECTING_SELECTING 분기를 직접 재현:
+ * 1. reconnecting 풀에서 제거
+ * 2. 유저 상태를 SELECTING_SEAT으로 복구
+ * bookedSeats는 in-booking 세션에 그대로 유지된다.
+ */
+export async function simulateSSEReconnect(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  await inBookingService.removeReconnectingSession(eventId, sid);
+  await authService.setUserStatusSelectingSeat(sid);
+}
+
+/**
  * 유저를 좌석 선택 상태(SELECTING_SEAT)까지 한 번에 진행시킨다.
  * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환
  */
