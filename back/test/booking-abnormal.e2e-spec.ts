@@ -172,4 +172,49 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       expect(sessionAfterReentry.targetEvent).toBe(eventId);
     });
   });
+
+  describe('만료 세션 & 잘못된 상태 좌석 조작 이상 패턴', () => {
+    // ABN-05: WAITING 상태에서 좌석 점유 → 401
+    it('ABN-05: WAITING_QUEUE 상태에서 좌석 점유 시도 → 401', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      // maxSize=1 설정 → user1 슬롯 점유, user2 WAITING 진입
+      await withAuth(
+        supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
+        adminSid,
+      ).send({ maxSize: 1 }).expect(201);
+
+      // user1: SELECTING_SEAT (슬롯 점유)
+      const user1Sid = await loginAsUser(app, 'abn05user1', 'pass1234');
+      await requestPermission(app, user1Sid, eventId).expect(200);
+      await setBookingCount(app, user1Sid, 1).expect(201);
+      await transitionToSelectingSeat(app, user1Sid);
+
+      // user2: WAITING 진입
+      const user2Sid = await loginAsUser(app, 'abn05user2', 'pass1234');
+      const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
+      expect(waitRes.body.waitingStatus).toBe(true);
+
+      // WAITING 상태(level=1)에서 SELECTING_SEAT 가드(level=3) 통과 불가 → 401
+      const res = await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved');
+      expect(res.status).toBe(401);
+    });
+
+    // ABN-06: 무효 SID로 booking API 호출 → 403
+    it('ABN-06: 만료/무효 SID로 booking API 호출 → 403', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userSid = await loginAsUser(app, 'abn06user1', 'pass1234');
+
+      // 정상 로그인 확인
+      await requestPermission(app, userSid, eventId).expect(200);
+
+      // Redis에서 user:{sid} 키 수동 삭제 → 무효 SID 생성
+      const redis = getRedisService(app).getOrThrow();
+      await redis.del(`user:${userSid}`);
+
+      // 무효 SID로 API 호출 → sessionData=null → ForbiddenException(403)
+      const res = await bookSeat(app, userSid, eventId, 0, 0, 'reserved');
+      expect(res.status).toBe(403);
+    });
+  });
 });
