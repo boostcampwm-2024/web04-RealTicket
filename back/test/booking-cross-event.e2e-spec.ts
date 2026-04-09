@@ -5,6 +5,7 @@ import { WaitingQueueService } from 'src/domains/booking/service/waiting-queue.s
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
+  bookSeat,
   createEvent,
   createPlace,
   createProgram,
@@ -16,6 +17,8 @@ import {
   openEventReservation,
   requestPermission,
   setBookingCount,
+  simulateSseCloseTimeout,
+  simulateSseDisconnect,
   simulateWaitingSseTimeout,
   transitionToSelectingSeat,
   withAuth,
@@ -62,6 +65,64 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
     await redisService.flushAll();
     await redisService.disconnect();
     await app.close();
+  });
+
+  describe('이벤트 A 예매 완료 → 이벤트 B 간섭 없음', () => {
+    it('ISO-03: 이벤트 A 예매 완료 후 이벤트 B permission → 200 반환', async () => {
+      // 이벤트 A: userA 예매 완료 흐름
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userASid = await loginAsUser(app, 'iso03usera', 'pass1234');
+      await requestPermission(app, userASid, eventId).expect(200);
+      await setBookingCount(app, userASid, 1).expect(201);
+      await transitionToSelectingSeat(app, userASid);
+
+      // 좌석 점유 + 예매 저장
+      await bookSeat(app, userASid, eventId, 0, 0, 'reserved').expect(201);
+      await withAuth(
+        supertest(app.getHttpServer()).post('/reservation'),
+        userASid,
+      ).send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] }).expect(201);
+
+      // 이벤트 A 세션 정리 — SSE close 시뮬레이션으로 in-booking 세션 회수
+      await simulateSseDisconnect(app, userASid);
+      await simulateSseCloseTimeout(app, userASid);
+
+      // 이벤트 B 오픈 + permission 요청 → 200 (ISO-03)
+      await openEventReservation(app, adminSid, eventId2).expect(201);
+      const res = await requestPermission(app, userASid, eventId2).expect(200);
+      expect(res.body).toEqual(
+        expect.objectContaining({ enteringStatus: true, waitingStatus: false }),
+      );
+    });
+
+    it('ISO-04: 이벤트 A 예매 완료 후 이벤트 B SELECTING_SEAT 진입 정상 동작', async () => {
+      // 이벤트 A: userA 예매 완료
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      const userASid = await loginAsUser(app, 'iso04usera', 'pass1234');
+      await requestPermission(app, userASid, eventId).expect(200);
+      await setBookingCount(app, userASid, 1).expect(201);
+      await transitionToSelectingSeat(app, userASid);
+      await bookSeat(app, userASid, eventId, 0, 0, 'reserved').expect(201);
+      await withAuth(
+        supertest(app.getHttpServer()).post('/reservation'),
+        userASid,
+      ).send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] }).expect(201);
+
+      // 이벤트 A in-booking 세션 정리
+      await simulateSseDisconnect(app, userASid);
+      await simulateSseCloseTimeout(app, userASid);
+
+      // 이벤트 B: permission → ENTERING → setBookingCount → SELECTING_SEAT
+      await openEventReservation(app, adminSid, eventId2).expect(201);
+      await requestPermission(app, userASid, eventId2).expect(200);
+      await setBookingCount(app, userASid, 1).expect(201);
+      await transitionToSelectingSeat(app, userASid);
+
+      // 세션 상태 검증 (ISO-04)
+      const session = await authService.getUserSession(userASid);
+      expect(session.userStatus).toBe('SELECTING_SEAT');
+      expect(session.targetEvent).toBe(eventId2);
+    });
   });
 
   describe('이벤트 A WAITING 이탈 → 이벤트 B 간섭 없음', () => {
