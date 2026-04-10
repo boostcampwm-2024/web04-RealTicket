@@ -1,1 +1,28 @@
+#!/bin/sh
 npm run lint-staged
+
+# ── Greenlight 검증 ──────────────────────────────────────────
+STAMP=".greenlight-stamp"
+
+if [ ! -f "$STAMP" ]; then
+  echo ""
+  echo "❌  E2E Greenlight 없음. 커밋 전 아래 명령을 실행하세요:"
+  echo "    npm run greenlight"
+  echo ""
+  exit 1
+fi
+
+STAMP_TIME=$(cat "$STAMP")
+NOW=$(date +%s)
+ELAPSED=$((NOW - STAMP_TIME))
+MAX_AGE=600  # 10분
+
+if [ "$ELAPSED" -gt "$MAX_AGE" ]; then
+  echo ""
+  echo "❌  E2E Greenlight 만료 (${ELAPSED}초 경과 / 유효 ${MAX_AGE}초)"
+  echo "    npm run greenlight 재실행 후 커밋하세요."
+  echo ""
+  exit 1
+fi
+
+echo "✅  Greenlight 유효 (${ELAPSED}초 전 발급)"
