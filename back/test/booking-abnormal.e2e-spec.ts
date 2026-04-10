@@ -135,6 +135,10 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       // 좌석 점유 시도 → validateAndAddBookedSeat → bookingAmount(0) <= bookedSeats.length(0) → 400
       const res = await bookSeat(app, userSid, eventId, 0, 0, 'reserved');
       expect(res.status).toBe(400);
+
+      // 에러 후 세션 오염 없음 확인: SELECTING_SEAT 상태 유지
+      const sessionAfter = await authService.getUserSession(userSid);
+      expect(sessionAfter.userStatus).toBe('SELECTING_SEAT');
     });
 
     // ABN-04: 예매 완료 후 동일 이벤트 permission 재요청 → 200
@@ -242,6 +246,10 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       // 이미 취소된 좌석 재취소 → validateAndRemoveBookedSeat → bookedSeats 없음 → 400
       const res = await bookSeat(app, userSid, eventId, 0, 0, 'deleted');
       expect(res.status).toBe(400);
+
+      // 에러 후 세션 오염 없음 확인: SELECTING_SEAT 상태 유지
+      const sessionAfter = await authService.getUserSession(userSid);
+      expect(sessionAfter.userStatus).toBe('SELECTING_SEAT');
     });
 
     // ABN-08: bookingAmount=1인데 좌석 2개 선택 후 예매 확정 시도 → 400
