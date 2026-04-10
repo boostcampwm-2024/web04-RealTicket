@@ -12,17 +12,17 @@ if [ ! -f "$STAMP" ]; then
   exit 1
 fi
 
-STAMP_TIME=$(cat "$STAMP")
-NOW=$(date +%s)
-ELAPSED=$((NOW - STAMP_TIME))
-MAX_AGE=600  # 10분
+STAMP_HASH=$(cat "$STAMP")
+CURRENT_HASH=$(git diff HEAD | sha256sum | cut -d' ' -f1)
 
-if [ "$ELAPSED" -gt "$MAX_AGE" ]; then
+if [ "$STAMP_HASH" != "$CURRENT_HASH" ]; then
   echo ""
-  echo "❌  E2E Greenlight 만료 (${ELAPSED}초 경과 / 유효 ${MAX_AGE}초)"
+  echo "❌  Greenlight 발급 이후 코드가 변경됐습니다."
   echo "    npm run greenlight 재실행 후 커밋하세요."
   echo ""
+  rm "$STAMP"
   exit 1
 fi
 
-echo "✅  Greenlight 유효 (${ELAPSED}초 전 발급)"
+echo "✅  Greenlight 검증 통과"
+rm "$STAMP"
