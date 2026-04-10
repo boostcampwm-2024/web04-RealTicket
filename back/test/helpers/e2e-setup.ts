@@ -283,6 +283,9 @@ export async function simulateSseDisconnect(app: INestApplication, sid: string) 
   const authService = app.get(AuthService);
   const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
+  if (eventId === null) {
+    throw new Error(`simulateSseDisconnect: sid=${sid}의 targetEvent가 null입니다.`);
+  }
   await authService.setUserStatusReconnectingSelecting(sid);
   await inBookingService.addReconnectingSession(eventId, sid);
 }
