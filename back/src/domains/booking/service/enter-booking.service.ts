@@ -105,9 +105,17 @@ export class EnterBookingService {
 
   async clearEnteringPool(eventId: number) {
     this.clearGCInterval(eventId);
-    const keys = await this.redis.keys('entering:*');
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
+
+    // 해당 이벤트의 entering sorted set에서 sid 목록 먼저 획득
+    const sids = await this.getAllEnteringSids(eventId);
+
+    // 각 sid의 temp-booking-amount 키 개별 삭제 (다른 이벤트의 키 건드리지 않음)
+    if (sids.length > 0) {
+      const amountKeys = sids.map((sid) => `entering:${sid}:temp-booking-amount`);
+      await this.redis.unlink(...amountKeys);
     }
+
+    // 이벤트의 entering sorted set 키 삭제
+    await this.redis.unlink(`entering:${eventId}`);
   }
 }
