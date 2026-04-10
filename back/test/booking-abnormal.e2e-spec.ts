@@ -102,12 +102,16 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
 
       // isAdmission → setUserEventTarget(sid, eventId2) → getForwarded
       // SELECTING_SEAT(3) → USER_LEVEL 비교 없이 isAdmission 레이어에서 처리
-      // 실제 동작: 200 반환 (ENTERING 또는 WAITING 진입)
+      // 실제 동작: 200 반환 + eventId2의 in-booking 풀이 비어 있으므로 ENTERING 진입
       expect(res.status).toBe(200);
 
       // targetEvent가 eventId2로 덮어쓰여지는지 확인
       const afterSession = await authService.getUserSession(userSid);
       expect(afterSession.targetEvent).toBe(eventId2);
+
+      // userStatus가 ENTERING으로 전이되는지 명시적으로 고정
+      // (eventId2 in-booking 풀이 비어 있으므로 isInsertable=true → ENTERING)
+      expect(afterSession.userStatus).toBe('ENTERING');
     });
 
     // ABN-03: setBookingCount 없이 SELECTING_SEAT 진입 후 좌석 점유 → 400
@@ -145,10 +149,7 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
 
       // /reservation으로 예매 저장
-      await withAuth(
-        supertest(app.getHttpServer()).post('/reservation'),
-        userSid,
-      )
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
         .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
         .expect(201);
 
@@ -162,9 +163,7 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
 
       // 동일 이벤트 permission 재요청 → 200 (RESERVED 상태 없음, 재진입 허용)
       const res = await requestPermission(app, userSid, eventId).expect(200);
-      expect(res.body).toEqual(
-        expect.objectContaining({ enteringStatus: true, waitingStatus: false }),
-      );
+      expect(res.body).toEqual(expect.objectContaining({ enteringStatus: true, waitingStatus: false }));
 
       // 세션 상태: ENTERING (재진입 성공)
       const sessionAfterReentry = await authService.getUserSession(userSid);
@@ -182,7 +181,9 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       await withAuth(
         supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
         adminSid,
-      ).send({ maxSize: 1 }).expect(201);
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
 
       // user1: SELECTING_SEAT (슬롯 점유)
       const user1Sid = await loginAsUser(app, 'abn05user1', 'pass1234');
