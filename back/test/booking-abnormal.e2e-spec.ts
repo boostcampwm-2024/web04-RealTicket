@@ -153,6 +153,10 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
         .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
         .expect(201);
 
+      // /reservation 성공 후 targetEvent가 유지되는지 확인 (시뮬레이션 전제 조건)
+      const sessionAfterReservation = await authService.getUserSession(userSid);
+      expect(sessionAfterReservation.targetEvent).toBe(eventId);
+
       // 예매 완료 후 세션 정리 (in-booking → LOGIN 복귀)
       await simulateSseDisconnect(app, userSid);
       await simulateSseCloseTimeout(app, userSid);
