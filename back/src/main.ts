@@ -21,6 +21,7 @@ async function bootstrap() {
   );
   app.useWebSocketAdapter(new WsAdapter(app));
   app.use(cookieParser());
+  app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 8080);
 }
 
