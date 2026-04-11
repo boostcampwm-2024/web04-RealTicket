@@ -1,5 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Response } from 'express';
 import Redis from 'ioredis';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
@@ -24,7 +24,7 @@ type QueueSubscription = {
 };
 
 @Injectable()
-export class WaitingQueueService {
+export class WaitingQueueService implements OnModuleDestroy {
   private readonly redis: Redis | null;
   private queueSubscriptionMap = new Map<number, QueueSubscription>();
   private readonly sseBroadcaster: SseBroadcaster<WaitingSituation>;
@@ -37,7 +37,10 @@ export class WaitingQueueService {
     this.sseBroadcaster = new SseBroadcaster('waiting', this.logger);
   }
 
-  addSseClient(eventId: number, res: Response, sid: string): void {
+  async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
+    if (!this.queueSubscriptionMap.has(eventId)) {
+      await this.createQueueSubscription(eventId);
+    }
     this.sseBroadcaster.addClient(eventId, res, sid);
   }
 
@@ -113,6 +116,11 @@ export class WaitingQueueService {
         }
       })
       .filter((sid) => sid != null);
+  }
+
+  async onModuleDestroy() {
+    const eventIds = [...this.queueSubscriptionMap.keys()];
+    await Promise.allSettled(eventIds.map((id) => this.clearQueue(id)));
   }
 
   async clearQueue(eventId: number) {
