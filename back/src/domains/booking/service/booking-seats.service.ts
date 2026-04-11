@@ -1,5 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Response } from 'express';
 import Redis from 'ioredis';
@@ -33,11 +33,14 @@ type SeatSubscription = {
 };
 
 @Injectable()
-export class BookingSeatsService {
+export class BookingSeatsService implements OnModuleDestroy {
   private readonly redis: Redis | null;
+  private readonly pubsubClient: Redis;
   private seatsSubscriptionMap = new Map<number, SeatSubscription>();
   private broadcastActivateMap = new Map<number, boolean>();
   private readonly sseBroadcaster: SseBroadcaster<SeatStatusObject>;
+  private readonly ensureSeatSubscriptionPromise = new Map<number, Promise<void>>();
+  private readonly PUBSUB_CHANNEL = (eventId: number) => `seats:changes:${eventId}`;
 
   constructor(
     private redisService: RedisService,
@@ -47,7 +50,15 @@ export class BookingSeatsService {
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
+    this.pubsubClient = this.redisService.getOrThrow('pubsub');
     this.sseBroadcaster = new SseBroadcaster('seats', this.logger, { retryMs: SEATS_SSE_RETRY_INTERVAL });
+
+    this.pubsubClient.on('message', (channel: string) => {
+      const match = channel.match(/^seats:changes:(\d+)$/);
+      if (match) {
+        this.broadcastActivateMap.set(parseInt(match[1], 10), true);
+      }
+    });
   }
 
   async openReservation(eventId: number, seats: number[][]) {
@@ -63,7 +74,13 @@ export class BookingSeatsService {
     }
     const seatSubscription = await this.createSeatSubscription(eventId, seats);
     this.seatsSubscriptionMap.set(eventId, seatSubscription);
+    await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
     this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
+  }
+
+  async onModuleDestroy() {
+    const eventIds = [...this.seatsSubscriptionMap.keys()];
+    await Promise.allSettled(eventIds.map((id) => this.clearSeatsSubscription(id)));
   }
 
   async clearSeatsSubscription(eventId: number) {
@@ -75,6 +92,7 @@ export class BookingSeatsService {
       this.seatsSubscriptionMap.delete(eventId);
     }
     this.broadcastActivateMap.delete(eventId);
+    await this.pubsubClient.unsubscribe(this.PUBSUB_CHANNEL(eventId));
     const keys = await this.redis.keys(`event:${eventId}:*`);
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
@@ -126,7 +144,7 @@ export class BookingSeatsService {
     } else if (result === 0) {
       throw new AppException(BookingErrorCode.SEAT_ALREADY_RESERVED);
     } else {
-      this.eventEmitter.emit('seats-status-changed', { eventId });
+      await this.redis.publish(this.PUBSUB_CHANNEL(eventId), String(eventId));
       return {
         eventId,
         sectionIndex,
@@ -147,7 +165,7 @@ export class BookingSeatsService {
     } else if (result === 0) {
       throw new AppException(BookingErrorCode.SEAT_ALREADY_CANCELLED);
     } else {
-      this.eventEmitter.emit('seats-status-changed', { eventId });
+      await this.redis.publish(this.PUBSUB_CHANNEL(eventId), String(eventId));
       return {
         eventId,
         sectionIndex,
@@ -173,7 +191,10 @@ export class BookingSeatsService {
     return subscription.subject.asObservable();
   }
 
-  addSseClient(eventId: number, res: Response, sid: string): void {
+  async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
+    if (!this.seatsSubscriptionMap.has(eventId)) {
+      await this.ensureSeatSubscription(eventId);
+    }
     this.sseBroadcaster.addClient(eventId, res, sid);
   }
 
@@ -181,9 +202,34 @@ export class BookingSeatsService {
     this.sseBroadcaster.removeClient(eventId, res);
   }
 
-  @OnEvent('seats-status-changed')
-  private async activateNextBroadcast(event: { eventId: number }) {
-    this.broadcastActivateMap.set(event.eventId, true);
+  private async ensureSeatSubscription(eventId: number): Promise<void> {
+    if (this.seatsSubscriptionMap.has(eventId)) return;
+
+    if (!this.ensureSeatSubscriptionPromise.has(eventId)) {
+      const promise = this._doEnsureSeatSubscription(eventId).finally(() => {
+        this.ensureSeatSubscriptionPromise.delete(eventId);
+      });
+      this.ensureSeatSubscriptionPromise.set(eventId, promise);
+    }
+
+    return this.ensureSeatSubscriptionPromise.get(eventId);
+  }
+
+  private async _doEnsureSeatSubscription(eventId: number): Promise<void> {
+    if (this.seatsSubscriptionMap.has(eventId)) return;
+
+    let initialSeats: number[][];
+    try {
+      initialSeats = await this.getSeats(eventId);
+    } catch {
+      this.logger.warn(`[seats] lazy init 실패: eventId=${eventId} — Redis에 좌석 데이터 없음`);
+      return;
+    }
+
+    const seatSubscription = await this.createSeatSubscription(eventId, initialSeats);
+    this.seatsSubscriptionMap.set(eventId, seatSubscription);
+    await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
+    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
   }
 
   private unActivateNextBroadcast = (eventId: number) => {

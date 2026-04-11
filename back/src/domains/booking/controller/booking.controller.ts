@@ -81,7 +81,7 @@ export class BookingController {
     @Res() res: Response,
   ) {
     const sid = req.cookies['SID'];
-    this.waitingQueueService.addSseClient(eventId, res, sid);
+    await this.waitingQueueService.addSseClient(eventId, res, sid);
 
     req.on('close', () => {
       this.waitingQueueService.removeSseClient(eventId, res);
@@ -135,7 +135,7 @@ export class BookingController {
       await this.authService.setUserStatusSelectingSeat(sid);
     }
 
-    this.bookingSeatsService.addSseClient(eventId, res, sid);
+    await this.bookingSeatsService.addSseClient(eventId, res, sid);
 
     req.on('close', async () => {
       this.bookingSeatsService.removeSseClient(eventId, res);
