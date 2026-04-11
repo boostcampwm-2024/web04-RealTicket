@@ -75,7 +75,7 @@ export class BookingController {
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async subscribeWaitingQueue(@Param('eventId') eventId: number, @Req() req: Request, @Res() res: Response) {
     const sid = req.cookies['SID'];
-    this.waitingQueueService.addSseClient(eventId, res, sid);
+    await this.waitingQueueService.addSseClient(eventId, res, sid);
 
     req.on('close', () => {
       this.waitingQueueService.removeSseClient(eventId, res);
@@ -122,7 +122,7 @@ export class BookingController {
       await this.authService.setUserStatusSelectingSeat(sid);
     }
 
-    this.bookingSeatsService.addSseClient(eventId, res, sid);
+    await this.bookingSeatsService.addSseClient(eventId, res, sid);
 
     req.on('close', async () => {
       this.bookingSeatsService.removeSseClient(eventId, res);
