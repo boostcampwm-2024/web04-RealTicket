@@ -63,6 +63,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 #docker
 docker-compose.yml
+docker-stack*.yml
 
 
 # Greenlight stamp (local only, not committed)
