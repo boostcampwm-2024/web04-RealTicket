@@ -1,6 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
@@ -13,7 +12,6 @@ export class EnterBookingService {
   constructor(
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
-    private readonly eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -22,9 +20,21 @@ export class EnterBookingService {
   async gcEnteringSessions(eventId: number) {
     this.deleteIntervalIfExists(`gc-entering-${eventId}`);
 
-    const interval = setInterval(() => {
-      this.removeExpiredSessions(eventId);
-      this.eventEmitter.emit('entering-sessions-gc', { eventId });
+    const lockTtlSeconds = Math.floor((ENTERING_GC_INTERVAL * 0.8) / 1000);
+    const lockKey = `gc-lock:entering:${eventId}`;
+
+    const interval = setInterval(async () => {
+      try {
+        const acquired = await this.redis.set(lockKey, '1', 'EX', lockTtlSeconds, 'NX');
+        if (acquired !== 'OK') {
+          // 다른 레플리카가 이미 GC 실행 중 — 현재 사이클 skip
+          return;
+        }
+        await this.removeExpiredSessions(eventId);
+        await this.redis.publish('booking:events', JSON.stringify({ type: 'entering-sessions-gc', eventId }));
+      } catch {
+        // 락/GC 실패: 다음 사이클에 재시도. 예외가 interval을 죽이지 않도록 흡수.
+      }
     }, ENTERING_GC_INTERVAL);
 
     this.schedulerRegistry.addInterval(`gc-entering-${eventId}`, interval);

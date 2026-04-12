@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { RedisService } from '@liaoliaots/nestjs-redis';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { AppException } from '../../../common/exception/app.exception';
+import { CommonErrorCode } from '../../user/exception/user-error-code';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
@@ -14,8 +17,11 @@ import { OpenBookingService } from './open-booking.service';
 import { WaitingQueueService } from './waiting-queue.service';
 
 @Injectable()
-export class BookingService {
+export class BookingService implements OnModuleInit, OnModuleDestroy {
   private logger = new Logger(BookingService.name);
+  private readonly pubsubClient: Redis;
+  private static readonly BOOKING_EVENTS_CHANNEL = 'booking:events';
+
   constructor(
     private readonly authService: AuthService,
     private readonly bookingSeatsService: BookingSeatsService,
@@ -23,7 +29,47 @@ export class BookingService {
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
     private readonly enterBookingService: EnterBookingService,
-  ) {}
+    private readonly redisService: RedisService,
+  ) {
+    this.pubsubClient = this.redisService.getOrThrow('pubsub');
+  }
+
+  async onModuleInit() {
+    await this.pubsubClient.subscribe(BookingService.BOOKING_EVENTS_CHANNEL);
+    this.pubsubClient.on('message', async (channel: string, message: string) => {
+      if (channel !== BookingService.BOOKING_EVENTS_CHANNEL) return;
+      try {
+        const payload = JSON.parse(message) as
+          | { type: 'in-booking-max-size-changed'; eventId: number }
+          | { type: 'all-in-booking-max-size-changed' }
+          | { type: 'entering-sessions-gc'; eventId: number };
+
+        switch (payload.type) {
+          case 'in-booking-max-size-changed':
+            await this.letInNextWaiting(payload.eventId);
+            break;
+          case 'all-in-booking-max-size-changed': {
+            const eventIds = await this.openBookingService.getOpenedEventIds();
+            await Promise.all(eventIds.map((id) => this.letInNextWaiting(id)));
+            break;
+          }
+          case 'entering-sessions-gc':
+            await this.letInNextWaiting(payload.eventId);
+            break;
+        }
+      } catch (err) {
+        this.logger.error(`booking:events dispatch 실패: ${(err as Error).message}`);
+      }
+    });
+  }
+
+  async onModuleDestroy() {
+    try {
+      await this.pubsubClient.unsubscribe(BookingService.BOOKING_EVENTS_CHANNEL);
+    } catch {
+      // teardown 중 무시
+    }
+  }
 
   @OnEvent('seats-sse-close')
   async onSeatsSseDisconnected(event: { sid: string }) {
@@ -54,26 +100,6 @@ export class BookingService {
       inBookingSession.bookedSeats = [];
       await this.inBookingService.setSession(eventId, inBookingSession);
     }
-  }
-
-  @OnEvent('entering-sessions-gc')
-  async onEnteringSessionsGc(event: { eventId: number }) {
-    await this.letInNextWaiting(event.eventId);
-  }
-
-  @OnEvent('in-booking-max-size-changed')
-  async onSpecificInBookingMaxSizeChanged(event: { eventId: number }) {
-    await this.letInNextWaiting(event.eventId);
-  }
-
-  @OnEvent('all-in-booking-max-size-changed')
-  async onAllInBookingMaxSizeChanged() {
-    const eventIds = await this.openBookingService.getOpenedEventIds();
-    await Promise.all(
-      eventIds.map(async (eventId) => {
-        await this.letInNextWaiting(eventId);
-      }),
-    );
   }
 
   private async letInNextWaiting(eventId: number) {
@@ -180,6 +206,13 @@ export class BookingService {
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
-    return { now: Date.now() };
+    try {
+      return {
+        now: Date.now(),
+      };
+    } catch (err) {
+      this.logger.error(err);
+      throw new AppException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+    }
   }
 }
