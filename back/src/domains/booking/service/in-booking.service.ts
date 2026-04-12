@@ -48,16 +48,17 @@ export class InBookingService {
 
   async setInBookingSessionsMaxSize(eventId: number, size: number) {
     await this.redis.set(`in-booking:${eventId}:max-size`, size);
-    this.eventEmitter.emit('in-booking-max-size-changed', { eventId });
+    await this.redis.publish(
+      'booking:events',
+      JSON.stringify({ type: 'in-booking-max-size-changed', eventId }),
+    );
     return size;
   }
 
   async setAllInBookingSessionsMaxSize(size: number) {
     const keys = await this.redis.keys('in-booking:*:max-size');
     await Promise.all(keys.map((key) => this.redis.set(key, size)));
-
-    this.eventEmitter.emit('all-in-booking-max-size-changed');
-
+    await this.redis.publish('booking:events', JSON.stringify({ type: 'all-in-booking-max-size-changed' }));
     return size;
   }
 
