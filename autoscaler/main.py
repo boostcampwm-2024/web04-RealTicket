@@ -36,8 +36,8 @@ PRE_SCALE_UP_WINDOW  = int(os.getenv("PRE_SCALE_UP_WINDOW", "600"))
 SCALE_DOWN_SUPPRESS  = int(os.getenv("SCALE_DOWN_SUPPRESS", "300"))
 
 QUERY = (
-    'avg(rate(container_cpu_usage_seconds_total'
-    '{container_label_com_docker_swarm_service_name="nest"}[1m]))'
+    f'avg(rate(container_cpu_usage_seconds_total'
+    f'{{container_label_com_docker_swarm_service_name="{TARGET_SERVICE}"}}[1m]))'
 )
 
 prom = PrometheusConnect(url=PROMETHEUS_URL, disable_ssl=True)
