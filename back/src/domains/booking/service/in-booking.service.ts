@@ -240,8 +240,20 @@ export class InBookingService {
   async gcReconnectingSessions(eventId: number) {
     this.deleteReconnectingIntervalIfExists(`gc-reconnecting-${eventId}`);
 
-    const interval = setInterval(() => {
-      this.removeExpiredReconnectingSessions(eventId);
+    const lockTtlSeconds = Math.max(1, Math.ceil((RECONNECTING_SELECTING_GC_INTERVAL * 0.8) / 1000));
+    const lockKey = `gc-lock:reconnecting:${eventId}`;
+
+    const interval = setInterval(async () => {
+      try {
+        const acquired = await this.redis.set(lockKey, '1', 'EX', lockTtlSeconds, 'NX');
+        if (acquired !== 'OK') {
+          // 다른 레플리카가 이미 GC 실행 중 — 현재 사이클 skip
+          return;
+        }
+        await this.removeExpiredReconnectingSessions(eventId);
+      } catch {
+        // 락/GC 실패: 다음 사이클에 재시도. 예외가 interval을 죽이지 않도록 흡수.
+      }
     }, RECONNECTING_SELECTING_GC_INTERVAL);
 
     this.schedulerRegistry.addInterval(`gc-reconnecting-${eventId}`, interval);
