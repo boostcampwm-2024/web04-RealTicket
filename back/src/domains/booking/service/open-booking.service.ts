@@ -38,6 +38,15 @@ export class OpenBookingService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     await this.inBookingService.setInBookingSessionsDefaultMaxSize(IN_BOOKING_DEFAULT_MAX_SIZE);
     await this.scheduleUpcomingReservations();
+    await this.reregisterGcForOpenedEvents();
+  }
+
+  private async reregisterGcForOpenedEvents() {
+    const openedEventIds = await this.getOpenedEventIds();
+    for (const eventId of openedEventIds) {
+      await this.enterBookingService.gcEnteringSessions(eventId);
+      await this.inBookingService.gcReconnectingSessions(eventId);
+    }
   }
 
   async initReservation(eventId: number) {
