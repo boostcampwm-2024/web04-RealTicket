@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 PROMETHEUS_URL       = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 POLL_INTERVAL        = int(os.getenv("POLL_INTERVAL", "30"))
-SCALE_UP_THRESHOLD   = float(os.getenv("SCALE_UP_THRESHOLD", "70"))
+SCALE_UP_THRESHOLD   = float(os.getenv("SCALE_UP_THRESHOLD", "50"))
 SCALE_DOWN_THRESHOLD = float(os.getenv("SCALE_DOWN_THRESHOLD", "30"))
 COOLDOWN_UP          = int(os.getenv("COOLDOWN_UP", "120"))
 COOLDOWN_DOWN        = int(os.getenv("COOLDOWN_DOWN", "300"))
@@ -45,7 +45,7 @@ docker_client = docker.from_env()
 
 last_scale_up   = 0.0
 last_scale_down = 0.0
-last_db_poll            = 0.0
+last_db_poll            = time.time()  # 시작 시 즉시 폴링 방지 — DB_POLL_INTERVAL 후 첫 조회
 suppress_scaledown_until = 0.0
 
 
