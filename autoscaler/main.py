@@ -21,6 +21,7 @@ SCALE_UP_THRESHOLD   = float(os.getenv("SCALE_UP_THRESHOLD", "50"))
 SCALE_DOWN_THRESHOLD = float(os.getenv("SCALE_DOWN_THRESHOLD", "30"))
 COOLDOWN_UP          = int(os.getenv("COOLDOWN_UP", "120"))
 COOLDOWN_DOWN        = int(os.getenv("COOLDOWN_DOWN", "300"))
+COOLDOWN_DOWN_AFTER_UP = int(os.getenv("COOLDOWN_DOWN_AFTER_UP", "300"))
 MIN_REPLICAS         = int(os.getenv("MIN_REPLICAS", "1"))
 MAX_REPLICAS         = int(os.getenv("MAX_REPLICAS", "4"))
 TARGET_SERVICE       = os.getenv("TARGET_SERVICE", "realticket_nest")
@@ -233,6 +234,9 @@ def check_and_scale():
             logger.info(
                 f"스케일다운 억제 중 (suppress까지 {suppress_scaledown_until - now:.0f}s 남음)"
             )
+            return
+        if now - last_scale_up < COOLDOWN_DOWN_AFTER_UP:
+            logger.debug(f"스케일업 후 스케일다운 억제 중 ({now - last_scale_up:.0f}s / {COOLDOWN_DOWN_AFTER_UP}s)")
             return
         if now - last_scale_down < COOLDOWN_DOWN:
             logger.debug(f"스케일다운 쿨다운 중 ({now - last_scale_down:.0f}s / {COOLDOWN_DOWN}s)")
