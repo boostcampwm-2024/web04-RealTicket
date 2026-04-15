@@ -1,8 +1,11 @@
 import docker
-import time
+import http.client
+import json as _json
 import logging
 import math
 import os
+import socket
+import time
 import pymysql
 from prometheus_api_client import PrometheusConnect
 
@@ -40,8 +43,38 @@ QUERY = (
     f'{{container_label_com_docker_swarm_service_name="{TARGET_SERVICE}"}}[1m]))'
 )
 
+DOCKER_SOCK = '/var/run/docker.sock'
+
 prom = PrometheusConnect(url=PROMETHEUS_URL, disable_ssl=True)
 docker_client = docker.from_env()
+
+
+def _docker_raw(method: str, path: str, body: dict | None = None) -> dict:
+    """Docker Unix socket 직접 호출 — SDK 직렬화 우회.
+
+    SDK의 update_service()는 내부적으로 스펙을 Python 객체로 변환하며
+    insert_defaults=True로 inspect해 기존 태스크에 없던 필드를 삽입한다.
+    Docker가 이를 스펙 변경으로 감지해 기존 태스크를 rolling update로 교체하므로,
+    raw HTTP로 스펙을 있는 그대로 replica count만 패치해서 돌려보낸다.
+    """
+    class _Conn(http.client.HTTPConnection):
+        def connect(self):
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sock.connect(DOCKER_SOCK)
+
+    conn = _Conn('localhost')
+    payload = None
+    headers = {}
+    if body is not None:
+        payload = _json.dumps(body).encode()
+        headers['Content-Type'] = 'application/json'
+    conn.request(method, path, body=payload, headers=headers)
+    resp = conn.getresponse()
+    data = _json.loads(resp.read() or b'{}')
+    conn.close()
+    if resp.status not in (200, 201, 202):
+        raise RuntimeError(f"Docker {method} {path} → {resp.status}: {data}")
+    return data
 
 last_scale_up   = 0.0
 last_scale_down = 0.0
@@ -164,9 +197,10 @@ def scale_service(target: int, current: int, direction: str):
     if DRY_RUN:
         logger.info(f"[DRY_RUN] would scale {TARGET_SERVICE}: {current} -> {target}")
         return
-    service = docker_client.services.get(TARGET_SERVICE)
-    service.reload()
-    service.scale(target)
+    svc = _docker_raw('GET', f'/v1.41/services/{TARGET_SERVICE}')
+    spec = svc['Spec']
+    spec['Mode']['Replicated']['Replicas'] = target
+    _docker_raw('POST', f'/v1.41/services/{svc["ID"]}/update?version={svc["Version"]["Index"]}', spec)
     if direction == "up":
         last_scale_up = time.time()
     else:
