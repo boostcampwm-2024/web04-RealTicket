@@ -67,3 +67,9 @@ docker-compose.yml
 
 # Greenlight stamp (local only, not committed)
 .greenlight-stamp
+
+# GSD planning artifacts (local only, not committed)
+.planning/
+
+# Docker Swarm stack configs (VM/deployment-specific, not committed)
+docker-stack*.yml
