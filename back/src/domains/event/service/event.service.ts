@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
+import { AppException } from 'src/common/exception/app.exception';
 import { Place } from 'src/domains/place/entity/place.entity';
 import { Program } from 'src/domains/program/entities/program.entity';
 import { ProgramRepository } from 'src/domains/program/repository/program.repository';
@@ -9,6 +10,7 @@ import { EventCreationDto } from '../dto/eventCreation.dto';
 import { EventIdDto } from '../dto/eventId.dto';
 import { EventSpecificDto } from '../dto/eventSpecific.dto';
 import { Event } from '../entity/event.entity';
+import { EventErrorCode } from '../exception/event-error-code';
 import { EventRepository } from '../repository/event.reposiotry';
 
 @Injectable()
@@ -20,7 +22,7 @@ export class EventService {
 
   async findEvent({ eventId }: EventIdDto): Promise<EventDto> {
     const event: Event = await this.eventRepository.selectEvent(eventId);
-    if (!event) throw new NotFoundException(`해당 이벤트[${eventId}]는존재하지 않습니다.`);
+    if (!event) throw new AppException(EventErrorCode.NOT_FOUND);
     return this.#convertEventToDto(event);
   }
 
@@ -32,7 +34,7 @@ export class EventService {
 
   async findSpecificEvent({ eventId }: EventIdDto): Promise<EventSpecificDto> {
     const event: Event = await this.eventRepository.selectEventWithPlaceAndProgram(eventId);
-    if (!event) throw new NotFoundException(`해당 이벤트[${eventId}]는존재하지 않습니다.`);
+    if (!event) throw new AppException(EventErrorCode.NOT_FOUND);
     const eventSpecificDto: EventSpecificDto = await this.#convertEventToSpecificDto(event);
     return eventSpecificDto;
   }
@@ -51,10 +53,9 @@ export class EventService {
   async create(eventCreationDto: EventCreationDto) {
     this.validateEventDate(eventCreationDto);
     const program: Program = await this.programRepository.selectProgramWithPlace(eventCreationDto.programId);
-    if (!program) throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]가 없습니다.`);
+    if (!program) throw new AppException(EventErrorCode.NOT_FOUND);
     const place: Place = await program.place;
-    if (!program.place)
-      throw new NotFoundException(`해당 프로그램[${eventCreationDto.programId}]의 장소가 없습니다.`);
+    if (!program.place) throw new AppException(EventErrorCode.NOT_FOUND);
 
     return await this.eventRepository.storeEvent({ ...eventCreationDto, program, place });
   }
@@ -71,11 +72,11 @@ export class EventService {
     if (reservationOpenDate < reservationCloseDate && reservationCloseDate <= runningDate) {
       return;
     }
-    throw new BadRequestException('에약오픈일자 < 예약마감일자 <= 시작날짜 형식이어야 합니다.');
+    throw new AppException(EventErrorCode.INVALID_DATE);
   }
 
   async delete({ eventId }: EventIdDto) {
     const result = await this.eventRepository.deleteProgram(eventId);
-    if (!result.affected) throw new NotFoundException(`해당 이벤트[${eventId}]가 없습니다.`);
+    if (!result.affected) throw new AppException(EventErrorCode.NOT_FOUND);
   }
 }

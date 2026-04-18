@@ -1,8 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 
+import { AppException } from '../../../common/exception/app.exception';
 import { Program } from '../entities/program.entity';
+import { ProgramErrorCode } from '../exception/program-error-code';
 
 @Injectable()
 export class ProgramRepository {
@@ -37,7 +39,7 @@ export class ProgramRepository {
       return await this.ProgramRepository.save(program);
     } catch (error) {
       if (error instanceof QueryFailedError) {
-        throw new NotFoundException(`해당 장소[${data.placeId}]는 존재하지 않습니다.`);
+        throw new AppException(ProgramErrorCode.NOT_FOUND);
       }
       throw error;
     }
@@ -51,7 +53,7 @@ export class ProgramRepository {
         error.code === 'ER_ROW_IS_REFERENCED_2' ||
         (error instanceof QueryFailedError && error.message.includes('FOREIGN KEY constraint failed'))
       )
-        throw new ConflictException('해당 프로그램에 대한 이벤트가 존재합니다.');
+        throw new AppException(ProgramErrorCode.HAS_EVENTS);
       throw error;
     }
   }
