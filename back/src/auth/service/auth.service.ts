@@ -60,7 +60,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
   }
 
   async setUserStatusWaiting(sid: string) {
@@ -68,7 +68,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
   }
 
   async setUserStatusEntering(sid: string) {
@@ -76,7 +76,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }));
   }
 
   async setUserStatusSelectingSeat(sid: string) {
@@ -84,7 +84,10 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }));
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }),
+    );
   }
 
   async setUserStatusReconnectingSelecting(sid: string) {
@@ -102,7 +105,7 @@ export class AuthService {
     const session = await this.getParsedSession(sid);
     if (!session) return;
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
   }
 
   async removeSession(sid: string, loginId: string) {
@@ -188,7 +191,7 @@ export class AuthService {
       return;
     }
 
-    this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
   }
 
   async getUserEventTarget(sid: string) {
@@ -218,8 +221,8 @@ export class AuthService {
         targetEvent: null,
       };
 
-      this.redis.set(`user-id:${guestId}`, uuid, 'EX', AUTH_EXPIRE_TIME);
-      this.redis.set(`user:${uuid}`, JSON.stringify(guestSession), 'EX', AUTH_EXPIRE_TIME);
+      await this.redis.set(`user-id:${guestId}`, uuid, 'EX', AUTH_EXPIRE_TIME);
+      await this.redis.set(`user:${uuid}`, JSON.stringify(guestSession), 'EX', AUTH_EXPIRE_TIME);
 
       return { sessionId: uuid, userInfo: guestSession };
     } catch (err) {
