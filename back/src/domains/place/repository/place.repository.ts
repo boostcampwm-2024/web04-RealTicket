@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 
 import { AppException } from '../../../common/exception/app.exception';
 import { Place } from '../entity/place.entity';
+import { Section } from '../entity/section.entity';
 import { PlaceErrorCode } from '../exception/place-error-code';
 
 import { SectionRepository } from './section.repository';
@@ -30,9 +31,9 @@ export class PlaceRepository {
   }
 
   async deleteById(id: number) {
-    await this.dataSource.transaction(async () => {
-      await this.SectionRepository.deleteByPlaceId(id);
-      const result = await this.PlaceRepository.delete(id);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(Section, { place: { id } });
+      const result = await manager.delete(Place, id);
       if (!result.affected) throw new AppException(PlaceErrorCode.NOT_FOUND);
     });
   }
