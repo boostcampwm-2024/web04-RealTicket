@@ -9,8 +9,6 @@ import {
   Req,
   Res,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -84,7 +82,6 @@ export class BookingController {
 
   @Post('count')
   @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({ summary: '예매 인원 설정', description: '예매할 인원 수를 설정한다.' })
   @ApiBody({ type: BookingAmountReqDto })
   @ApiOkResponse({ description: '인원 설정 성공', type: BookingAmountReqDto })

@@ -12,8 +12,6 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -43,7 +41,6 @@ export class EventController {
   constructor(private readonly eventService: EventService) {}
 
   @Get(':eventId')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @UseGuards(SessionAuthGuard())
   @ApiOperation({ summary: '이벤트 세부 정보 조회', description: 'id값이 일치하는 이벤트를 조회한다.' })
   @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
