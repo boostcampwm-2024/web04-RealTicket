@@ -1,11 +1,9 @@
 import {
-  BadRequestException,
   Body,
   ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
-  InternalServerErrorException,
   Param,
   Post,
   Req,
@@ -49,13 +47,8 @@ export class ReservationController {
   @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async findReservation(@User() user: UserParamDto) {
-    try {
-      const reservations: ReservationSpecificDto[] = await this.reservationService.findUserReservation(user);
-      return reservations;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      throw new InternalServerErrorException('서버 내부 에러');
-    }
+    const reservations: ReservationSpecificDto[] = await this.reservationService.findUserReservation(user);
+    return reservations;
   }
 
   @Delete(':reservationId')
@@ -73,12 +66,7 @@ export class ReservationController {
   })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async deleteReservation(@User() user: UserParamDto, @Param() reservationIdDto: ReservationIdDto) {
-    try {
-      await this.reservationService.deleteReservation(user, reservationIdDto);
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new InternalServerErrorException('서버 내부 에러');
-    }
+    await this.reservationService.deleteReservation(user, reservationIdDto);
   }
 
   @ApiOperation({

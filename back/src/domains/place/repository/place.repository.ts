@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
+import { AppException } from '../../../common/exception/app.exception';
 import { Place } from '../entity/place.entity';
+import { PlaceErrorCode } from '../exception/place-error-code';
 
 import { SectionRepository } from './section.repository';
 
@@ -31,7 +33,7 @@ export class PlaceRepository {
     await this.dataSource.transaction(async () => {
       await this.SectionRepository.deleteByPlaceId(id);
       const result = await this.PlaceRepository.delete(id);
-      if (!result.affected) throw new NotFoundException(`해당 장소[${id}]가 존재하지 않습니다.`);
+      if (!result.affected) throw new AppException(PlaceErrorCode.NOT_FOUND);
     });
   }
 }

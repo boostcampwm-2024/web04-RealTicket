@@ -1,13 +1,10 @@
 import {
-  BadRequestException,
   Body,
   ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
   HttpStatus,
-  InternalServerErrorException,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
@@ -27,16 +24,17 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { NotFoundError } from 'rxjs';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
+import { AppException } from 'src/common/exception/app.exception';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { getSeatResponseExample } from '../example/response/getSeatResponseExample';
+import { PlaceErrorCode } from '../exception/place-error-code';
 import { PlaceService } from '../service/place.service';
 
 @ApiTags('Place')
@@ -89,12 +87,7 @@ export class PlaceController {
   @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createPlace(@Body() placeCreationDto: PlaceCreationDto) {
-    try {
-      return await this.placeService.createPlace(placeCreationDto);
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new InternalServerErrorException('서버 내부 오류');
-    }
+    return await this.placeService.createPlace(placeCreationDto);
   }
 
   @Delete(':placeId')
@@ -108,12 +101,7 @@ export class PlaceController {
   @ApiNotFoundResponse({ description: '장소가 존재하지 않음', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async deletePlace(@Param() placeIdDto: PlaceIdDto) {
-    try {
-      await this.placeService.deletePlace(placeIdDto);
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('서버 내부 오류');
-    }
+    await this.placeService.deletePlace(placeIdDto);
   }
 
   @Post('section')
@@ -146,19 +134,14 @@ export class PlaceController {
   @ApiNotFoundResponse({ description: '섹션이 위치할 장소가 존재하지 않음', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createSection(@Body() sectinoCreationDtoList: SectionCreationDto[]) {
-    try {
-      const placeId = this.validatePlaceId(sectinoCreationDtoList);
-      await this.placeService.createSections(sectinoCreationDtoList, placeId);
-    } catch (error) {
-      if (error instanceof NotFoundError || BadRequestException) throw error;
-      throw new InternalServerErrorException('서버 내부 오류');
-    }
+    const placeId = this.validatePlaceId(sectinoCreationDtoList);
+    await this.placeService.createSections(sectinoCreationDtoList, placeId);
   }
 
   private validatePlaceId(sectionCreationDtoList: SectionCreationDto[]): number {
     const placeId = sectionCreationDtoList[0].placeId;
     if (sectionCreationDtoList.filter((sectionDto) => sectionDto.placeId !== placeId).length) {
-      throw new BadRequestException('섹션은 모두 동일한 place에 삽입해야 합니다.');
+      throw new AppException(PlaceErrorCode.SECTION_PLACE_MISMATCH);
     }
     return placeId;
   }

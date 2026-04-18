@@ -1,13 +1,9 @@
 import {
-  BadRequestException,
   Body,
   ClassSerializerInterceptor,
-  ConflictException,
   Controller,
   Delete,
   Get,
-  InternalServerErrorException,
-  NotFoundException,
   Param,
   Post,
   UseGuards,
@@ -50,13 +46,8 @@ export class EventController {
   @ApiNotFoundResponse({ description: 'id가 일치하는 이벤트 미존재', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async findOneEvent(@Param() eventIdDto: EventIdDto) {
-    try {
-      const event: EventSpecificDto = await this.eventService.findSpecificEvent(eventIdDto);
-      return event;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    const event: EventSpecificDto = await this.eventService.findSpecificEvent(eventIdDto);
+    return event;
   }
 
   @Post()
@@ -88,12 +79,7 @@ export class EventController {
   @ApiNotFoundResponse({ description: '프로그램이 존재하지 않음', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async createEvent(@Body() eventCreationDto: EventCreationDto) {
-    try {
-      return await this.eventService.create(eventCreationDto);
-    } catch (error) {
-      if (error instanceof BadRequestException || NotFoundException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    return await this.eventService.create(eventCreationDto);
   }
 
   @Delete(':eventId')
@@ -108,11 +94,6 @@ export class EventController {
   @ApiConflictResponse({ description: '참조하는 엔티티가 존재해 프로그램 삭제 불가', type: Error })
   @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
   async deleteProgram(@Param() eventIdDto: EventIdDto) {
-    try {
-      await this.eventService.delete(eventIdDto);
-    } catch (error) {
-      if (error instanceof NotFoundException || ConflictException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    await this.eventService.delete(eventIdDto);
   }
 }
