@@ -89,7 +89,7 @@ export class ReservationService {
   }
 
   validateReservationLength(seats: ReservationSeatInfoDto[]) {
-    return seats.length < 0 || seats.length > 4;
+    return seats.length <= 0 || seats.length > 4;
   }
 
   async recordReservationTransaction(reservationCreateDto: ReservationCreateDto, sid: string) {
