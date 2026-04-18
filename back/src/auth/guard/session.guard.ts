@@ -1,10 +1,12 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import Redis from 'ioredis';
 
+import { AppException } from '../../common/exception/app.exception';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
+import { AuthErrorCode } from '../exception/auth-error-code';
 
 export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STATUS.LOGIN) {
   @Injectable()
@@ -21,12 +23,12 @@ export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STAT
 
       const sessionData = await this.redis.get(`user:${sessionId}`);
       if (!sessionData) {
-        throw new ForbiddenException('접근 권한이 없습니다.');
+        throw new AppException(AuthErrorCode.FORBIDDEN);
       }
 
       const session = JSON.parse(sessionData);
       if (!session) {
-        throw new UnauthorizedException('세션이 만료되었습니다.');
+        throw new AppException(AuthErrorCode.SESSION_EXPIRED);
       }
 
       const statusesToCheck = Array.isArray(requiredStatuses) ? requiredStatuses : [requiredStatuses];
@@ -37,7 +39,7 @@ export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STAT
           return true;
         }
       }
-      throw new UnauthorizedException('해당 페이지에 접근할 수 없습니다.');
+      throw new AppException(AuthErrorCode.UNAUTHORIZED);
     }
   }
 
