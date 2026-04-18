@@ -26,7 +26,12 @@ export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STAT
         throw new AppException(AuthErrorCode.FORBIDDEN);
       }
 
-      const session = JSON.parse(sessionData);
+      let session: any;
+      try {
+        session = JSON.parse(sessionData);
+      } catch {
+        throw new AppException(AuthErrorCode.SESSION_EXPIRED);
+      }
       if (!session) {
         throw new AppException(AuthErrorCode.SESSION_EXPIRED);
       }
