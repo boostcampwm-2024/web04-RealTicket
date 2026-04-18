@@ -55,7 +55,7 @@ export class EventService {
     const program: Program = await this.programRepository.selectProgramWithPlace(eventCreationDto.programId);
     if (!program) throw new AppException(EventErrorCode.NOT_FOUND);
     const place: Place = await program.place;
-    if (!program.place) throw new AppException(EventErrorCode.NOT_FOUND);
+    if (!place) throw new AppException(EventErrorCode.NOT_FOUND);
 
     return await this.eventRepository.storeEvent({ ...eventCreationDto, program, place });
   }
