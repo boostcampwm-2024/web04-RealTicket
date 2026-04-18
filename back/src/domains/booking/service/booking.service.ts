@@ -3,7 +3,6 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { AppException } from '../../../common/exception/app.exception';
-import { CommonErrorCode } from '../../user/exception/user-error-code';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
@@ -181,13 +180,6 @@ export class BookingService {
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
-    try {
-      return {
-        now: Date.now(),
-      };
-    } catch (err) {
-      this.logger.error(err);
-      throw new AppException(CommonErrorCode.INTERNAL_SERVER_ERROR);
-    }
+    return { now: Date.now() };
   }
 }
