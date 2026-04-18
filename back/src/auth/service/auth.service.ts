@@ -1,12 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import {
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  Optional,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -14,11 +7,14 @@ import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AppException } from '../../common/exception/app.exception';
 import { USER_ROLE } from '../../domains/user/const/userRole';
 import { UserInfoDto } from '../../domains/user/dto/userInfo.dto';
 import { User } from '../../domains/user/entity/user.entity';
+import { CommonErrorCode } from '../../domains/user/exception/user-error-code';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_STATUS } from '../const/userStatus.const';
+import { AuthErrorCode } from '../exception/auth-error-code';
 
 @Injectable()
 export class AuthService {
@@ -125,12 +121,12 @@ export class AuthService {
 
       const user = await this.userRepository.findOne({ where: { loginId: id } });
       if (!user) {
-        throw new UnauthorizedException('아이디와 비밀번호를 다시 확인해주세요.');
+        throw new AppException(AuthErrorCode.INVALID_CREDENTIALS);
       }
 
       const checkPasswordValid = await bcrypt.compare(password, user.loginPassword);
       if (!checkPasswordValid) {
-        throw new UnauthorizedException('아이디와 비밀번호를 다시 확인해주세요.');
+        throw new AppException(AuthErrorCode.INVALID_CREDENTIALS);
       }
 
       const cachedUserInfo = {
@@ -149,10 +145,10 @@ export class AuthService {
 
       return { sessionId: sessionId, userInfo: userInfoDto };
     } catch (err) {
-      if (err instanceof UnauthorizedException) {
+      if (err instanceof AppException) {
         throw err;
       }
-      throw new InternalServerErrorException('서버에서 문제가 발생했습니다.');
+      throw new AppException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -164,7 +160,7 @@ export class AuthService {
       return userInfoDto;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('사용자 정보를 불러오는데 실패했습니다.');
+      throw new AppException(AuthErrorCode.USER_INFO_FETCH_FAILED);
     }
   }
 
@@ -182,7 +178,7 @@ export class AuthService {
       }
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('로그아웃에 실패했습니다.');
+      throw new AppException(AuthErrorCode.LOGOUT_FAILED);
     }
   }
 
@@ -228,7 +224,7 @@ export class AuthService {
       return { sessionId: uuid, userInfo: guestSession };
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('게스트 사용자 생성에 실패했습니다.');
+      throw new AppException(AuthErrorCode.GUEST_CREATE_FAILED);
     }
   }
 
