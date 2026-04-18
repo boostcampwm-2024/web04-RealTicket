@@ -158,8 +158,11 @@ export class ReservationService {
         }),
       };
     } catch (err) {
-      this.logger.error(err.name, err.stack);
       await queryRunner.rollbackTransaction();
+      if (err instanceof AppException) {
+        throw err;
+      }
+      this.logger.error(err.name, err.stack);
       throw new AppException(ReservationErrorCode.CREATE_FAILED);
     } finally {
       await queryRunner.release();
