@@ -139,7 +139,9 @@ export class InBookingService {
   }
 
   async getInBookingSessionsMaxSize(eventId: number) {
-    return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
+    const raw = await this.redis.get(`in-booking:${eventId}:max-size`);
+    if (!raw) return await this.getInBookingSessionsDefaultMaxSize();
+    return parseInt(raw);
   }
 
   async getInBookingSessionCount(eventId: number): Promise<number> {
