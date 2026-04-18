@@ -9,8 +9,6 @@ import {
   Req,
   UseGuards,
   UseInterceptors,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -52,7 +50,6 @@ export class ReservationController {
   }
 
   @Delete(':reservationId')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
   @ApiOperation({
     summary: '유저 예매 내역 삭제',

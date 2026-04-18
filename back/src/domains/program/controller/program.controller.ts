@@ -9,8 +9,6 @@ import {
   Req,
   UseGuards,
   UseInterceptors,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -30,7 +28,6 @@ import { Request } from 'express';
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { AuthService } from 'src/auth/service/auth.service';
-import { AppException } from 'src/common/exception/app.exception';
 
 import { ProgramCreationDto } from '../dto/programCreation.dto';
 import { ProgramIdDto } from '../dto/programId.dto';
@@ -67,7 +64,6 @@ export class ProgramController {
   }
 
   @Get(':programId')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: '프로그램 세부 정보 조회', description: 'id값이 일치하는 프로그램을 조회한다.' })
   @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
   @ApiOkResponse({ description: '프로그램 조회 성공', type: ProgramSpecificDto })
