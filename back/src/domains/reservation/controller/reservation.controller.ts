@@ -24,10 +24,10 @@ import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
-import { User } from 'src/util/user-injection/user.decorator';
-import { UserParamDto } from 'src/util/user-injection/userParamDto';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { User } from 'src/util/user-injection/user.decorator';
+import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
 import { ReservationCreateDto } from '../dto/reservationCreate.dto';
 import { ReservationIdDto } from '../dto/reservationId.dto';
@@ -78,7 +78,10 @@ export class ReservationController {
     },
   })
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
-  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'RESERVATION_NOT_FOUND | RESERVATION_FORBIDDEN' })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: 'RESERVATION_NOT_FOUND | RESERVATION_FORBIDDEN',
+  })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteReservation(@User() user: UserParamDto, @Param() reservationIdDto: ReservationIdDto) {
     await this.reservationService.deleteReservation(user, reservationIdDto);
@@ -103,6 +106,9 @@ export class ReservationController {
   @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Post()
   async createReservation(@Body() reservationCreateDto: ReservationCreateDto, @Req() req: Request) {
-    return this.reservationService.recordReservationTransaction(reservationCreateDto, req.cookies['SID']);
+    return await this.reservationService.recordReservationTransaction(
+      reservationCreateDto,
+      req.cookies['SID'],
+    );
   }
 }
