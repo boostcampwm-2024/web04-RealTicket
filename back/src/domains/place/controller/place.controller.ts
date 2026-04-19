@@ -29,16 +29,15 @@ import {
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
-import { AppException } from 'src/common/exception/app.exception';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { AppException } from 'src/common/exception/app.exception';
 import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { SectionCreationDto } from '../dto/sectionCreation.dto';
-import { getSeatResponseExample } from '../example/response/getSeatResponseExample';
 import { PlaceErrorCode } from '../exception/place-error-code';
 import { PlaceService } from '../service/place.service';
 
@@ -142,7 +141,10 @@ export class PlaceController {
       ],
     },
   })
-  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'SECTION_PLACE_MISMATCH | COMMON_INVALID_INPUT' })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: 'SECTION_PLACE_MISMATCH | COMMON_INVALID_INPUT',
+  })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
   @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
@@ -150,10 +152,14 @@ export class PlaceController {
   async createSection(@Body() sectinoCreationDtoList: SectionCreationDto[]) {
     const placeId = this.validatePlaceId(sectinoCreationDtoList);
     await this.placeService.createSections(sectinoCreationDtoList, placeId);
+    return null;
   }
 
   private validatePlaceId(sectionCreationDtoList: SectionCreationDto[]): number {
     if (!sectionCreationDtoList.length) {
+      throw new AppException(CommonErrorCode.VALIDATION_ERROR);
+    }
+    if (sectionCreationDtoList.some((s) => !s.seats || s.seats.length === 0)) {
       throw new AppException(CommonErrorCode.VALIDATION_ERROR);
     }
     const placeId = sectionCreationDtoList[0].placeId;

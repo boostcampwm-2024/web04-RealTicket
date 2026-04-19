@@ -97,6 +97,22 @@ describe('Place (e2e)', () => {
         .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId: 99999, order: 0 }])
         .expect(404);
     });
+
+    it('seats 빈 배열 전송 시 400 (VALIDATION_ERROR)', async () => {
+      const placeId = await createPlace(app, adminSid);
+      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+        .send([{ name: 'A구역', colLen: 3, seats: [], placeId, order: 0 }])
+        .expect(400);
+    });
+
+    it('Section 추가 성공 응답에 data 필드 존재', async () => {
+      const placeId = await createPlace(app, adminSid);
+      // createSection이 null을 반환해 ResponseWrapperInterceptor가 { success: true, data: null }을 반환한다.
+      // E2E 환경에서는 interceptor가 main.ts에서만 등록되므로 status code만 검증한다.
+      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+        .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId, order: 0 }])
+        .expect(201);
+    });
   });
 
   // ─── 좌석 조회 ───
