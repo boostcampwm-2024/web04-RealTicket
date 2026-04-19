@@ -32,6 +32,7 @@ import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { AppException } from 'src/common/exception/app.exception';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
@@ -152,6 +153,9 @@ export class PlaceController {
   }
 
   private validatePlaceId(sectionCreationDtoList: SectionCreationDto[]): number {
+    if (!sectionCreationDtoList.length) {
+      throw new AppException(CommonErrorCode.VALIDATION_ERROR);
+    }
     const placeId = sectionCreationDtoList[0].placeId;
     if (sectionCreationDtoList.filter((sectionDto) => sectionDto.placeId !== placeId).length) {
       throw new AppException(PlaceErrorCode.SECTION_PLACE_MISMATCH);
