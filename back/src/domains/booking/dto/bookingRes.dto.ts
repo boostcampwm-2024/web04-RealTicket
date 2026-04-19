@@ -3,7 +3,7 @@ import { IsEnum, IsNumber, IsString } from 'class-validator';
 
 import { SeatStatus } from '../const/seatStatus.enum';
 
-export class BookResDto {
+export class BookingResDto {
   constructor(params: { eventId: number; sectionIndex: number; seatIndex: number; acceptedStatus: string }) {
     Object.assign(this, params);
   }
