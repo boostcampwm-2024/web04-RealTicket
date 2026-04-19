@@ -4,9 +4,7 @@ import {
   Controller,
   Delete,
   Get,
-  HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   UseGuards,
   UseInterceptors,
@@ -63,10 +61,8 @@ export class PlaceController {
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Get('seat/:placeId')
-  async getSeats(
-    @Param('placeId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) placeId: number,
-  ) {
-    return await this.placeService.getSeats(placeId);
+  async getSeats(@Param() placeIdDto: PlaceIdDto) {
+    return await this.placeService.getSeats(placeIdDto.placeId);
   }
 
   @Post()

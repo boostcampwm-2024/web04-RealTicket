@@ -3,7 +3,7 @@ import { IsEnum, IsNumber, IsString } from 'class-validator';
 
 import { SeatStatus } from '../const/seatStatus.enum';
 
-export class BookReqDto {
+export class BookingReqDto {
   @IsNumber()
   @ApiProperty({ name: 'eventId', example: 123 })
   eventId: number;
