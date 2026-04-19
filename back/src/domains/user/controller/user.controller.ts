@@ -123,7 +123,8 @@ export class UserController {
   @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @Delete('/guest')
   async deleteGuestMode() {
-    return await this.userService.removeAllGuest();
+    await this.userService.removeAllGuest();
+    return null;
   }
 
   @ApiOperation({ summary: '로그인', description: 'id, password를 받아 로그인 요청을 처리한다.' })
