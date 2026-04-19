@@ -32,8 +32,8 @@ import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
-import { BookReqDto } from '../dto/bookReq.dto';
-import { BookResDto } from '../dto/bookRes.dto';
+import { BookingReqDto } from '../dto/bookingReq.dto';
+import { BookingResDto } from '../dto/bookingRes.dto';
 import { InBookingSizeReqDto } from '../dto/inBookingSizeReq.dto';
 import { InBookingSizeResDto } from '../dto/inBookingSizeRes.dto';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
@@ -156,27 +156,27 @@ export class BookingController {
     summary: '좌석 점유/취소',
     description: '좌석 하나를 대상으로 점유/취소 요청을 보낸다.',
   })
-  @ApiExtraModels(SuccessResponseDto, BookResDto)
+  @ApiExtraModels(SuccessResponseDto, BookingResDto)
   @ApiOkResponse({
     schema: {
       allOf: [
         { $ref: getSchemaPath(SuccessResponseDto) },
-        { properties: { data: { $ref: getSchemaPath(BookResDto) } } },
+        { properties: { data: { $ref: getSchemaPath(BookingResDto) } } },
       ],
     },
   })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
   @ApiConflictResponse({ type: ErrorResponseDto, description: 'SEAT_ALREADY_OCCUPIED | SEAT_NOT_OCCUPIED' })
-  async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookReqDto) {
+  async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookingReqDto) {
     const sid = req.cookies['SID'];
 
     if (dto.expectedStatus === SeatStatus.RESERVE) {
       const result = await this.bookingSeatsService.bookSeat(sid, [dto.sectionIndex, dto.seatIndex]);
-      return new BookResDto(result);
+      return new BookingResDto(result);
     } else if (dto.expectedStatus === SeatStatus.DELETE) {
       const result = await this.bookingSeatsService.unBookSeat(sid, [dto.sectionIndex, dto.seatIndex]);
-      return new BookResDto(result);
+      return new BookingResDto(result);
     }
   }
 
