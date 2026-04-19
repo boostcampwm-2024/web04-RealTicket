@@ -190,6 +190,25 @@ describe('Reservation (e2e)', () => {
       await withAuth(supertest(app.getHttpServer()).delete('/reservation/999999'), userSid).expect(400);
     });
 
+    it('타인의 예매 삭제 시도 → 400 (RESERVATION_FORBIDDEN)', async () => {
+      const userSidA = await loginAsUser(app, 'resdel03', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, userSidA, 1);
+      await bookSeat(app, userSidA, eventId, 0, 3, 'reserved').expect(201);
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSidA)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 3 }] })
+        .expect(201);
+
+      const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSidA).expect(
+        200,
+      );
+      const reservationId = listRes.body[listRes.body.length - 1].id;
+
+      const userSidB = await loginAsUser(app, 'resdel04', 'pass1234');
+      await withAuth(supertest(app.getHttpServer()).delete(`/reservation/${reservationId}`), userSidB).expect(
+        400,
+      );
+    });
+
     it('미인증 → 403', async () => {
       await supertest(app.getHttpServer()).delete('/reservation/1').expect(403);
     });

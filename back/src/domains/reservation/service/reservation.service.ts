@@ -70,9 +70,16 @@ export class ReservationService {
   }
 
   async deleteReservation({ id }: UserParamDto, { reservationId }: ReservationIdDto) {
-    const reservation = await this.reservationRepository.findReservationByIdMatchedUserId(id, reservationId);
+    const reservation = await this.reservationRepository.findReservationById(reservationId);
     if (!reservation) {
       throw new AppException(ReservationErrorCode.NOT_FOUND);
+    }
+    const ownedReservation = await this.reservationRepository.findReservationByIdMatchedUserId(
+      id,
+      reservationId,
+    );
+    if (!ownedReservation) {
+      throw new AppException(ReservationErrorCode.FORBIDDEN);
     }
 
     const reservedSeats = await reservation.reservedSeats;
