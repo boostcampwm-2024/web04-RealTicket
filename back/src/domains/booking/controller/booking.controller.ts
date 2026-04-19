@@ -15,16 +15,20 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
+  ApiExtraModels,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { AuthService } from '../../../auth/service/auth.service';
+import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
+import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -84,9 +88,17 @@ export class BookingController {
   @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
   @ApiOperation({ summary: '예매 인원 설정', description: '예매할 인원 수를 설정한다.' })
   @ApiBody({ type: BookingAmountReqDto })
-  @ApiOkResponse({ description: '인원 설정 성공', type: BookingAmountReqDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiBadRequestResponse({ description: '잘못된 요청' })
+  @ApiExtraModels(SuccessResponseDto, BookingAmountResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(BookingAmountResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
   async setBookingAmount(@Req() req: Request, @Body() dto: BookingAmountReqDto) {
     const sid = req.cookies['SID'];
     const result = await this.bookingService.setBookingAmount(sid, dto.bookingAmount);
@@ -140,10 +152,18 @@ export class BookingController {
     summary: '좌석 점유/취소',
     description: '좌석 하나를 대상으로 점유/취소 요청을 보낸다.',
   })
-  @ApiOkResponse({ description: '좌석 점유/취소 성공' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiBadRequestResponse({ description: '잘못된 요청' })
-  @ApiConflictResponse({ description: '이미 점유/취소된 좌석' })
+  @ApiExtraModels(SuccessResponseDto, BookResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(BookResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'SEAT_ALREADY_OCCUPIED | SEAT_NOT_OCCUPIED' })
   async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookReqDto) {
     const sid = req.cookies['SID'];
 
@@ -157,9 +177,17 @@ export class BookingController {
   }
 
   @ApiOperation({ summary: '서버 시간 조회', description: '서버의 현재 시간을 조회한다.' })
-  @ApiOkResponse({ description: '서버 시간 조회 성공', type: ServerTimeDto, example: { now: 1620000000000 } })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiInternalServerErrorResponse({ description: '서버 시간 조회 실패' })
+  @ApiExtraModels(SuccessResponseDto, ServerTimeDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(ServerTimeDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   @UseGuards(SessionAuthGuard())
   @Get('server-time')
   async getServerTime() {
@@ -172,8 +200,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 설정',
     description: '특정 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
   })
-  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setInBookingSessionsMaxSize(@Param('eventId') eventId: number, @Body() dto: InBookingSizeReqDto) {
     const maxSize = dto.maxSize;
     const setSize = await this.inBookingService.setInBookingSessionsMaxSize(eventId, maxSize);
@@ -186,8 +222,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 설정(ALL)',
     description: '모든 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
   })
-  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setAllInBookingSessionsMaxSize(@Body() dto: InBookingSizeReqDto) {
     const maxSize = dto.maxSize;
     const setSize = await this.inBookingService.setAllInBookingSessionsMaxSize(maxSize);
@@ -200,8 +244,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 기본값 설정',
     description: '좌석 선택창에 입장 가능한 인원 수의 기본값을 설정한다.',
   })
-  @ApiOkResponse({ description: '기본값 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setInBookingSessionsDefaultMaxSize(@Body() dto: InBookingSizeReqDto) {
     const defaultMaxSize = dto.maxSize;
     const setSize = await this.inBookingService.setInBookingSessionsDefaultMaxSize(defaultMaxSize);
@@ -214,8 +266,15 @@ export class BookingController {
     summary: 'ADMIN: 오픈 대상 이벤트 재확인',
     description: '오픈 대상 이벤트를 다시 확인하여 오픈한다.',
   })
-  @ApiOkResponse({ description: '확인 및 오픈 완료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async reloadOpenTarget() {
     await this.openBookingService.scheduleUpcomingReservations();
   }
@@ -226,8 +285,15 @@ export class BookingController {
     summary: 'ADMIN: 예약 초기화',
     description: '특정 이벤트의 예약 상태를 초기화한다.',
   })
-  @ApiOkResponse({ description: '예약 초기화 완료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async initReservation(@Param('eventId') eventId: number) {
     await this.openBookingService.initReservation(eventId);
   }
