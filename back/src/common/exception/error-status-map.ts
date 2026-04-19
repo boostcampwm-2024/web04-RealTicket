@@ -47,6 +47,7 @@ export const ERROR_STATUS_MAP: Record<string, number> = {
   [ProgramErrorCode.HAS_EVENTS]: HttpStatus.CONFLICT,
 
   // RESERVATION
+  [ReservationErrorCode.FORBIDDEN]: HttpStatus.BAD_REQUEST,
   [ReservationErrorCode.NOT_FOUND]: HttpStatus.BAD_REQUEST,
   [ReservationErrorCode.INVALID_SEAT_COUNT]: HttpStatus.BAD_REQUEST,
   [ReservationErrorCode.SESSION_EVENT_NOT_FOUND]: HttpStatus.BAD_REQUEST,
@@ -105,6 +106,7 @@ export const DEFAULT_MESSAGE_MAP: Record<string, string> = {
   [ProgramErrorCode.HAS_EVENTS]: '해당 프로그램에 대한 이벤트가 존재합니다.',
 
   // RESERVATION
+  [ReservationErrorCode.FORBIDDEN]: '해당 예매에 대한 권한이 없습니다.',
   [ReservationErrorCode.NOT_FOUND]: '해당 예매 내역이 존재하지 않습니다.',
   [ReservationErrorCode.INVALID_SEAT_COUNT]: '예매 가능한 좌석 수는 1~4개 입니다.',
   [ReservationErrorCode.SESSION_EVENT_NOT_FOUND]: '예약 확정하려는 세션의 대상 이벤트를 불러올 수 없습니다.',
