@@ -70,8 +70,16 @@ describe('User (e2e)', () => {
   // ─── 관리자 회원가입 ───
 
   describe('POST /user/signup/admin', () => {
-    it('관리자 회원가입 → 201', async () => {
-      const res = await signupAdmin(app, 'myadmin1', 'pass1234').expect(201);
+    it('인증 없이 관리자 회원가입 시도 → 401/403 (가드 적용)', async () => {
+      // 인증 가드가 적용되어 있으므로 비인증 요청은 401 또는 403을 반환해야 한다
+      const res = await signupAdmin(app, 'myadmin1', 'pass1234');
+      expect(res.status).toBeGreaterThanOrEqual(401);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('관리자 권한으로 관리자 회원가입 → 201', async () => {
+      const adminSid = await loginAsAdmin(app, 'adminroot', 'pass1234');
+      const res = await withAuth(signupAdmin(app, 'newadmin1', 'pass1234'), adminSid).expect(201);
 
       expect(res.body).toEqual({
         message: expect.any(String),
