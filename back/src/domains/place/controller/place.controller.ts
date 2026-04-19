@@ -15,6 +15,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
@@ -23,11 +24,14 @@ import {
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { AppException } from 'src/common/exception/app.exception';
+import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
+import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
@@ -45,14 +49,18 @@ export class PlaceController {
 
   @ApiOperation({ summary: '장소의 좌석 정보를 가져오는 API' })
   @ApiParam({ name: 'placeId', description: '장소의 id', required: true, example: 1 })
+  @ApiExtraModels(SuccessResponseDto, SeatInfoDto)
   @ApiOkResponse({
-    description: '장소의 좌석 정보를 가져옵니다.',
-    type: SeatInfoDto,
-    example: getSeatResponseExample,
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(SeatInfoDto) } } },
+      ],
+    },
   })
-  @ApiBadRequestResponse({ description: '해당 장소가 존재하지 않습니다.' })
-  @ApiForbiddenResponse({ description: '권한이 없습니다.' })
-  @ApiInternalServerErrorResponse({ description: '서버 오류 발생' })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Get('seat/:placeId')
   async getSeats(
@@ -64,28 +72,19 @@ export class PlaceController {
   @Post()
   @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '장소 추가[관리자]', description: '새로운 장소를 추가한다.' })
-  @ApiBody({
+  @ApiBody({ type: PlaceCreationDto })
+  @ApiCreatedResponse({
     schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: '장소 이름', example: '대극장' },
-        address: { type: 'string', description: '장소 주소', example: '서울특별시' },
-        overviewSvg: { type: 'string', description: 'overview SVG URL', example: '/overview.svg' },
-        overviewHeight: { type: 'number', description: '오버뷰 높이', example: 1000 },
-        overviewWidth: { type: 'number', description: '오버뷰 너비', example: 1500 },
-        overviewPoints: {
-          type: 'json',
-          description: '오버뷰 좌표',
-          example: JSON.stringify({ x: 200, y: 300 }),
-        },
-      },
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
     },
   })
-  @ApiCreatedResponse({ description: '장소 추가 성공' })
-  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async createPlace(@Body() placeCreationDto: PlaceCreationDto) {
     return await this.placeService.createPlace(placeCreationDto);
   }
@@ -94,12 +93,19 @@ export class PlaceController {
   @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '장소 삭제[관리자]', description: 'placeId에 해당하는 장소를 삭제한다' })
   @ApiParam({ name: 'placeId', description: '장소 아이디', type: Number, example: 1 })
-  @ApiOkResponse({ description: '장소 삭제 성공' })
-  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
-  @ApiNotFoundResponse({ description: '장소가 존재하지 않음', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deletePlace(@Param() placeIdDto: PlaceIdDto) {
     await this.placeService.deletePlace(placeIdDto);
   }
@@ -127,12 +133,19 @@ export class PlaceController {
       },
     },
   })
-  @ApiCreatedResponse({ description: '섹션 추가 성공' })
-  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류, 동일하지 않은 placeId', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
-  @ApiNotFoundResponse({ description: '섹션이 위치할 장소가 존재하지 않음', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiCreatedResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'SECTION_PLACE_MISMATCH | COMMON_INVALID_INPUT' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async createSection(@Body() sectinoCreationDtoList: SectionCreationDto[]) {
     const placeId = this.validatePlaceId(sectinoCreationDtoList);
     await this.placeService.createSections(sectinoCreationDtoList, placeId);
