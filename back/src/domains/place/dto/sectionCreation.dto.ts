@@ -1,4 +1,12 @@
-import { ArrayNotEmpty, IsArray, IsBoolean, IsInt, IsNotEmpty, IsString } from 'class-validator';
+import {
+  ArrayMinSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+} from 'class-validator';
 
 export class SectionCreationDto {
   @IsNotEmpty()
@@ -12,6 +20,7 @@ export class SectionCreationDto {
   @IsNotEmpty()
   @IsArray()
   @ArrayNotEmpty()
+  @ArrayMinSize(1)
   @IsBoolean({ each: true })
   seats: string[];
 
