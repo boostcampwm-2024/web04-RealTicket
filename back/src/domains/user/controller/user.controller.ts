@@ -28,10 +28,10 @@ import { Request, Response } from 'express';
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { AuthService } from '../../../auth/service/auth.service';
-import { User } from '../../../util/user-injection/user.decorator';
-import { UserParamDto } from '../../../util/user-injection/userParamDto';
 import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
+import { User } from '../../../util/user-injection/user.decorator';
+import { UserParamDto } from '../../../util/user-injection/userParamDto';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginDto } from '../dto/userLogin.dto';
@@ -98,6 +98,7 @@ export class UserController {
   })
   @ApiConflictResponse({ type: ErrorResponseDto, description: 'USER_ALREADY_EXISTS' })
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @Post('signup/admin')
   async signupForAdmin(@Body() createUserDto: UserCreateDto) {
     await this.userService.registerUser(createUserDto, USER_ROLE.ADMIN);
@@ -107,10 +108,7 @@ export class UserController {
   @ApiOperation({ summary: '게스트 모드', description: '게스트 모드 요청을 받아 게스트 계정을 생성해준다.' })
   @ApiOkResponse({
     schema: {
-      allOf: [
-        { $ref: getSchemaPath(SuccessResponseDto) },
-        { properties: { data: { type: 'object' } } },
-      ],
+      allOf: [{ $ref: getSchemaPath(SuccessResponseDto) }, { properties: { data: { type: 'object' } } }],
     },
   })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'USER_GUEST_CREATE_FAILED' })
