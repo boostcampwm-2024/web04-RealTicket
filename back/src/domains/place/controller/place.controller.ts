@@ -108,6 +108,7 @@ export class PlaceController {
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deletePlace(@Param() placeIdDto: PlaceIdDto) {
     await this.placeService.deletePlace(placeIdDto);
+    return null;
   }
 
   @Post('section')
