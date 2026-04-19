@@ -7,6 +7,8 @@ import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
 import { BookingService } from 'src/domains/booking/service/booking.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
+import { USER_ROLE } from 'src/domains/user/const/userRole';
+import { UserService } from 'src/domains/user/service/user.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 /**
@@ -92,16 +94,19 @@ export async function loginAsUser(
 
 /**
  * 관리자로 회원가입 + 로그인 후 SID를 반환한다.
- * DB가 테스트 간에 유지되므로 이미 가입된 경우(409)는 로그인만 수행한다.
+ * DB가 테스트 간에 유지되므로 이미 가입된 경우(중복)는 로그인만 수행한다.
+ * POST /user/signup/admin은 ADMIN 가드가 있으므로 서비스 레이어를 직접 사용한다.
  */
 export async function loginAsAdmin(
   app: INestApplication,
   loginId = 'admin1234',
   loginPassword = 'admin1234',
 ): Promise<string> {
-  const signupRes = await signupAdmin(app, loginId, loginPassword);
-  if (signupRes.status !== 201 && signupRes.status !== 409) {
-    throw new Error(`Admin signup failed with status ${signupRes.status}`);
+  const userService = app.get(UserService);
+  try {
+    await userService.registerUser({ loginId, loginPassword }, USER_ROLE.ADMIN);
+  } catch {
+    // 이미 가입된 경우(LOGIN_ID_DUPLICATED) 무시하고 로그인 진행
   }
   return loginUser(app, loginId, loginPassword);
 }
