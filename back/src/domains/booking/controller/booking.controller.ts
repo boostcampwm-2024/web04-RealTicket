@@ -75,7 +75,11 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: WaitingSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async subscribeWaitingQueue(@Param('eventId') eventId: number, @Req() req: Request, @Res() res: Response) {
+  async subscribeWaitingQueue(
+    @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const sid = req.cookies['SID'];
     this.waitingQueueService.addSseClient(eventId, res, sid);
 
@@ -116,7 +120,7 @@ export class BookingController {
   @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(
-    @Param('eventId') eventId: number,
+    @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
     @Req() req: Request,
     @Res() res: Response,
   ) {
