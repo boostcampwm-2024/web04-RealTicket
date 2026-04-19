@@ -80,7 +80,7 @@ export class ReservationController {
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
   @ApiBadRequestResponse({
     type: ErrorResponseDto,
-    description: 'RESERVATION_NOT_FOUND | RESERVATION_FORBIDDEN',
+    description: 'RESERVATION_FORBIDDEN',
   })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteReservation(@User() user: UserParamDto, @Param() reservationIdDto: ReservationIdDto) {
