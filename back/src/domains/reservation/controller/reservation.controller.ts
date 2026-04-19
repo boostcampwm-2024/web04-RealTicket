@@ -85,6 +85,7 @@ export class ReservationController {
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteReservation(@User() user: UserParamDto, @Param() reservationIdDto: ReservationIdDto) {
     await this.reservationService.deleteReservation(user, reservationIdDto);
+    return null;
   }
 
   @ApiOperation({

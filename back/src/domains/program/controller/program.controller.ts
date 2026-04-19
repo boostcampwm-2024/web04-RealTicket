@@ -135,5 +135,6 @@ export class ProgramController {
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteProgram(@Param() programIdDto: ProgramIdDto) {
     await this.programService.delete(programIdDto);
+    return null;
   }
 }

@@ -68,10 +68,7 @@ export class EventController {
   @ApiBody({ type: EventCreationDto })
   @ApiCreatedResponse({
     schema: {
-      allOf: [
-        { $ref: getSchemaPath(SuccessResponseDto) },
-        { properties: { data: { type: 'object' } } },
-      ],
+      allOf: [{ $ref: getSchemaPath(SuccessResponseDto) }, { properties: { data: { type: 'object' } } }],
     },
   })
   @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
@@ -103,5 +100,6 @@ export class EventController {
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteProgram(@Param() eventIdDto: EventIdDto) {
     await this.eventService.delete(eventIdDto);
+    return null;
   }
 }
