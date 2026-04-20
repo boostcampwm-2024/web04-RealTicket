@@ -64,7 +64,7 @@ describe('Program (e2e)', () => {
     it('일반 유저 → 401', async () => {
       const guestSid = await loginAsGuest(app);
 
-      await withAuth(supertest(app.getHttpServer()).post('/program'), guestSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), guestSid)
         .send({
           name: 'Test',
           profileUrl: 'url',
@@ -75,10 +75,11 @@ describe('Program (e2e)', () => {
           placeId,
         })
         .expect(401);
+      expect(res.body.success).toBe(false);
     });
 
     it('존재하지 않는 placeId → 404', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
         .send({
           name: 'Test',
           profileUrl: 'url',
@@ -89,12 +90,14 @@ describe('Program (e2e)', () => {
           placeId: 99999,
         })
         .expect(404);
+      expect(res.body.success).toBe(false);
     });
 
     it('필수 필드 누락 → 400', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
         .send({ name: 'Test' })
         .expect(400);
+      expect(res.body.success).toBe(false);
     });
   });
 

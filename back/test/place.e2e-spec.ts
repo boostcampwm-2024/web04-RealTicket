@@ -95,9 +95,10 @@ describe('Place (e2e)', () => {
     });
 
     it('존재하지 않는 Place에 Section 추가 → 404', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
         .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId: 99999, order: 0 }])
         .expect(404);
+      expect(res.body.success).toBe(false);
     });
 
     it('seats 빈 배열 전송 시 400 (VALIDATION_ERROR)', async () => {
