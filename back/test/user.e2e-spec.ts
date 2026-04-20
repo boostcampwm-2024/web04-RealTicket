@@ -41,29 +41,35 @@ describe('User (e2e)', () => {
       const res = await signup(app, 'testuser1', 'pass1234').expect(201);
 
       expect(res.body).toEqual({
-        message: expect.any(String),
+        success: true,
+        data: { message: expect.any(String) },
       });
     });
 
     it('같은 ID로 중복 가입 → 409 Conflict', async () => {
       await signup(app, 'testuser2', 'pass1234').expect(201);
-      await signup(app, 'testuser2', 'pass1234').expect(409);
+      const duplicateRes = await signup(app, 'testuser2', 'pass1234').expect(409);
+      expect(duplicateRes.body.success).toBe(false);
     });
 
     it('loginId가 4자 미만 → 400 Bad Request', async () => {
-      await signup(app, 'abc', 'pass1234').expect(400);
+      const res1 = await signup(app, 'abc', 'pass1234').expect(400);
+      expect(res1.body.success).toBe(false);
     });
 
     it('loginId가 12자 초과 → 400 Bad Request', async () => {
-      await signup(app, 'a'.repeat(13), 'pass1234').expect(400);
+      const res2 = await signup(app, 'a'.repeat(13), 'pass1234').expect(400);
+      expect(res2.body.success).toBe(false);
     });
 
     it('loginId에 대문자/특수문자 포함 → 400 Bad Request', async () => {
-      await signup(app, 'Test1234', 'pass1234').expect(400);
+      const res3 = await signup(app, 'Test1234', 'pass1234').expect(400);
+      expect(res3.body.success).toBe(false);
     });
 
     it('loginPassword가 4자 미만 → 400 Bad Request', async () => {
-      await signup(app, 'testuser3', 'abc').expect(400);
+      const res4 = await signup(app, 'testuser3', 'abc').expect(400);
+      expect(res4.body.success).toBe(false);
     });
   });
 
@@ -82,7 +88,8 @@ describe('User (e2e)', () => {
       const res = await withAuth(signupAdmin(app, 'newadmin1', 'pass1234'), adminSid).expect(201);
 
       expect(res.body).toEqual({
-        message: expect.any(String),
+        success: true,
+        data: { message: expect.any(String) },
       });
     });
   });
@@ -96,7 +103,7 @@ describe('User (e2e)', () => {
         .send({ loginId: 'newuser11' })
         .expect(201);
 
-      expect(res.body).toEqual({ available: true });
+      expect(res.body).toEqual({ success: true, data: { available: true } });
     });
 
     it('등록된 ID → available: false', async () => {
@@ -107,7 +114,7 @@ describe('User (e2e)', () => {
         .send({ loginId: 'existing1' })
         .expect(201);
 
-      expect(res.body).toEqual({ available: false });
+      expect(res.body).toEqual({ success: true, data: { available: false } });
     });
   });
 
@@ -126,21 +133,23 @@ describe('User (e2e)', () => {
 
       const sid = extractSid(res);
       expect(sid).toBeDefined();
-      expect(res.body).toEqual(expect.objectContaining({ loginId: 'logintest' }));
+      expect(res.body.data).toEqual(expect.objectContaining({ loginId: 'logintest' }));
     });
 
     it('잘못된 비밀번호 → 401 Unauthorized', async () => {
-      await supertest(app.getHttpServer())
+      const loginErrRes1 = await supertest(app.getHttpServer())
         .post('/user/login')
         .send({ loginId: 'logintest', loginPassword: 'wrongpwd1' })
         .expect(401);
+      expect(loginErrRes1.body.success).toBe(false);
     });
 
     it('존재하지 않는 ID → 401 Unauthorized', async () => {
-      await supertest(app.getHttpServer())
+      const loginErrRes2 = await supertest(app.getHttpServer())
         .post('/user/login')
         .send({ loginId: 'nouser11', loginPassword: 'pass1234' })
         .expect(401);
+      expect(loginErrRes2.body.success).toBe(false);
     });
 
     it('재로그인 시 이전 세션 무효화', async () => {
@@ -165,7 +174,7 @@ describe('User (e2e)', () => {
 
       const sid = extractSid(res);
       expect(sid).toBeDefined();
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           loginId: expect.stringContaining('guest-'),
           userStatus: 'LOGIN',
@@ -178,7 +187,7 @@ describe('User (e2e)', () => {
 
       const res = await withAuth(supertest(app.getHttpServer()).get('/user'), sid).expect(200);
 
-      expect(res.body.loginId).toContain('guest-');
+      expect(res.body.data.loginId).toContain('guest-');
     });
   });
 
@@ -191,7 +200,7 @@ describe('User (e2e)', () => {
 
       const res = await withAuth(supertest(app.getHttpServer()).get('/user'), sid).expect(200);
 
-      expect(res.body).toEqual(expect.objectContaining({ loginId: 'infotest' }));
+      expect(res.body.data).toEqual(expect.objectContaining({ loginId: 'infotest' }));
     });
 
     it('SID 없이 접근 → 403 Forbidden', async () => {
@@ -256,7 +265,7 @@ describe('User (e2e)', () => {
 
       // 3. 정보 조회
       const infoRes = await withAuth(supertest(app.getHttpServer()).get('/user'), sid).expect(200);
-      expect(infoRes.body.loginId).toBe('fullflow1');
+      expect(infoRes.body.data.loginId).toBe('fullflow1');
 
       // 4. 로그아웃
       await withAuth(supertest(app.getHttpServer()).post('/user/logout'), sid).expect(201);

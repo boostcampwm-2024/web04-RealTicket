@@ -53,7 +53,7 @@ describe('Program (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
           name: '오페라의 유령',
@@ -107,8 +107,8 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get('/program').expect(200);
 
-      expect(res.body.length).toBeGreaterThanOrEqual(2);
-      expect(res.body).toEqual(
+      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+      expect(res.body.data).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: 'Program A' }),
           expect.objectContaining({ name: 'Program B' }),
@@ -121,7 +121,7 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get('/program').expect(200);
 
-      expect(res.body[0]).toEqual(
+      expect(res.body.data[0]).toEqual(
         expect.objectContaining({
           place: expect.objectContaining({
             id: expect.any(Number),
@@ -141,7 +141,7 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get(`/program/${programId}`).expect(200);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: programId,
           name: '레미제라블',
