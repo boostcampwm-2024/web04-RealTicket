@@ -1,11 +1,13 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { AppException } from '../../../common/exception/app.exception';
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
 import { SeatInfoDto } from '../dto/seatInfo.dto';
 import { SectionCreationDto } from '../dto/sectionCreation.dto';
 import { Place } from '../entity/place.entity';
+import { PlaceErrorCode } from '../exception/place-error-code';
 import { PlaceRepository } from '../repository/place.repository';
 import { SectionRepository } from '../repository/section.repository';
 
@@ -20,35 +22,29 @@ export class PlaceService {
   ) {}
 
   async getSeats(placeId: number): Promise<SeatInfoDto> {
-    try {
-      const place: Place = await this.placeRepository.selectPlace(placeId);
+    const place: Place = await this.placeRepository.selectPlace(placeId);
 
-      if (!place) {
-        throw new NotFoundException(`해당 장소[${placeId}]가 존재하지 않습니다.`);
-      }
-
-      const sectionNameList = place.sections;
-      const secitons = await Promise.all(
-        sectionNameList.map(async (sectionName) => {
-          return await this.sectionRepository.findById(parseInt(sectionName, 10));
-        }),
-      );
-
-      return {
-        id: place.id,
-        layout: {
-          overview: place.overviewSvg,
-          sections: secitons,
-          overviewWidth: place.overviewWidth,
-          overviewHeight: place.overviewHeight,
-          overviewPoints: place.overviewPoints,
-        },
-      };
-    } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-      this.logger.error(err);
-      throw new InternalServerErrorException('서버 오류 발생');
+    if (!place) {
+      throw new AppException(PlaceErrorCode.NOT_FOUND);
     }
+
+    const sectionNameList = place.sections;
+    const secitons = await Promise.all(
+      sectionNameList.map(async (sectionName) => {
+        return await this.sectionRepository.findById(parseInt(sectionName, 10));
+      }),
+    );
+
+    return {
+      id: place.id,
+      layout: {
+        overview: place.overviewSvg,
+        sections: secitons,
+        overviewWidth: place.overviewWidth,
+        overviewHeight: place.overviewHeight,
+        overviewPoints: place.overviewPoints,
+      },
+    };
   }
 
   async createPlace(placeCreationDto: PlaceCreationDto) {
@@ -60,7 +56,7 @@ export class PlaceService {
 
   async createSections(sectionCreationDtoList: SectionCreationDto[], placeId: number) {
     const place = await this.placeRepository.selectPlace(placeId);
-    if (!place) throw new NotFoundException(`해당 장소[${placeId}]가 존재하지 않습니다.`);
+    if (!place) throw new AppException(PlaceErrorCode.NOT_FOUND);
     await this.dataSource.transaction(async () => {
       const sortedSectionDtos: SectionCreationDto[] = sectionCreationDtoList.sort(
         (a, b) => a.order - b.order,

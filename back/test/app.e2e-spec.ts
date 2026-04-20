@@ -14,7 +14,8 @@ describe('AppController (e2e)', () => {
     await app.close();
   });
 
-  it('/ (GET)', () => {
-    return supertest(app.getHttpServer()).get('/').expect(200).expect('Hello World!');
+  it('/ (GET)', async () => {
+    const res = await supertest(app.getHttpServer()).get('/').expect(200);
+    expect(res.body).toEqual({ success: true, data: 'Hello World!' });
   });
 });

@@ -5,7 +5,11 @@ import cookieParser from 'cookie-parser';
 
 import './config/loadDotEnv';
 import { AppModule } from './app.module';
+import { AppException } from './common/exception/app.exception';
+import { GlobalExceptionFilter } from './common/exception/global-exception.filter';
+import { ResponseWrapperInterceptor } from './common/interceptor/response-wrapper.interceptor';
 import { setupSwagger } from './config/setupSwagger';
+import { CommonErrorCode } from './domains/user/exception/user-error-code';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {});
@@ -17,8 +21,12 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
+      whitelist: true,
+      exceptionFactory: () => new AppException(CommonErrorCode.VALIDATION_ERROR),
     }),
   );
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new ResponseWrapperInterceptor());
   app.useWebSocketAdapter(new WsAdapter(app));
   app.use(cookieParser());
   await app.listen(process.env.PORT ?? 8080);
