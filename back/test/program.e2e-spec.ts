@@ -53,7 +53,7 @@ describe('Program (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
           name: '오페라의 유령',
@@ -64,7 +64,7 @@ describe('Program (e2e)', () => {
     it('일반 유저 → 401', async () => {
       const guestSid = await loginAsGuest(app);
 
-      await withAuth(supertest(app.getHttpServer()).post('/program'), guestSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), guestSid)
         .send({
           name: 'Test',
           profileUrl: 'url',
@@ -75,10 +75,11 @@ describe('Program (e2e)', () => {
           placeId,
         })
         .expect(401);
+      expect(res.body.success).toBe(false);
     });
 
     it('존재하지 않는 placeId → 404', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
         .send({
           name: 'Test',
           profileUrl: 'url',
@@ -89,12 +90,14 @@ describe('Program (e2e)', () => {
           placeId: 99999,
         })
         .expect(404);
+      expect(res.body.success).toBe(false);
     });
 
     it('필수 필드 누락 → 400', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/program'), adminSid)
         .send({ name: 'Test' })
         .expect(400);
+      expect(res.body.success).toBe(false);
     });
   });
 
@@ -107,8 +110,8 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get('/program').expect(200);
 
-      expect(res.body.length).toBeGreaterThanOrEqual(2);
-      expect(res.body).toEqual(
+      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+      expect(res.body.data).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: 'Program A' }),
           expect.objectContaining({ name: 'Program B' }),
@@ -121,7 +124,7 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get('/program').expect(200);
 
-      expect(res.body[0]).toEqual(
+      expect(res.body.data[0]).toEqual(
         expect.objectContaining({
           place: expect.objectContaining({
             id: expect.any(Number),
@@ -141,7 +144,7 @@ describe('Program (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get(`/program/${programId}`).expect(200);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: programId,
           name: '레미제라블',

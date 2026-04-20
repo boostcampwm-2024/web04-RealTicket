@@ -50,7 +50,7 @@ describe('Place (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
           name: '세종문화회관',
@@ -61,7 +61,7 @@ describe('Place (e2e)', () => {
     it('일반 유저 → 403/401', async () => {
       const guestSid = await loginAsGuest(app);
 
-      await withAuth(supertest(app.getHttpServer()).post('/place'), guestSid)
+      const pErrRes1 = await withAuth(supertest(app.getHttpServer()).post('/place'), guestSid)
         .send({
           name: 'Test',
           address: 'Addr',
@@ -71,12 +71,14 @@ describe('Place (e2e)', () => {
           overviewPoints: '[]',
         })
         .expect(401);
+      expect(pErrRes1.body.success).toBe(false);
     });
 
     it('필수 필드 누락 → 400', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/place'), adminSid)
+      const pErrRes2 = await withAuth(supertest(app.getHttpServer()).post('/place'), adminSid)
         .send({ name: 'Test' })
         .expect(400);
+      expect(pErrRes2.body.success).toBe(false);
     });
   });
 
@@ -93,9 +95,26 @@ describe('Place (e2e)', () => {
     });
 
     it('존재하지 않는 Place에 Section 추가 → 404', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+      const res = await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
         .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId: 99999, order: 0 }])
         .expect(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('seats 빈 배열 전송 시 400 (VALIDATION_ERROR)', async () => {
+      const placeId = await createPlace(app, adminSid);
+      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+        .send([{ name: 'A구역', colLen: 3, seats: [], placeId, order: 0 }])
+        .expect(400);
+    });
+
+    it('Section 추가 성공 응답에 data 필드 존재', async () => {
+      const placeId = await createPlace(app, adminSid);
+      // Phase 5부터 E2E 환경에서도 ResponseWrapperInterceptor가 등록되어 { success: true, data: null }을 반환한다.
+      const res = await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+        .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId, order: 0 }])
+        .expect(201);
+      expect(res.body.success).toBe(true);
     });
   });
 
@@ -110,7 +129,7 @@ describe('Place (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get(`/place/seat/${placeId}`).expect(200);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: placeId,
           layout: expect.objectContaining({

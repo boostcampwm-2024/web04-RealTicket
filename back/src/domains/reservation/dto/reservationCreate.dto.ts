@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMinSize, ArrayNotEmpty, IsArray, IsInt, ValidateNested } from 'class-validator';
 
 import { ReservationSeatInfoDto } from './reservationSeatInfo.dto';
 
@@ -22,5 +23,10 @@ export class ReservationCreateDto {
       { sectionIndex: 2, seatIndex: 8 },
     ],
   })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReservationSeatInfoDto)
   seats: ReservationSeatInfoDto[];
 }
