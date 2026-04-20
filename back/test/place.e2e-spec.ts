@@ -50,7 +50,7 @@ describe('Place (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
           name: '세종문화회관',
@@ -61,7 +61,7 @@ describe('Place (e2e)', () => {
     it('일반 유저 → 403/401', async () => {
       const guestSid = await loginAsGuest(app);
 
-      await withAuth(supertest(app.getHttpServer()).post('/place'), guestSid)
+      const pErrRes1 = await withAuth(supertest(app.getHttpServer()).post('/place'), guestSid)
         .send({
           name: 'Test',
           address: 'Addr',
@@ -71,12 +71,14 @@ describe('Place (e2e)', () => {
           overviewPoints: '[]',
         })
         .expect(401);
+      expect(pErrRes1.body.success).toBe(false);
     });
 
     it('필수 필드 누락 → 400', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/place'), adminSid)
+      const pErrRes2 = await withAuth(supertest(app.getHttpServer()).post('/place'), adminSid)
         .send({ name: 'Test' })
         .expect(400);
+      expect(pErrRes2.body.success).toBe(false);
     });
   });
 
@@ -107,11 +109,11 @@ describe('Place (e2e)', () => {
 
     it('Section 추가 성공 응답에 data 필드 존재', async () => {
       const placeId = await createPlace(app, adminSid);
-      // createSection이 null을 반환해 ResponseWrapperInterceptor가 { success: true, data: null }을 반환한다.
-      // E2E 환경에서는 interceptor가 main.ts에서만 등록되므로 status code만 검증한다.
-      await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
+      // Phase 5부터 E2E 환경에서도 ResponseWrapperInterceptor가 등록되어 { success: true, data: null }을 반환한다.
+      const res = await withAuth(supertest(app.getHttpServer()).post('/place/section'), adminSid)
         .send([{ name: 'A구역', colLen: 3, seats: [1, 1, 1], placeId, order: 0 }])
         .expect(201);
+      expect(res.body.success).toBe(true);
     });
   });
 
@@ -126,7 +128,7 @@ describe('Place (e2e)', () => {
 
       const res = await supertest(app.getHttpServer()).get(`/place/seat/${placeId}`).expect(200);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: placeId,
           layout: expect.objectContaining({
