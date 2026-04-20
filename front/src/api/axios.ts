@@ -13,9 +13,11 @@ const apiServerUrl = import.meta.env.VITE_BE_URL ? import.meta.env.VITE_BE_URL :
 export const BASE_URL = isApiProxying ? proxyingUrl : apiServerUrl;
 
 type ErrorData = {
-  error: string;
-  message: string;
-  statusCode: number;
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
 };
 
 export type CustomError = AxiosError<ErrorData>;
@@ -62,7 +64,12 @@ const isError = (error: unknown) => error && isAxiosError<CustomError>(error);
 //TODO 500 에러 처리 필요
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data?.success === true) {
+      response.data = response.data.data;
+    }
+    return response;
+  },
   (error) => {
     if (isError(error)) {
       if (isAuthenticateError(error)) {

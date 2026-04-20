@@ -30,7 +30,7 @@ export default function SignUpPage() {
   const { mutate, error, isPending } = useMutation<AxiosResponse, CustomError, UserData>({
     mutationFn: postSignup,
     onError: async (error) => {
-      toast.error(`회윈가입에 실패했습니다.\n사유:${error.response?.data.message}`);
+      toast.error(`회윈가입에 실패했습니다.\n사유:${error.response?.data.error.message}`);
     },
     onSuccess: () => {
       toast.success('화원가입에 성공했습니다.\n로그인 해주세요');
@@ -53,7 +53,7 @@ export default function SignUpPage() {
         <Field
           label="Id"
           isValid={!errors.id && !error}
-          errorMessage={errors.id ? errors.id : error?.response?.data.message}
+          errorMessage={errors.id ? errors.id : error?.response?.data.error.message}
           helpMessage="4자 이상 12자 이하의 영문 소문자와 숫자로 구성해주세요.">
           <Input
             disabled={isPending}
@@ -66,7 +66,7 @@ export default function SignUpPage() {
         <Field
           label="Password"
           isValid={!errors.password && !error}
-          errorMessage={errors.password ? errors.password : error?.response?.data.message}
+          errorMessage={errors.password ? errors.password : error?.response?.data.error.message}
           helpMessage="4자 이상 12자 이하의 영문 소문자와 숫자로 구성해주세요.">
           <Input
             type="password"
@@ -81,7 +81,7 @@ export default function SignUpPage() {
         <Field
           label="CheckPassword"
           isValid={!errors.checkPassword && !error}
-          errorMessage={errors.checkPassword ? errors.checkPassword : error?.response?.data.message}>
+          errorMessage={errors.checkPassword ? errors.checkPassword : error?.response?.data.error.message}>
           <Input
             type="password"
             disabled={is}
