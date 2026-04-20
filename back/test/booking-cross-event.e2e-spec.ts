@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import supertest from 'supertest';
 
 import { AuthService } from 'src/auth/service/auth.service';
 import { WaitingQueueService } from 'src/domains/booking/service/waiting-queue.service';
@@ -23,7 +24,6 @@ import {
   transitionToSelectingSeat,
   withAuth,
 } from './helpers/e2e-setup';
-import supertest from 'supertest';
 
 describe('크로스-이벤트 격리 (booking-cross-event)', () => {
   let app: INestApplication;
@@ -33,8 +33,8 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
   let adminSid: string;
   let placeId: number;
   let programId: number;
-  let eventId: number;   // 이벤트 A
-  let eventId2: number;  // 이벤트 B
+  let eventId: number; // 이벤트 A
+  let eventId2: number; // 이벤트 B
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -78,10 +78,9 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
 
       // 좌석 점유 + 예매 저장
       await bookSeat(app, userASid, eventId, 0, 0, 'reserved').expect(201);
-      await withAuth(
-        supertest(app.getHttpServer()).post('/reservation'),
-        userASid,
-      ).send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] }).expect(201);
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userASid)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
+        .expect(201);
 
       // 이벤트 A 세션 정리 — SSE close 시뮬레이션으로 in-booking 세션 회수
       await simulateSseDisconnect(app, userASid);
@@ -90,9 +89,7 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       // 이벤트 B 오픈 + permission 요청 → 200 (ISO-03)
       await openEventReservation(app, adminSid, eventId2).expect(201);
       const res = await requestPermission(app, userASid, eventId2).expect(200);
-      expect(res.body).toEqual(
-        expect.objectContaining({ enteringStatus: true, waitingStatus: false }),
-      );
+      expect(res.body.data).toEqual(expect.objectContaining({ enteringStatus: true, waitingStatus: false }));
     });
 
     it('ISO-04: 이벤트 A 예매 완료 후 이벤트 B SELECTING_SEAT 진입 정상 동작', async () => {
@@ -103,10 +100,9 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       await setBookingCount(app, userASid, 1).expect(201);
       await transitionToSelectingSeat(app, userASid);
       await bookSeat(app, userASid, eventId, 0, 0, 'reserved').expect(201);
-      await withAuth(
-        supertest(app.getHttpServer()).post('/reservation'),
-        userASid,
-      ).send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] }).expect(201);
+      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userASid)
+        .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
+        .expect(201);
 
       // 이벤트 A in-booking 세션 정리
       await simulateSseDisconnect(app, userASid);
@@ -156,7 +152,9 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       await withAuth(
         supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
         adminSid,
-      ).send({ maxSize: 1 }).expect(201);
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
 
       // user1: 슬롯 점유 (ENTERING → SELECTING_SEAT)
       const user1Sid = await loginAsUser(app, 'iso01user1', 'pass1234');
@@ -167,7 +165,7 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       // user2: WAITING 진입
       const userSid = await loginAsUser(app, 'iso01user2', 'pass1234');
       const waitRes = await requestPermission(app, userSid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // 이벤트 A WAITING 타임아웃 시뮬레이션 → LOGIN 복귀
       await simulateWaitingSseTimeout(app, userSid);
@@ -177,9 +175,7 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       // 이벤트 B 오픈 후 permission 요청 → 200 반환 (ISO-01)
       await openEventReservation(app, adminSid, eventId2).expect(201);
       const res = await requestPermission(app, userSid, eventId2).expect(200);
-      expect(res.body).toEqual(
-        expect.objectContaining({ enteringStatus: true, waitingStatus: false }),
-      );
+      expect(res.body.data).toEqual(expect.objectContaining({ enteringStatus: true, waitingStatus: false }));
     });
 
     it('ISO-02: 이벤트 A WAITING 타임아웃 후 이벤트 B 세션 상태 변화 없음 + 이벤트 A 큐 0', async () => {
@@ -188,7 +184,9 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       await withAuth(
         supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
         adminSid,
-      ).send({ maxSize: 1 }).expect(201);
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
 
       // user1: 슬롯 점유
       const user1Sid = await loginAsUser(app, 'iso02user1', 'pass1234');
@@ -199,7 +197,7 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
       // userA: 이벤트 A WAITING 진입
       const userASid = await loginAsUser(app, 'iso02usera', 'pass1234');
       const waitRes = await requestPermission(app, userASid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // 이벤트 B 오픈 후 별도 유저(userB)가 ENTERING 진입
       await openEventReservation(app, adminSid, eventId2).expect(201);
