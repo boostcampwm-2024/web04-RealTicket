@@ -75,8 +75,8 @@ describe('Booking (e2e)', () => {
       );
 
       const after = Date.now();
-      expect(res.body.now).toBeGreaterThanOrEqual(before);
-      expect(res.body.now).toBeLessThanOrEqual(after);
+      expect(res.body.data.now).toBeGreaterThanOrEqual(before);
+      expect(res.body.data.now).toBeLessThanOrEqual(after);
     });
 
     it('미인증 → 403', async () => {
@@ -93,7 +93,7 @@ describe('Booking (e2e)', () => {
 
       const res = await requestPermission(app, userSid, eventId).expect(200);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           enteringStatus: true,
           waitingStatus: false,
@@ -105,7 +105,8 @@ describe('Booking (e2e)', () => {
       // Redis flushed 상태, 이벤트 미오픈
       const userSid = await loginAsUser(app, 'permuser2', 'pass1234');
 
-      await requestPermission(app, userSid, eventId).expect(400);
+      const bErrRes1 = await requestPermission(app, userSid, eventId).expect(400);
+      expect(bErrRes1.body.success).toBe(false);
     });
 
     it('인원 초과 시 대기열로 진입 (waitingStatus)', async () => {
@@ -129,8 +130,8 @@ describe('Booking (e2e)', () => {
       const user2Sid = await loginAsUser(app, 'permuser4', 'pass1234');
       const res = await requestPermission(app, user2Sid, eventId).expect(200);
 
-      expect(res.body.waitingStatus).toBe(true);
-      expect(res.body.userOrder).toBeDefined();
+      expect(res.body.data.waitingStatus).toBe(true);
+      expect(res.body.data.userOrder).toBeDefined();
     });
 
     it('미인증 → 403', async () => {
@@ -148,7 +149,7 @@ describe('Booking (e2e)', () => {
 
       const res = await setBookingCount(app, userSid, 2).expect(201);
 
-      expect(res.body.bookingAmount).toBe(2);
+      expect(res.body.data.bookingAmount).toBe(2);
     });
 
     it('범위 밖 인원(0, 5) → 400', async () => {
@@ -156,14 +157,17 @@ describe('Booking (e2e)', () => {
       const userSid = await loginAsUser(app, 'cntuser2', 'pass1234');
       await requestPermission(app, userSid, eventId).expect(200);
 
-      await setBookingCount(app, userSid, 0).expect(400);
-      await setBookingCount(app, userSid, 5).expect(400);
+      const bErrRes2 = await setBookingCount(app, userSid, 0).expect(400);
+      expect(bErrRes2.body.success).toBe(false);
+      const bErrRes3 = await setBookingCount(app, userSid, 5).expect(400);
+      expect(bErrRes3.body.success).toBe(false);
     });
 
     it('LOGIN 상태에서 → 401', async () => {
       const userSid = await loginAsUser(app, 'cntuser3', 'pass1234');
 
-      await setBookingCount(app, userSid, 1).expect(401);
+      const bErrRes4 = await setBookingCount(app, userSid, 1).expect(401);
+      expect(bErrRes4.body.success).toBe(false);
     });
   });
 
@@ -183,7 +187,7 @@ describe('Booking (e2e)', () => {
     it('좌석 점유 → 성공', async () => {
       const res = await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           sectionIndex: 0,
           seatIndex: 0,
@@ -195,7 +199,8 @@ describe('Booking (e2e)', () => {
     it('이미 점유된 좌석 재점유 → 409 Conflict', async () => {
       await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
 
-      await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(409);
+      const bErrRes5 = await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(409);
+      expect(bErrRes5.body.success).toBe(false);
     });
 
     it('좌석 취소 → 성공', async () => {
@@ -203,7 +208,7 @@ describe('Booking (e2e)', () => {
 
       const res = await bookSeat(app, userSid, eventId, 0, 0, 'deleted').expect(201);
 
-      expect(res.body.acceptedStatus).toBe('deleted');
+      expect(res.body.data.acceptedStatus).toBe('deleted');
     });
 
     it('예매 수량 초과 → 400', async () => {
@@ -211,13 +216,15 @@ describe('Booking (e2e)', () => {
       await bookSeat(app, userSid, eventId, 0, 1, 'reserved').expect(201);
 
       // bookingAmount=2인데 3번째 좌석 점유 시도
-      await bookSeat(app, userSid, eventId, 0, 2, 'reserved').expect(400);
+      const bErrRes6 = await bookSeat(app, userSid, eventId, 0, 2, 'reserved').expect(400);
+      expect(bErrRes6.body.success).toBe(false);
     });
 
     it('LOGIN 상태에서 좌석 점유 → 401', async () => {
       const loginOnlySid = await loginAsUser(app, 'seatusr2', 'pass1234');
 
-      await bookSeat(app, loginOnlySid, eventId, 0, 0, 'reserved').expect(401);
+      const bErrRes7 = await bookSeat(app, loginOnlySid, eventId, 0, 0, 'reserved').expect(401);
+      expect(bErrRes7.body.success).toBe(false);
     });
   });
 
@@ -234,7 +241,7 @@ describe('Booking (e2e)', () => {
         .send({ maxSize: 50 })
         .expect(201);
 
-      expect(res.body.maxSize).toBe(50);
+      expect(res.body.data.maxSize).toBe(50);
     });
 
     it('전체 이벤트 maxSize 설정', async () => {
@@ -247,7 +254,7 @@ describe('Booking (e2e)', () => {
         .send({ maxSize: 100 })
         .expect(201);
 
-      expect(res.body.maxSize).toBe(100);
+      expect(res.body.data.maxSize).toBe(100);
     });
 
     it('기본값 maxSize 설정', async () => {
@@ -258,15 +265,19 @@ describe('Booking (e2e)', () => {
         .send({ maxSize: 200 })
         .expect(201);
 
-      expect(res.body.maxSize).toBe(200);
+      expect(res.body.data.maxSize).toBe(200);
     });
 
     it('일반 유저 → 401', async () => {
       const userSid = await loginAsUser(app, 'pooluser1', 'pass1234');
 
-      await withAuth(supertest(app.getHttpServer()).post('/booking/in-booking-pool-size/default'), userSid)
+      const bErrRes8 = await withAuth(
+        supertest(app.getHttpServer()).post('/booking/in-booking-pool-size/default'),
+        userSid,
+      )
         .send({ maxSize: 100 })
         .expect(401);
+      expect(bErrRes8.body.success).toBe(false);
     });
   });
 
@@ -350,7 +361,7 @@ describe('Booking (e2e)', () => {
       // user2 대기열 진입
       const user2Sid = await loginAsUser(app, 'sseuser7', 'pass1234');
       const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // user1 SSE 해제 → 슬롯 반환 → user2 입장
       await simulateSseDisconnect(app, user1Sid);
@@ -358,7 +369,7 @@ describe('Booking (e2e)', () => {
 
       // user2가 ENTERING 상태가 됐으므로 인원 설정 가능
       const countRes = await setBookingCount(app, user2Sid, 1).expect(201);
-      expect(countRes.body.bookingAmount).toBe(1);
+      expect(countRes.body.data.bookingAmount).toBe(1);
     });
   });
 
@@ -452,7 +463,11 @@ describe('Booking (e2e)', () => {
     it('일반 유저 → 401', async () => {
       const userSid = await loginAsUser(app, 'inituser1', 'pass1234');
 
-      await withAuth(supertest(app.getHttpServer()).post(`/booking/init/${eventId}`), userSid).expect(401);
+      const bErrRes9 = await withAuth(
+        supertest(app.getHttpServer()).post(`/booking/init/${eventId}`),
+        userSid,
+      ).expect(401);
+      expect(bErrRes9.body.success).toBe(false);
     });
   });
 });
