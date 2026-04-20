@@ -55,7 +55,7 @@ describe('Event (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
         }),
@@ -66,7 +66,7 @@ describe('Event (e2e)', () => {
       const guestSid = await loginAsGuest(app);
       const now = new Date();
 
-      await withAuth(supertest(app.getHttpServer()).post('/event'), guestSid)
+      const eRes1 = await withAuth(supertest(app.getHttpServer()).post('/event'), guestSid)
         .send({
           runningDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           reservationOpenDate: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString(),
@@ -74,12 +74,13 @@ describe('Event (e2e)', () => {
           programId,
         })
         .expect(401);
+      expect(eRes1.body.success).toBe(false);
     });
 
     it('날짜 순서 위반 (openDate > closeDate) → 400', async () => {
       const now = new Date();
 
-      await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid)
+      const eRes2 = await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid)
         .send({
           runningDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           reservationOpenDate: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -87,12 +88,13 @@ describe('Event (e2e)', () => {
           programId,
         })
         .expect(400);
+      expect(eRes2.body.success).toBe(false);
     });
 
     it('존재하지 않는 programId → 404', async () => {
       const now = new Date();
 
-      await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid)
+      const eRes3 = await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid)
         .send({
           runningDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           reservationOpenDate: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString(),
@@ -100,10 +102,14 @@ describe('Event (e2e)', () => {
           programId: 99999,
         })
         .expect(404);
+      expect(eRes3.body.success).toBe(false);
     });
 
     it('필수 필드 누락 → 400', async () => {
-      await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid).send({ programId }).expect(400);
+      const eRes4 = await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid)
+        .send({ programId })
+        .expect(400);
+      expect(eRes4.body.success).toBe(false);
     });
   });
 
@@ -120,7 +126,7 @@ describe('Event (e2e)', () => {
         200,
       );
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           id: eventId,
           name: expect.any(String),
@@ -177,8 +183,8 @@ describe('Event (e2e)', () => {
       // Program 상세에서 Event 2개 확인
       const res = await supertest(app.getHttpServer()).get(`/program/${myProgramId}`).expect(200);
 
-      expect(res.body.name).toBe('통합 테스트 공연');
-      expect(res.body.events.length).toBe(2);
+      expect(res.body.data.name).toBe('통합 테스트 공연');
+      expect(res.body.data.events.length).toBe(2);
     });
 
     it('Event가 있는 Program 삭제 시도 → 409', async () => {

@@ -79,14 +79,14 @@ describe('Reservation (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body).toEqual(
+      expect(res.body.data).toEqual(
         expect.objectContaining({
           programName: expect.any(String),
           runningDate: expect.any(String),
           price: expect.any(Number),
         }),
       );
-      expect(res.body.seats).toHaveLength(2);
+      expect(res.body.data.seats).toHaveLength(2);
     });
 
     it('선점하지 않은 좌석 포함 → 400', async () => {
@@ -97,7 +97,7 @@ describe('Reservation (e2e)', () => {
       await bookSeat(app, userSid, eventId, 0, 0, 'reserved').expect(201);
 
       // 점유하지 않은 좌석 포함하여 예매 시도
-      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
+      const rErrRes1 = await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
         .send({
           eventId,
           seats: [
@@ -106,14 +106,16 @@ describe('Reservation (e2e)', () => {
           ],
         })
         .expect(400);
+      expect(rErrRes1.body.success).toBe(false);
     });
 
     it('LOGIN 상태에서 예매 시도 → 401', async () => {
       const userSid = await loginAsUser(app, 'resuser3', 'pass1234');
 
-      await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
+      const rErrRes2 = await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
         .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 0 }] })
         .expect(401);
+      expect(rErrRes2.body.success).toBe(false);
     });
   });
 
@@ -131,9 +133,9 @@ describe('Reservation (e2e)', () => {
 
       const res = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
 
-      expect(res.body).toBeInstanceOf(Array);
-      expect(res.body.length).toBeGreaterThanOrEqual(1);
-      expect(res.body[0]).toEqual(
+      expect(res.body.data).toBeInstanceOf(Array);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.data[0]).toEqual(
         expect.objectContaining({
           id: expect.any(Number),
           programName: expect.any(String),
@@ -146,7 +148,7 @@ describe('Reservation (e2e)', () => {
 
       const res = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
 
-      expect(res.body).toEqual([]);
+      expect(res.body.data).toEqual([]);
     });
 
     it('미인증 → 403', async () => {
@@ -169,7 +171,7 @@ describe('Reservation (e2e)', () => {
 
       // 예매 ID 조회
       const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
-      const reservationId = listRes.body[listRes.body.length - 1].id;
+      const reservationId = listRes.body.data[listRes.body.data.length - 1].id;
 
       // 삭제
       await withAuth(supertest(app.getHttpServer()).delete(`/reservation/${reservationId}`), userSid).expect(
@@ -180,7 +182,7 @@ describe('Reservation (e2e)', () => {
       const afterRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(
         200,
       );
-      const ids = afterRes.body.map((r: { id: number }) => r.id);
+      const ids = afterRes.body.data.map((r: { id: number }) => r.id);
       expect(ids).not.toContain(reservationId);
     });
 
@@ -201,7 +203,7 @@ describe('Reservation (e2e)', () => {
       const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSidA).expect(
         200,
       );
-      const reservationId = listRes.body[listRes.body.length - 1].id;
+      const reservationId = listRes.body.data[listRes.body.data.length - 1].id;
 
       const userSidB = await loginAsUser(app, 'resdel04', 'pass1234');
       await withAuth(supertest(app.getHttpServer()).delete(`/reservation/${reservationId}`), userSidB).expect(
@@ -223,7 +225,7 @@ describe('Reservation (e2e)', () => {
 
       // 1. 입장 허가
       const permRes = await requestPermission(app, userSid, eventId).expect(200);
-      expect(permRes.body.enteringStatus).toBe(true);
+      expect(permRes.body.data.enteringStatus).toBe(true);
 
       // 2. 인원 설정
       await setBookingCount(app, userSid, 1).expect(201);
@@ -238,12 +240,12 @@ describe('Reservation (e2e)', () => {
       const reserveRes = await withAuth(supertest(app.getHttpServer()).post('/reservation'), userSid)
         .send({ eventId, seats: [{ sectionIndex: 0, seatIndex: 3 }] })
         .expect(201);
-      expect(reserveRes.body.programName).toBeDefined();
-      expect(reserveRes.body.seats).toHaveLength(1);
+      expect(reserveRes.body.data.programName).toBeDefined();
+      expect(reserveRes.body.data.seats).toHaveLength(1);
 
       // 6. 예매 내역 조회
       const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
-      expect(listRes.body.length).toBeGreaterThanOrEqual(1);
+      expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
     });
 
     it('1회차 예매 확정 → SSE 해제 → 2회차 예매 (상태 순환 검증)', async () => {
@@ -269,7 +271,7 @@ describe('Reservation (e2e)', () => {
 
       // ── 2회차: 같은 유저가 다시 예매 플로우 진입 ──
       const permRes = await requestPermission(app, userSid, eventId).expect(200);
-      expect(permRes.body.enteringStatus).toBe(true);
+      expect(permRes.body.data.enteringStatus).toBe(true);
 
       await setBookingCount(app, userSid, 1).expect(201);
       await transitionToSelectingSeat(app, userSid);
@@ -286,7 +288,7 @@ describe('Reservation (e2e)', () => {
 
       // 예매 내역에 2건 존재
       const listRes = await withAuth(supertest(app.getHttpServer()).get('/reservation'), userSid).expect(200);
-      expect(listRes.body.length).toBeGreaterThanOrEqual(2);
+      expect(listRes.body.data.length).toBeGreaterThanOrEqual(2);
     });
   });
 });
