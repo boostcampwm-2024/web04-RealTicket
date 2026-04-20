@@ -5,16 +5,20 @@ import supertest from 'supertest';
 
 import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
+import { AppException } from 'src/common/exception/app.exception';
+import { GlobalExceptionFilter } from 'src/common/exception/global-exception.filter';
+import { ResponseWrapperInterceptor } from 'src/common/interceptor/response-wrapper.interceptor';
 import { BookingService } from 'src/domains/booking/service/booking.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { USER_ROLE } from 'src/domains/user/const/userRole';
+import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 import { UserService } from 'src/domains/user/service/user.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 /**
  * E2E 테스트용 NestJS 앱 인스턴스를 생성한다.
  * - moduleFactory가 NODE_ENV=test를 감지해 자동으로 in-memory DB + mock Redis 사용
- * - main.ts의 글로벌 설정(ValidationPipe, cookieParser)을 동일하게 적용
+ * - main.ts의 글로벌 설정(ValidationPipe, GlobalExceptionFilter, ResponseWrapperInterceptor, cookieParser)을 동일하게 적용
  */
 export async function createTestApp(): Promise<INestApplication> {
   const moduleFixture: TestingModule = await NestTest.createTestingModule({
@@ -22,7 +26,15 @@ export async function createTestApp(): Promise<INestApplication> {
   }).compile();
 
   const app = moduleFixture.createNestApplication();
-  app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      exceptionFactory: () => new AppException(CommonErrorCode.VALIDATION_ERROR),
+    }),
+  );
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new ResponseWrapperInterceptor());
   app.use(cookieParser());
   await app.init();
 
@@ -158,7 +170,7 @@ export async function createPlace(
 
   const res = await withAuth(supertest(app.getHttpServer()).post('/place'), adminSid).send(body).expect(201);
 
-  return res.body.id;
+  return res.body.data.id;
 }
 
 /**
@@ -201,7 +213,7 @@ export async function createProgram(
     .send(body)
     .expect(201);
 
-  return res.body.id;
+  return res.body.data.id;
 }
 
 /**
@@ -224,7 +236,7 @@ export async function createEvent(
 
   const res = await withAuth(supertest(app.getHttpServer()).post('/event'), adminSid).send(body).expect(201);
 
-  return res.body.id;
+  return res.body.data.id;
 }
 
 // ─── Booking Helpers ───
