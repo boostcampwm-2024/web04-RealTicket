@@ -60,13 +60,13 @@ const isServerError = (error: AxiosError) => {
   return false;
 };
 
-const isError = (error: unknown) => error && isAxiosError<CustomError>(error);
+const isError = (error: unknown) => error && isAxiosError<ErrorData>(error);
 //TODO 500 에러 처리 필요
 
 apiClient.interceptors.response.use(
   (response) => {
     if (response.data?.success === true) {
-      response.data = response.data.data;
+      response.data = response.data.data ?? null;
     }
     return response;
   },
@@ -82,7 +82,7 @@ apiClient.interceptors.response.use(
       } else if (isServerError(error)) {
         toast.error('서버에 문제가 있습니다.\n잠시 후 다시 시도해주세요.');
       }
-      throw error;
     }
+    throw error;
   },
 );
