@@ -1,14 +1,26 @@
 import { RedisModuleOptions } from '@liaoliaots/nestjs-redis';
-// 지워야됨
-// import './setEnviorment';
+
+const isSentinelMode = process.env.REDIS_SENTINEL_MODE === 'true';
+
+const sharedConnection = isSentinelMode
+  ? {
+      sentinels: [
+        { host: 'redis-sentinel-1', port: 26379 },
+        { host: 'redis-sentinel-2', port: 26379 },
+        { host: 'redis-sentinel-3', port: 26379 },
+      ],
+      name: 'mymaster',
+      password: process.env.REDIS_PASSWORD || undefined,
+    }
+  : {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD || undefined,
+    };
 
 const redisConfig: RedisModuleOptions = {
   readyLog: true,
-  config: {
-    host: process.env.REDIS_HOST,
-    port: parseInt(process.env.REDIS_PORT, 10),
-    password: process.env.REDIS_PASSWORD,
-  },
+  config: [{ ...sharedConnection }, { ...sharedConnection, namespace: 'pubsub' }],
 };
 
 export default redisConfig;
