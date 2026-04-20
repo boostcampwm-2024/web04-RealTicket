@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { AppException } from '../../../common/exception/app.exception';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 
 import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
@@ -91,7 +93,7 @@ export class BookingService {
     const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
-      throw new BadRequestException('좌석 선택 상태로 이동할 세션의 대상 이벤트를 불러올 수 없습니다.');
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
     const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
@@ -105,7 +107,7 @@ export class BookingService {
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     const isOpened = await this.openBookingService.isEventOpened(eventId);
     if (!isOpened) {
-      throw new BadRequestException('예약이 오픈되지 않았습니다.');
+      throw new AppException(BookingErrorCode.NOT_OPEN);
     }
 
     await this.authService.setUserEventTarget(sid, eventId);
@@ -146,7 +148,7 @@ export class BookingService {
     const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
-      throw new BadRequestException('예매 수량을 설정할 세션의 대상 이벤트를 불러올 수 없습니다.');
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
     const isInBooking = await this.inBookingService.isInBooking(eventId, sid);
@@ -166,7 +168,7 @@ export class BookingService {
 
     const isEntering = await this.enterBookingService.isEntering(eventId, sid);
     if (!isEntering) {
-      throw new BadRequestException('예매 수량을 설정할 수 없는 상태입니다.');
+      throw new AppException(BookingErrorCode.INVALID_STATE);
     }
     return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
   }
@@ -178,13 +180,6 @@ export class BookingService {
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
-    try {
-      return {
-        now: Date.now(),
-      };
-    } catch (err) {
-      this.logger.error(err);
-      throw new InternalServerErrorException('서버 시간을 가져오는데 실패했습니다.');
-    }
+    return { now: Date.now() };
   }
 }

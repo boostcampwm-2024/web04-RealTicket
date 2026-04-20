@@ -171,7 +171,7 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
 
       // 동일 이벤트 permission 재요청 → 200 (RESERVED 상태 없음, 재진입 허용)
       const res = await requestPermission(app, userSid, eventId).expect(200);
-      expect(res.body).toEqual(expect.objectContaining({ enteringStatus: true, waitingStatus: false }));
+      expect(res.body.data).toEqual(expect.objectContaining({ enteringStatus: true, waitingStatus: false }));
 
       // 세션 상태: ENTERING (재진입 성공)
       const sessionAfterReentry = await authService.getUserSession(userSid);
@@ -202,7 +202,7 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
       // user2: WAITING 진입
       const user2Sid = await loginAsUser(app, 'abn05user2', 'pass1234');
       const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // WAITING 상태(level=1)에서 SELECTING_SEAT 가드(level=3) 통과 불가 → 401
       const res = await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved');

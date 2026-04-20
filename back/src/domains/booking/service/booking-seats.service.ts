@@ -1,11 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Response } from 'express';
 import Redis from 'ioredis';
@@ -14,11 +8,13 @@ import { BehaviorSubject } from 'rxjs';
 import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { AppException } from '../../../common/exception/app.exception';
 import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const';
 import { SEATS_SSE_RETRY_INTERVAL } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
 import { runSetSectionsLenLua } from '../luaScripts/setSectionsLenLua';
@@ -63,7 +59,7 @@ export class BookingSeatsService {
     await runSetSectionsLenLua(this.redis, eventId, seats.length);
 
     if (this.seatsSubscriptionMap.has(eventId)) {
-      throw new InternalServerErrorException('이미 해당 이벤트의 좌석 구독이 존재합니다.');
+      throw new AppException(BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS);
     }
     const seatSubscription = await this.createSeatSubscription(eventId, seats);
     this.seatsSubscriptionMap.set(eventId, seatSubscription);
@@ -89,7 +85,7 @@ export class BookingSeatsService {
     const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
-      throw new BadRequestException('좌석을 점유하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
     await this.inBookingService.validateAndAddBookedSeat(eventId, sid, target);
@@ -106,7 +102,7 @@ export class BookingSeatsService {
     const eventId = await this.authService.getUserEventTarget(sid);
 
     if (eventId === null) {
-      throw new BadRequestException('좌석 점유를 취소하려는 세션의 대상 이벤트를 불러올 수 없습니다.');
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
     await this.inBookingService.validateAndRemoveBookedSeat(eventId, sid, target);
@@ -126,9 +122,9 @@ export class BookingSeatsService {
     const result = await runUpdateSeatLua(this.redis, key, seatIndex, 0);
 
     if (result === 'nil') {
-      throw new BadRequestException('좌석이 존재하지 않습니다.');
+      throw new AppException(BookingErrorCode.SEAT_NOT_FOUND);
     } else if (result === 0) {
-      throw new ConflictException('이미 예약된 좌석입니다.');
+      throw new AppException(BookingErrorCode.SEAT_ALREADY_RESERVED);
     } else {
       this.eventEmitter.emit('seats-status-changed', { eventId });
       return {
@@ -147,9 +143,9 @@ export class BookingSeatsService {
     const result = await runUpdateSeatLua(this.redis, key, seatIndex, 1);
 
     if (result === 'nil') {
-      throw new BadRequestException('좌석이 존재하지 않습니다.');
+      throw new AppException(BookingErrorCode.SEAT_NOT_FOUND);
     } else if (result === 0) {
-      throw new ConflictException('이미 취소된 좌석입니다.');
+      throw new AppException(BookingErrorCode.SEAT_ALREADY_CANCELLED);
     } else {
       this.eventEmitter.emit('seats-status-changed', { eventId });
       return {
@@ -164,7 +160,7 @@ export class BookingSeatsService {
   async getSeats(eventId: number) {
     const seatStatusBits = await runGetSeatsLua(this.redis, eventId);
     if (!seatStatusBits) {
-      throw new InternalServerErrorException('좌석 정보를 가져오는데 실패했습니다.');
+      throw new AppException(BookingErrorCode.SEAT_FETCH_FAILED);
     }
     return seatStatusBits;
   }
@@ -172,7 +168,7 @@ export class BookingSeatsService {
   getSeatsObservable(eventId: number) {
     const subscription = this.seatsSubscriptionMap.get(eventId);
     if (!subscription) {
-      throw new InternalServerErrorException('해당 이벤트의 좌석 구독이 존재하지 않습니다.');
+      throw new AppException(BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND);
     }
     return subscription.subject.asObservable();
   }

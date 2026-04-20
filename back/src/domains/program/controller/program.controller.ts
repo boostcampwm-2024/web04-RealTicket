@@ -1,26 +1,21 @@
 import {
-  BadRequestException,
   Body,
   ClassSerializerInterceptor,
-  ConflictException,
   Controller,
   Delete,
   Get,
-  InternalServerErrorException,
-  NotFoundException,
   Param,
   Post,
   Req,
   UseGuards,
   UseInterceptors,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
@@ -28,12 +23,15 @@ import {
   ApiOperation,
   ApiParam,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { AuthService } from 'src/auth/service/auth.service';
+import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
+import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
 
 import { ProgramCreationDto } from '../dto/programCreation.dto';
 import { ProgramIdDto } from '../dto/programId.dto';
@@ -54,92 +52,89 @@ export class ProgramController {
     summary: '프로그램 전체 목록 조회',
     description: 'DB에 저장된 프로그램 전체 목록을 조회한다.',
   })
-  @ApiOkResponse({ description: '프로그램 전체 목록 조회 성공', type: ProgramMainPageDto, isArray: true })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiExtraModels(SuccessResponseDto, ProgramMainPageDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'array', items: { $ref: getSchemaPath(ProgramMainPageDto) } } } },
+      ],
+    },
+  })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async findAllProgram(@Req() req: Request) {
-    try {
-      const sid = req.cookies['SID'];
-      if (sid) {
-        const session = await this.authService.getUserSession(sid);
-        if (session && session.userStatus !== USER_STATUS.ADMIN) {
-          await this.authService.setUserStatusLogin(sid);
-        }
+    const sid = req.cookies['SID'];
+    if (sid) {
+      const session = await this.authService.getUserSession(sid);
+      if (session && session.userStatus !== USER_STATUS.ADMIN) {
+        await this.authService.setUserStatusLogin(sid);
       }
-
-      const programs: ProgramMainPageDto[] = await this.programService.findMainPageProgramData();
-      return programs;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      throw new InternalServerErrorException('서버 오류 발생');
     }
+
+    const programs: ProgramMainPageDto[] = await this.programService.findMainPageProgramData();
+    return programs;
   }
 
   @Get(':programId')
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: '프로그램 세부 정보 조회', description: 'id값이 일치하는 프로그램을 조회한다.' })
   @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
-  @ApiOkResponse({ description: '프로그램 조회 성공', type: ProgramSpecificDto })
-  @ApiNotFoundResponse({ description: 'id가 일치하는 프로그램 미존재', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiExtraModels(SuccessResponseDto, ProgramSpecificDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(ProgramSpecificDto) } } },
+      ],
+    },
+  })
+  @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PROGRAM_NOT_FOUND' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async findOneProgram(@Param() programIdDto: ProgramIdDto) {
-    try {
-      const program: ProgramSpecificDto = await this.programService.findSpecificProgram(programIdDto);
-      return program;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    const program: ProgramSpecificDto = await this.programService.findSpecificProgram(programIdDto);
+    return program;
   }
 
   @Post()
   @ApiOperation({ summary: '프로그램 추가[관리자]', description: '새로운 프로그램을 추가한다.' })
   @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
-  @ApiBody({
+  @ApiBody({ type: ProgramCreationDto })
+  @ApiCreatedResponse({
     schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: '프로그램 이름', example: '맘마미아' },
-        profileUrl: { type: 'string', description: '프로그램 사진 URL', example: '/profile.png' },
-        runningTime: { type: 'number', description: '프로그램 진행 시간(초)', example: 10000 },
-        genre: { type: 'string', description: '프로그램 장르', example: '뮤지컬' },
-        actors: { type: 'string', description: '출연진(들)', example: '김동현, 김동현' },
-        price: { type: 'number', description: '입장권 가격', example: 15000 },
-        placeId: { type: 'number', description: '장소 아이디', example: 1 },
-      },
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
     },
   })
-  @ApiCreatedResponse({ description: '프로그램 추가 성공' })
-  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
-  @ApiNotFoundResponse({ description: '장소가 존재하지 않음', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async createProgram(@Body() programCreationDto: ProgramCreationDto) {
-    try {
-      return await this.programService.create(programCreationDto);
-    } catch (error) {
-      if (error instanceof BadRequestException || NotFoundException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    return await this.programService.create(programCreationDto);
   }
 
   @Delete(':programId')
   @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
   @ApiOperation({ summary: '프로그램 삭제[관리자]', description: 'id값이 일치하는 프로그램을 삭제한다.' })
   @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
-  @ApiOkResponse({ description: '프로그램 삭제 성공' })
-  @ApiBadRequestResponse({ description: '요청 데이터 누락, 타입 오류', type: Error })
-  @ApiUnauthorizedResponse({ description: '관리자 권한 필요', type: Error })
-  @ApiForbiddenResponse({ description: '인증되지 않은 요청', type: Error })
-  @ApiNotFoundResponse({ description: 'id가 일치하는 프로그램 미존재', type: Error })
-  @ApiConflictResponse({ description: '관련 이벤트가 존재해 프로그램 삭제 불가', type: Error })
-  @ApiInternalServerErrorResponse({ description: '서버 내부 에러', type: Error })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
+  @ApiNotFoundResponse({ type: ErrorResponseDto, description: 'PROGRAM_NOT_FOUND' })
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'PROGRAM_HAS_EVENTS' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   async deleteProgram(@Param() programIdDto: ProgramIdDto) {
-    try {
-      await this.programService.delete(programIdDto);
-    } catch (error) {
-      if (error instanceof NotFoundException || ConflictException) throw error;
-      throw new InternalServerErrorException('서버 오류 발생');
-    }
+    await this.programService.delete(programIdDto);
+    return null;
   }
 }

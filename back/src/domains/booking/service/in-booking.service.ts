@@ -1,5 +1,5 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
@@ -7,11 +7,13 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { AppException } from '../../../common/exception/app.exception';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 import {
   SEATS_SSE_RETRY_TIMEOUT,
   RECONNECTING_SELECTING_GC_INTERVAL,
 } from '../const/seatsSseRetryTime.const';
+import { BookingErrorCode } from '../exception/booking-error-code';
 
 type InBookingSession = {
   sid: string;
@@ -137,7 +139,9 @@ export class InBookingService {
   }
 
   async getInBookingSessionsMaxSize(eventId: number) {
-    return parseInt(await this.redis.get(`in-booking:${eventId}:max-size`));
+    const raw = await this.redis.get(`in-booking:${eventId}:max-size`);
+    if (!raw) return await this.getInBookingSessionsDefaultMaxSize();
+    return parseInt(raw);
   }
 
   async getInBookingSessionCount(eventId: number): Promise<number> {
@@ -184,10 +188,10 @@ export class InBookingService {
   async validateAndAddBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
     const session = await this.getSession(eventId, sid);
     if (!session) {
-      throw new BadRequestException('좌석 선택 세션이 존재하지 않습니다.');
+      throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
     }
     if (session.bookingAmount <= session.bookedSeats.length) {
-      throw new BadRequestException('예약 가능한 좌석 수를 초과했습니다.');
+      throw new AppException(BookingErrorCode.SEAT_QUOTA_EXCEEDED);
     }
     session.bookedSeats.push(target);
     await this.setSession(eventId, session);
@@ -196,10 +200,10 @@ export class InBookingService {
   async validateAndRemoveBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
     const session = await this.getSession(eventId, sid);
     if (!session || session.bookedSeats.length === 0) {
-      throw new BadRequestException('취소할 수 있는 좌석이 없습니다.');
+      throw new AppException(BookingErrorCode.SEAT_CANCEL_EMPTY);
     }
     if (!session.bookedSeats.some((seat) => seat[0] === target[0] && seat[1] === target[1])) {
-      throw new BadRequestException('예약하지 않은 좌석입니다.');
+      throw new AppException(BookingErrorCode.SEAT_NOT_BOOKED);
     }
     session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== target[0] || s[1] !== target[1]);
     await this.setSession(eventId, session);

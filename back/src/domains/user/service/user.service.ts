@@ -1,16 +1,18 @@
-import { ConflictException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { DataSource, In } from 'typeorm';
 import { Logger as WinstonLogger } from 'winston';
 
+import { AppException } from '../../../common/exception/app.exception';
 import { Reservation } from '../../reservation/entity/reservation.entity';
 import { ReservedSeat } from '../../reservation/entity/reservedSeat.entity';
 import { USER_ROLE } from '../const/userRole';
 import { UserCreateDto } from '../dto/userCreate.dto';
 import { UserLoginIdCheckDto } from '../dto/userLoginIdCheck.dto';
 import { User } from '../entity/user.entity';
+import { UserErrorCode } from '../exception/user-error-code';
 import { UserRepository } from '../repository/user.repository';
 
 @Injectable()
@@ -23,7 +25,7 @@ export class UserService {
 
   async registerUser(userCreateDto: UserCreateDto, role: string = USER_ROLE.USER) {
     if (await this.userRepository.findByLoginId(userCreateDto.loginId)) {
-      throw new ConflictException('�̹� �����ϴ� ������Դϴ�.');
+      throw new AppException(UserErrorCode.LOGIN_ID_DUPLICATED);
     }
 
     try {
@@ -36,10 +38,10 @@ export class UserService {
       };
 
       await this.userRepository.createUser(newUser);
-      return { message: 'ȸ�������� ���������� �Ϸ�Ǿ����ϴ�.' };
+      return { message: '회원가입이 성공적으로 완료되었습니다.' };
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('ȸ�����Կ� �����߽��ϴ�.');
+      throw new AppException(UserErrorCode.REGISTER_FAILED);
     }
   }
 
@@ -79,7 +81,7 @@ export class UserService {
     } catch (err) {
       this.logger.error(err?.name, err?.stack);
       await queryRunner.rollbackTransaction();
-      throw new InternalServerErrorException('�Խ�Ʈ ����� ���ſ� �����߽��ϴ�.');
+      throw new AppException(UserErrorCode.GUEST_DELETE_FAILED);
     } finally {
       await queryRunner.release();
     }

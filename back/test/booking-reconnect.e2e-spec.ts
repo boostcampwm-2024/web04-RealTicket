@@ -119,7 +119,7 @@ describe('SSE 재연결 시나리오 (booking-reconnect)', () => {
       // user2: maxSize 초과로 WAITING 진입
       const user2Sid = await loginAsUser(app, 'waiting1b', 'pass1234');
       const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // SSE 끊김 시뮬레이션 — WAITING 상태에서 SSE가 끊겨도 서버는 상태를 변경하지 않음
       // (booking.controller.ts close 핸들러: removeSseClient만 호출, 큐/상태 변경 없음)
@@ -151,7 +151,7 @@ describe('SSE 재연결 시나리오 (booking-reconnect)', () => {
       // user2: WAITING 진입
       const user2Sid = await loginAsUser(app, 'waiting2b', 'pass1234');
       const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
-      expect(waitRes.body.waitingStatus).toBe(true);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
 
       // 타임아웃 초과 시뮬레이션 (SSE-04)
       await simulateWaitingSseTimeout(app, user2Sid);
