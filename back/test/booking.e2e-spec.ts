@@ -410,8 +410,8 @@ describe('Booking (e2e)', () => {
         const req = http.get(
           `http://127.0.0.1:${port}/booking/seat/${eventId}`,
           { headers: { Cookie: `SID=${sseSid}` } },
-          (res) => {
-            res.on('data', (chunk: Buffer) => {
+          (sseStream) => {
+            sseStream.on('data', (chunk: Buffer) => {
               buffer += chunk.toString();
 
               // SSE 이벤트는 빈 줄(\n\n)로 구분
