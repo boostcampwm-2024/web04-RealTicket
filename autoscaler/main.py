@@ -4,6 +4,7 @@ import json as _json
 import logging
 import math
 import os
+import redis
 import socket
 import time
 import pymysql
@@ -38,6 +39,12 @@ DB_NAME              = os.getenv("DB_NAME", "real_ticket")
 DB_POLL_INTERVAL     = int(os.getenv("DB_POLL_INTERVAL", "3600"))
 PRE_SCALE_UP_WINDOW  = int(os.getenv("PRE_SCALE_UP_WINDOW", "600"))
 SCALE_DOWN_SUPPRESS  = int(os.getenv("SCALE_DOWN_SUPPRESS", "300"))
+
+# Redis 연결 (sessions:active 조회용)
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 QUERY = (
     f'avg(rate(container_cpu_usage_seconds_total'
@@ -97,6 +104,27 @@ def get_cpu_percent() -> float | None:
         return raw * 100
     except Exception as e:
         logger.error(f"Prometheus 쿼리 실패: {e}")
+        return None
+
+
+def get_active_session_count() -> int | None:
+    """sessions:active ZSET에서 만료되지 않은 세션 수를 반환한다.
+
+    pipeline:
+      1. ZREMRANGEBYSCORE sessions:active 0 {now_ms}  — 만료 항목 GC
+      2. ZCOUNT sessions:active {now_ms} +inf          — 유효 세션 수
+
+    실패 시 None 반환.
+    """
+    try:
+        now_ms = int(time.time() * 1000)
+        pipe = redis_client.pipeline()
+        pipe.zremrangebyscore('sessions:active', 0, now_ms)
+        pipe.zcount('sessions:active', now_ms, '+inf')
+        results = pipe.execute()
+        return int(results[1])
+    except Exception as e:
+        logger.error(f"sessions:active 조회 실패: {e}")
         return None
 
 
@@ -258,6 +286,13 @@ if __name__ == "__main__":
             check_and_scale()
         except Exception as e:
             logger.error(f"폴링 루프 오류 (check_and_scale): {e}")
+
+        try:
+            active_sessions = get_active_session_count()
+            if active_sessions is not None:
+                logger.info(f"active_session_count={active_sessions}")
+        except Exception as e:
+            logger.error(f"폴링 루프 오류 (get_active_session_count): {e}")
 
         # D-11: DB 조회는 별도 주기 (기본 60분)
         try:
