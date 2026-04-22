@@ -288,6 +288,36 @@ def check_and_adjust_pool():
         logger.error(f"check_and_adjust_pool: Redis SET+PUBLISH 실패: {e}")
 
 
+def determine_pre_scale_tier(session_count: int, max_replicas: int) -> int:
+    """로그인 세션 비율 기반 단계화 사전 스케일업 목표 레플리카 수.
+
+    ratio = session_count / BASE_POOL_SIZE
+    ratio < 0.15  → 0 (skip)
+    < 0.40        → ceil(max * 0.5)
+    < 0.80        → ceil(max * 0.75)
+    >= 0.80       → max
+    """
+    if BASE_POOL_SIZE <= 0:
+        logger.error("BASE_POOL_SIZE가 0 이하 — 단계화 불가, skip")
+        return 0
+    ratio = session_count / BASE_POOL_SIZE
+    logger.info(f"단계화: session_count={session_count}, ratio={ratio:.3f}")
+    if ratio < 0.15:
+        logger.info(f"tier=SKIP (ratio={ratio:.3f})")
+        return 0
+    elif ratio < 0.40:
+        t = math.ceil(max_replicas * 0.5)
+        logger.info(f"tier=LOW → {t}")
+        return t
+    elif ratio < 0.80:
+        t = math.ceil(max_replicas * 0.75)
+        logger.info(f"tier=MID → {t}")
+        return t
+    else:
+        logger.info(f"tier=HIGH → {max_replicas}")
+        return max_replicas
+
+
 def fetch_upcoming_reservation_opens() -> list[float]:
     """
     MySQL Event 테이블에서 현재 UTC 시각부터 PRE_SCALE_UP_WINDOW 초 이내에
@@ -331,13 +361,10 @@ def fetch_upcoming_reservation_opens() -> list[float]:
 
 
 def check_upcoming_reservations():
-    """
-    미래 예매 중 PRE_SCALE_UP_WINDOW 초 이내 오픈 예정 건이 있으면
-    nest 서비스를 MAX_REPLICAS로 사전 스케일업하고
-    suppress_scaledown_until = 오픈 시각 + SCALE_DOWN_SUPPRESS 로 설정한다.
+    """축 3: 수요 기반 단계화 사전 스케일업 (AUTOSCALER-09 수정).
 
-    - 이미 MAX_REPLICAS에 도달한 경우: 스케일업 skip, suppress만 갱신
-    - 여러 건 탐지 시: 가장 이른 오픈 시각 + SCALE_DOWN_SUPPRESS 와 기존 suppress 중 max 사용
+    target=0: skip (suppress 갱신 없음)
+    target>0: current<target일 때만 scale_service + suppress_scaledown_until max() 갱신
     """
     global suppress_scaledown_until
 
@@ -346,17 +373,22 @@ def check_upcoming_reservations():
         return
 
     earliest_open = min(opens)
-    logger.info(
-        f"사전 스케일업 트리거: 오픈 예정 {len(opens)}건, 최단 {earliest_open - time.time():.0f}s 후"
-    )
+    logger.info(f"사전 스케일업 트리거: 오픈 예정 {len(opens)}건, 최단 {earliest_open - time.time():.0f}s 후")
+
+    session_count = get_active_session_count()
+    if session_count is None:
+        logger.warning("사전 스케일업: sessions:active 조회 실패 — skip")
+        return
+
+    target = determine_pre_scale_tier(session_count, MAX_REPLICAS)
+    if target == 0:
+        logger.info("사전 스케일업 tier=SKIP — 스케일업 및 suppress 갱신 없음")
+        return
 
     new_suppress_until = earliest_open + SCALE_DOWN_SUPPRESS
     if new_suppress_until > suppress_scaledown_until:
         suppress_scaledown_until = new_suppress_until
-        logger.info(
-            f"스케일다운 억제 갱신: suppress_scaledown_until={suppress_scaledown_until:.0f} "
-            f"(현재로부터 {suppress_scaledown_until - time.time():.0f}s 후까지)"
-        )
+        logger.info(f"스케일다운 억제 갱신: {suppress_scaledown_until - time.time():.0f}s 후까지")
 
     try:
         service = docker_client.services.get(TARGET_SERVICE)
@@ -366,11 +398,11 @@ def check_upcoming_reservations():
         logger.error(f"사전 스케일업: 현재 레플리카 조회 실패: {e}")
         return
 
-    if current < MAX_REPLICAS:
-        scale_service(MAX_REPLICAS, current, "up")
-        logger.info(f"사전 스케일업 완료: {current} -> {MAX_REPLICAS}")
+    if current < target:
+        scale_service(target, current, "up")
+        logger.info(f"단계화 사전 스케일업 완료: {current} -> {target}")
     else:
-        logger.info(f"사전 스케일업 skip (이미 MAX={MAX_REPLICAS}) — suppress만 갱신")
+        logger.info(f"단계화 사전 스케일업 skip (current={current} >= target={target}) — suppress만 갱신")
 
 
 def scale_service(target: int, current: int, direction: str):
