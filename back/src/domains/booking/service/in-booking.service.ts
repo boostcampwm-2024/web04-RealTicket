@@ -146,11 +146,7 @@ export class InBookingService {
   }
 
   async getInBookingSessionCount(eventId: number): Promise<number> {
-    return this.redis.scard(this.getEventKey(eventId));
-  }
-
-  private getSessionKey(eventId: number, sid: string) {
-    return `in-booking:${eventId}:session:${sid}`;
+    return this.redis.hlen(this.getEventKey(eventId));
   }
 
   private getEventKey(eventId: number) {
@@ -158,24 +154,17 @@ export class InBookingService {
   }
 
   async setSession(eventId: number, inBookingSession: InBookingSession): Promise<void> {
-    const sessionKey = this.getSessionKey(eventId, inBookingSession.sid);
     const eventKey = this.getEventKey(eventId);
-
-    await this.redis.sadd(eventKey, inBookingSession.sid);
-    await this.redis.set(sessionKey, JSON.stringify(inBookingSession));
+    await this.redis.hset(eventKey, inBookingSession.sid, JSON.stringify(inBookingSession));
   }
 
   async getSession(eventId: number, sid: string): Promise<InBookingSession | null> {
-    const session = await this.redis.get(this.getSessionKey(eventId, sid));
+    const session = await this.redis.hget(this.getEventKey(eventId), sid);
     return session ? JSON.parse(session) : null;
   }
 
   private async removeInBooking(eventId: number, sid: string): Promise<void> {
-    const session = await this.getSession(eventId, sid);
-    if (session) {
-      await this.redis.del(this.getSessionKey(eventId, sid));
-      await this.redis.srem(this.getEventKey(eventId), sid);
-    }
+    await this.redis.hdel(this.getEventKey(eventId), sid);
   }
 
   async getBookAmountAndBookedSeats(sid: string, eventId: number) {
@@ -226,15 +215,16 @@ export class InBookingService {
     return { flushedSeats };
   }
 
-  async getAllInBookingSids(eventId: number) {
-    return this.redis.smembers(this.getEventKey(eventId));
+  async getAllInBookingSids(eventId: number): Promise<string[]> {
+    const result = await this.redis.hgetall(this.getEventKey(eventId));
+    return result ? Object.keys(result) : [];
   }
 
   async clearInBookingPool(eventId: number) {
-    const keys = await this.redis.keys(`in-booking:${eventId}:*`);
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
-    }
+    await this.redis.unlink(
+      `in-booking:${eventId}:sessions`,
+      `in-booking:${eventId}:max-size`,
+    );
   }
 
   async gcReconnectingSessions(eventId: number) {
@@ -306,10 +296,7 @@ export class InBookingService {
 
   async clearReconnectingPool(eventId: number) {
     this.clearReconnectingGCInterval(eventId);
-    const keys = await this.redis.keys(`reconnecting:${eventId}:*`);
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
-    }
+    await this.redis.unlink(`reconnecting:${eventId}`);
   }
 
   @OnEvent('logout-start')
