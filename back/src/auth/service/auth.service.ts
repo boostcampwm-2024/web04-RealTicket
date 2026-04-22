@@ -60,7 +60,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }), 'KEEPTTL');
   }
 
   async setUserStatusWaiting(sid: string) {
@@ -68,7 +68,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }), 'KEEPTTL');
   }
 
   async setUserStatusEntering(sid: string) {
@@ -76,7 +76,7 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }), 'KEEPTTL');
   }
 
   async setUserStatusSelectingSeat(sid: string) {
@@ -87,6 +87,7 @@ export class AuthService {
     await this.redis.set(
       `user:${sid}`,
       JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }),
+      'KEEPTTL',
     );
   }
 
@@ -98,6 +99,7 @@ export class AuthService {
     await this.redis.set(
       `user:${sid}`,
       JSON.stringify({ ...session, userStatus: USER_STATUS.RECONNECTING_SELECTING }),
+      'KEEPTTL',
     );
   }
 
@@ -105,7 +107,7 @@ export class AuthService {
     const session = await this.getParsedSession(sid);
     if (!session) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }), 'KEEPTTL');
   }
 
   async removeSession(sid: string, loginId: string) {
@@ -191,7 +193,7 @@ export class AuthService {
       return;
     }
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }));
+    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, targetEvent: eventId }), 'KEEPTTL');
   }
 
   async getUserEventTarget(sid: string) {
