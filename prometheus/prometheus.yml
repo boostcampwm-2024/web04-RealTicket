@@ -26,7 +26,8 @@ scrape_configs:
         type: 'A'
         port: 9100
 
-  - job_name: 'nest'
+  - job_name: 'nest-app'
+    scrape_interval: 3s
     dns_sd_configs:
       - names:
           - 'tasks.nest'
