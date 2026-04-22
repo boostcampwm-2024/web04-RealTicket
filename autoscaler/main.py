@@ -229,6 +229,65 @@ def get_current_replicas(service) -> int:
     return service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"]
 
 
+def get_ready_replicas() -> int | None:
+    """Prometheus up{job="nest-app"}==1 기반 ready 레플리카 수 반환. 실패 시 None."""
+    try:
+        result = prom.custom_query(query='count(up{job="nest-app"}==1)')
+        if not result:
+            logger.warning("get_ready_replicas: 결과 없음 — skip")
+            return None
+        val = float(result[0]["value"][1])
+        return None if math.isnan(val) else int(val)
+    except Exception as e:
+        logger.error(f"get_ready_replicas 쿼리 실패: {e}")
+        return None
+
+
+def update_in_booking_pool_size(new_size: int) -> None:
+    """Redis in-booking:default-max-size SET + booking:events PUBLISH."""
+    redis_client.set('in-booking:default-max-size', str(new_size))
+    redis_client.publish('booking:events', '{"type":"all-in-booking-max-size-changed"}')
+    logger.info(f"in-booking 풀 사이즈 업데이트: {new_size} (SET + PUBLISH)")
+
+
+def check_and_adjust_pool():
+    """축 2: min(docker desired, prometheus ready) × POOL_PER_REPLICA로 풀 동적 조정."""
+    try:
+        service = docker_client.services.get(TARGET_SERVICE)
+        service.reload()
+        desired = get_current_replicas(service)
+    except Exception as e:
+        logger.error(f"check_and_adjust_pool: Docker desired 조회 실패 — skip: {e}")
+        return
+
+    ready = get_ready_replicas()
+    if ready is None:
+        logger.debug("check_and_adjust_pool: ready=None — skip")
+        return
+    if ready == 0:
+        logger.warning("check_and_adjust_pool: ready=0 — skip (풀 0 설정 방지)")
+        return
+
+    new_pool = min(desired, ready) * POOL_PER_REPLICA
+
+    try:
+        current_val = redis_client.get('in-booking:default-max-size')
+        current_pool = int(current_val) if current_val is not None else None
+    except Exception as e:
+        logger.error(f"check_and_adjust_pool: Redis GET 실패 — skip: {e}")
+        return
+
+    if current_pool == new_pool:
+        logger.debug(f"check_and_adjust_pool: 변화 없음 (pool={new_pool}) — skip")
+        return
+
+    logger.info(f"in-booking 풀 조정: desired={desired}, ready={ready}, {current_pool} -> {new_pool}")
+    try:
+        update_in_booking_pool_size(new_pool)
+    except Exception as e:
+        logger.error(f"check_and_adjust_pool: Redis SET+PUBLISH 실패: {e}")
+
+
 def fetch_upcoming_reservation_opens() -> list[float]:
     """
     MySQL Event 테이블에서 현재 UTC 시각부터 PRE_SCALE_UP_WINDOW 초 이내에
@@ -387,6 +446,11 @@ if __name__ == "__main__":
             check_traffic_preemptive()
         except Exception as e:
             logger.error(f"폴링 루프 오류 (check_traffic_preemptive): {e}")
+
+        try:
+            check_and_adjust_pool()
+        except Exception as e:
+            logger.error(f"폴링 루프 오류 (check_and_adjust_pool): {e}")
 
         try:
             active_sessions = get_active_session_count()
