@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 PROMETHEUS_URL       = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
-POLL_INTERVAL        = int(os.getenv("POLL_INTERVAL", "30"))
+POLL_INTERVAL        = int(os.getenv("POLL_INTERVAL", "5"))
 SCALE_UP_THRESHOLD   = float(os.getenv("SCALE_UP_THRESHOLD", "50"))
 SCALE_DOWN_THRESHOLD = float(os.getenv("SCALE_DOWN_THRESHOLD", "30"))
 COOLDOWN_UP          = int(os.getenv("COOLDOWN_UP", "120"))
@@ -39,6 +39,21 @@ DB_NAME              = os.getenv("DB_NAME", "real_ticket")
 DB_POLL_INTERVAL     = int(os.getenv("DB_POLL_INTERVAL", "3600"))
 PRE_SCALE_UP_WINDOW  = int(os.getenv("PRE_SCALE_UP_WINDOW", "600"))
 SCALE_DOWN_SUPPRESS  = int(os.getenv("SCALE_DOWN_SUPPRESS", "300"))
+
+# Phase 05: 축 1 — 트래픽 기반 선행 감지 임계값 (지표별 별도 설정)
+TRAFFIC_TOTAL_RATE_MULTIPLIER       = float(os.getenv("TRAFFIC_TOTAL_RATE_MULTIPLIER", "3.0"))
+TRAFFIC_TOTAL_MIN_RPS               = float(os.getenv("TRAFFIC_TOTAL_MIN_RPS", "6.0"))
+TRAFFIC_SERVER_TIME_RATE_MULTIPLIER = float(os.getenv("TRAFFIC_SERVER_TIME_RATE_MULTIPLIER", "2.0"))
+TRAFFIC_SERVER_TIME_MIN_RPS         = float(os.getenv("TRAFFIC_SERVER_TIME_MIN_RPS", "3.0"))
+TRAFFIC_CONSECUTIVE                 = int(os.getenv("TRAFFIC_CONSECUTIVE", "2"))
+TRAFFIC_SUPPRESS                    = int(os.getenv("TRAFFIC_SUPPRESS", "120"))
+TRAFFIC_WINDOW                      = os.getenv("TRAFFIC_WINDOW", "30s")
+
+# Phase 05: 축 2 — ready 기반 in-booking 풀 조정 계수
+POOL_PER_REPLICA         = int(os.getenv("POOL_PER_REPLICA", "100"))
+
+# Phase 05: 축 3 — 단계화 사전 스케일업 기준값
+BASE_POOL_SIZE           = int(os.getenv("BASE_POOL_SIZE", "100"))
 
 # Redis 연결 (sessions:active 조회용)
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -88,6 +103,8 @@ last_scale_up   = 0.0
 last_scale_down = 0.0
 last_db_poll            = time.time()  # 시작 시 즉시 폴링 방지 — DB_POLL_INTERVAL 후 첫 조회
 suppress_scaledown_until = 0.0
+suppress_traffic_until   = 0.0          # Phase 05: 트래픽 기반 스케일업 후 suppress (D-12)
+consecutive_traffic_alerts = 0          # Phase 05: 연속 트래픽 경보 카운터 (D-06)
 
 
 def get_cpu_percent() -> float | None:
@@ -195,7 +212,6 @@ def check_upcoming_reservations():
         f"사전 스케일업 트리거: 오픈 예정 {len(opens)}건, 최단 {earliest_open - time.time():.0f}s 후"
     )
 
-    # suppress 갱신: 가장 이른 오픈 시각 + SCALE_DOWN_SUPPRESS (기존값보다 크면 덮어쓰기)
     new_suppress_until = earliest_open + SCALE_DOWN_SUPPRESS
     if new_suppress_until > suppress_scaledown_until:
         suppress_scaledown_until = new_suppress_until
@@ -204,7 +220,6 @@ def check_upcoming_reservations():
             f"(현재로부터 {suppress_scaledown_until - time.time():.0f}s 후까지)"
         )
 
-    # 현재 레플리카 확인 + 스케일업
     try:
         service = docker_client.services.get(TARGET_SERVICE)
         service.reload()
@@ -214,7 +229,6 @@ def check_upcoming_reservations():
         return
 
     if current < MAX_REPLICAS:
-        # D-16: 현재 레플리카 수 < MAX일 때만 스케일업 실행
         scale_service(MAX_REPLICAS, current, "up")
         logger.info(f"사전 스케일업 완료: {current} -> {MAX_REPLICAS}")
     else:
