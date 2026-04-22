@@ -221,10 +221,10 @@ export class InBookingService {
   }
 
   async clearInBookingPool(eventId: number) {
-    const keys = await this.redis.keys(`in-booking:${eventId}:*`);
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
-    }
+    await this.redis.unlink(
+      `in-booking:${eventId}:sessions`,
+      `in-booking:${eventId}:max-size`,
+    );
   }
 
   async gcReconnectingSessions(eventId: number) {
