@@ -296,10 +296,7 @@ export class InBookingService {
 
   async clearReconnectingPool(eventId: number) {
     this.clearReconnectingGCInterval(eventId);
-    const keys = await this.redis.keys(`reconnecting:${eventId}:*`);
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
-    }
+    await this.redis.unlink(`reconnecting:${eventId}`);
   }
 
   @OnEvent('logout-start')
