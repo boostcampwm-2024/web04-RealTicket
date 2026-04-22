@@ -145,6 +145,85 @@ def get_active_session_count() -> int | None:
         return None
 
 
+def check_traffic_preemptive():
+    """축 1: HTTP RPS 증가율 기반 선행 감지 스케일업.
+
+    suppress_traffic_until 활성 중이면 즉시 반환.
+    PromQL 2종 중 하나라도 임계값 초과 시 consecutive_traffic_alerts += 1.
+    TRAFFIC_CONSECUTIVE 회 연속 초과 시 current + SCALE_UP_STEP으로 스케일업.
+    """
+    global suppress_traffic_until, consecutive_traffic_alerts
+
+    now = time.time()
+    if now < suppress_traffic_until:
+        logger.debug(
+            f"트래픽 suppress 활성 중 ({suppress_traffic_until - now:.0f}s 남음) — 트래픽 체크 skip"
+        )
+        return
+
+    window = TRAFFIC_WINDOW
+
+    q_total_now        = f'sum(rate(http_requests_total[{window}]))'
+    q_server_time_now  = f'sum(rate(http_requests_total{{path="/booking/server-time"}}[{window}]))'
+    q_total_base       = f'sum(rate(http_requests_total[5m]))'
+    q_server_time_base = f'sum(rate(http_requests_total{{path="/booking/server-time"}}[5m]))'
+
+    def query_scalar(q: str) -> float | None:
+        try:
+            result = prom.custom_query(query=q)
+            if not result:
+                return None
+            val = float(result[0]["value"][1])
+            return None if math.isnan(val) else val
+        except Exception as e:
+            logger.error(f"트래픽 PromQL 쿼리 실패 ({q[:60]}...): {e}")
+            return None
+
+    total_now  = query_scalar(q_total_now)
+    total_base = query_scalar(q_total_base)
+    st_now     = query_scalar(q_server_time_now)
+    st_base    = query_scalar(q_server_time_base)
+
+    def exceeds(cur: float | None, base: float | None, mult: float, min_rps: float) -> bool:
+        if cur is None or base is None or cur < min_rps:
+            return False
+        return cur >= min_rps if base < 0.1 else cur >= base * mult
+
+    triggered = (
+        exceeds(total_now, total_base, TRAFFIC_TOTAL_RATE_MULTIPLIER, TRAFFIC_TOTAL_MIN_RPS) or
+        exceeds(st_now, st_base, TRAFFIC_SERVER_TIME_RATE_MULTIPLIER, TRAFFIC_SERVER_TIME_MIN_RPS)
+    )
+
+    if triggered:
+        consecutive_traffic_alerts += 1
+        logger.info(
+            f"트래픽 선행 감지: consecutive={consecutive_traffic_alerts}/{TRAFFIC_CONSECUTIVE}, "
+            f"total_rps={total_now:.2f}(base={total_base:.2f}), "
+            f"server_time_rps={st_now:.2f}(base={st_base:.2f})"
+        )
+        if consecutive_traffic_alerts >= TRAFFIC_CONSECUTIVE:
+            consecutive_traffic_alerts = 0
+            try:
+                service = docker_client.services.get(TARGET_SERVICE)
+                service.reload()
+                current = get_current_replicas(service)
+                target = min(current + SCALE_UP_STEP, MAX_REPLICAS)
+                new_suppress = now + TRAFFIC_SUPPRESS
+                if target > current:
+                    scale_service(target, current, "up")
+                    suppress_traffic_until = max(suppress_traffic_until, new_suppress)
+                    logger.info(f"트래픽 기반 스케일업: {current} -> {target}, suppress {TRAFFIC_SUPPRESS}s")
+                else:
+                    logger.info(f"트래픽 기반 스케일업 skip (이미 MAX={MAX_REPLICAS})")
+                    suppress_traffic_until = max(suppress_traffic_until, new_suppress)
+            except Exception as e:
+                logger.error(f"트래픽 기반 스케일업 실패: {e}")
+    else:
+        if consecutive_traffic_alerts > 0:
+            logger.debug(f"트래픽 선행 감지 미달 — 카운터 리셋 (was {consecutive_traffic_alerts})")
+        consecutive_traffic_alerts = 0
+
+
 def get_current_replicas(service) -> int:
     """현재 레플리카 수 반환."""
     return service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"]
@@ -272,9 +351,12 @@ def check_and_scale():
             scale_service(target, current, "up")
 
     elif cpu <= SCALE_DOWN_THRESHOLD:
-        if now < suppress_scaledown_until:
+        if now < suppress_scaledown_until or now < suppress_traffic_until:
+            active = max(suppress_scaledown_until, suppress_traffic_until)
             logger.info(
-                f"스케일다운 억제 중 (suppress까지 {suppress_scaledown_until - now:.0f}s 남음)"
+                f"스케일다운 억제 중 (suppress까지 {active - now:.0f}s 남음, "
+                f"scaledown={suppress_scaledown_until - now:.0f}s, "
+                f"traffic={suppress_traffic_until - now:.0f}s)"
             )
             return
         if now - last_scale_up < COOLDOWN_DOWN_AFTER_UP:
@@ -300,6 +382,11 @@ if __name__ == "__main__":
             check_and_scale()
         except Exception as e:
             logger.error(f"폴링 루프 오류 (check_and_scale): {e}")
+
+        try:
+            check_traffic_preemptive()
+        except Exception as e:
+            logger.error(f"폴링 루프 오류 (check_traffic_preemptive): {e}")
 
         try:
             active_sessions = get_active_session_count()
