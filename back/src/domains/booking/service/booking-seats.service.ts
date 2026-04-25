@@ -263,19 +263,22 @@ export class BookingSeatsService implements OnModuleDestroy {
       return { sectionIndex, seatStatus: seats ?? [] };
     }
 
-    // 현재 풀에서 제거
-    const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
-    this.sseBroadcaster.removeClient(currentKey, res);
-
     // 신규 섹션 최신 상태 조회 (SSE-05)
     const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
 
-    // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init)
-    const newKey = `${eventId}:${sectionIndex}`;
-    if (!this.seatsSubscriptionMap.has(newKey)) {
-      await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
+    // res가 있을 때만 SSE 풀 조작 수행 (res=null이면 세션 갱신만)
+    if (res !== null) {
+      // 현재 풀에서 제거
+      const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
+      this.sseBroadcaster.removeClient(currentKey, res);
+
+      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init)
+      const newKey = `${eventId}:${sectionIndex}`;
+      if (!this.seatsSubscriptionMap.has(newKey)) {
+        await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
+      }
+      this.sseBroadcaster.addClient(newKey, res, sid);
     }
-    this.sseBroadcaster.addClient(newKey, res, sid);
 
     // 세션의 subscribedSection 갱신 (D-01)
     if (session) {
