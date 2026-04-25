@@ -284,10 +284,30 @@ export function bookSeat(
 /**
  * SSE 연결을 우회하여 ENTERING → SELECTING_SEAT 상태 전환을 수행한다.
  * 반드시 setBookingCount 호출 후 사용해야 한다.
+ *
+ * Phase 2 이후 bookSeat/unBookSeat에 VAL 검증이 추가됐으므로,
+ * subscribedSection을 defaultSectionIndex(기본값 0)로 설정한다.
+ * 다른 섹션으로 테스트하려면 호출 후 inBookingService.setSession으로 직접 변경한다.
  */
-export async function transitionToSelectingSeat(app: INestApplication, sid: string) {
+export async function transitionToSelectingSeat(
+  app: INestApplication,
+  sid: string,
+  defaultSectionIndex: number = 0,
+) {
   const bookingService = app.get(BookingService);
   await bookingService.setInBookingFromEntering(sid);
+
+  // Phase 2: VAL 검증을 위해 subscribedSection 초기화
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  if (eventId !== null) {
+    const session = await inBookingService.getSession(eventId, sid);
+    if (session) {
+      session.subscribedSection = defaultSectionIndex;
+      await inBookingService.setSession(eventId, session);
+    }
+  }
 }
 
 /**
@@ -343,7 +363,10 @@ export async function simulateSSEReconnect(app: INestApplication, sid: string) {
 
 /**
  * 유저를 좌석 선택 상태(SELECTING_SEAT)까지 한 번에 진행시킨다.
- * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환
+ * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환 → subscribedSection 설정
+ *
+ * transitionToSelectingSeat가 subscribedSection을 defaultSectionIndex(기본값 0)로 설정하므로
+ * Phase 2 VAL 검증을 통과할 수 있다.
  */
 export async function setupSelectingSeat(
   app: INestApplication,
@@ -351,11 +374,12 @@ export async function setupSelectingSeat(
   eventId: number,
   userSid: string,
   bookingAmount: number = 1,
+  defaultSectionIndex: number = 0,
 ) {
   await openEventReservation(app, adminSid, eventId).expect(201);
   await requestPermission(app, userSid, eventId).expect(200);
   await setBookingCount(app, userSid, bookingAmount).expect(201);
-  await transitionToSelectingSeat(app, userSid);
+  await transitionToSelectingSeat(app, userSid, defaultSectionIndex);
 }
 
 /**

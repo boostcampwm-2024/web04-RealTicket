@@ -59,15 +59,17 @@ export class SseBroadcaster<T> {
   }
 
   addClient(key: string, res: Response, sid: string): void {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      Connection: 'keep-alive',
-      'Cache-Control': 'private, no-cache, no-store, must-revalidate, max-age=0, no-transform',
-      Pragma: 'no-cache',
-      Expire: '0',
-      'X-Accel-Buffering': 'no',
-    });
-    res.flushHeaders();
+    if (!res.headersSent) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        Connection: 'keep-alive',
+        'Cache-Control': 'private, no-cache, no-store, must-revalidate, max-age=0, no-transform',
+        Pragma: 'no-cache',
+        Expire: '0',
+        'X-Accel-Buffering': 'no',
+      });
+      res.flushHeaders();
+    }
 
     const socket = res.socket;
     if (socket) {

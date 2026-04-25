@@ -138,7 +138,7 @@ export class BookingController {
     await this.bookingSeatsService.addSseClient(eventId, res, sid);
 
     req.on('close', async () => {
-      this.bookingSeatsService.removeSseClient(eventId, res);
+      await this.bookingSeatsService.removeSseClient(eventId, sid, res);
 
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
       if (inBookingSession?.saved) {
