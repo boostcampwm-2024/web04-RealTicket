@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Select from 'react-select';
+import { useParams } from 'react-router-dom';
 
-import { postSeatCount } from '@/api/booking.ts';
+import { BASE_URL } from '@/api/axios.ts';
+import { patchSection, postSeatCount } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
 
 import useConfirm from '@/hooks/useConfirm.tsx';
 import usePreventLeave from '@/hooks/usePreventLeave.tsx';
+import useSSE from '@/hooks/useSSE.tsx';
 
 import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button.tsx';
@@ -20,6 +23,7 @@ import { getDate, getTime } from '@/utils/date.ts';
 import { changeSeatCountDebounce } from '@/utils/debounce.ts';
 import { padEndArray } from '@/utils/padArray.ts';
 
+import { API } from '@/constants/index.ts';
 import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
 import type { EventDetail, PlaceInformation, SectionCoordinate } from '@/type/index.ts';
 import type { SeatCount } from '@/type/reservation.ts';
@@ -55,16 +59,46 @@ export default function SectionAndSeat({
   const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
   const [isChangingCount, setIsChangingCount] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [seatStatus, setSeatStatus] = useState<number[] | null>(null);
+  const prevSectionRef = useRef<number | null>(null);
+  const { eventId } = useParams();
+
+  // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
+  // per FE-02: 단일 섹션 타입으로 수신
+  const { data: sseData } = useSSE<{ sectionIndex: number; seatStatus: number[] }>({
+    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
+  });
 
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
+
+  // per D-01, D-03, D-04, D-05
+  const { mutate: patchSectionMutate } = useMutation({
+    mutationFn: (sectionIndex: number) => patchSection({ sectionIndex }),
+    onSuccess: (data) => {
+      setSeatStatus(data.seatStatus); // FE-03: 즉시 반영
+    },
+    onError: () => {
+      toast.error('섹션 전환에 실패했습니다');
+      setSelectedSection(prevSectionRef.current); // D-04: 롤백
+    },
+    throwOnError: false,
+  });
+
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
   usePreventLeave();
 
+  // FE-02: SSE 브로드캐스트 수신 시 seatStatus 갱신
+  useEffect(() => {
+    if (sseData) {
+      setSeatStatus(sseData.seatStatus);
+    }
+  }, [sseData]);
+
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
-  const { name, place, runningDate, runningTime, id: eventId } = event;
+  const { name, place, runningDate, runningTime, id: eventId2 } = event;
 
   const sectionCo = JSON.parse(overviewPoints) as SectionCoordinate[];
   const selectedSectionSeatMap =
@@ -103,6 +137,14 @@ export default function SectionAndSeat({
       setZoomLevel(initialZoom);
     }
   }, [selectedSection]);
+
+  // per D-04: prevSection 클릭 시점에 캡처 — stale closure 방지를 위해 useRef 사용
+  const handleSectionClick = (newSectionIndex: number) => {
+    prevSectionRef.current = selectedSection; // 롤백 대상 저장
+    setSelectedSection(newSectionIndex); // 낙관적 UI (선택 즉시 반영)
+    setSeatStatus(null); // 이전 섹션 좌석 데이터 클리어
+    patchSectionMutate(newSectionIndex);
+  };
 
   return (
     <div className="flex w-full gap-4">
@@ -203,14 +245,19 @@ export default function SectionAndSeat({
                     margin: '0 auto',
                   }}>
                   {isChangingCount && <Dimmed />}
-                  <SeatMap
-                    selectedSeats={selectedSeats}
-                    setSelectedSeats={setSelectedSeats}
-                    selectedSection={sections[selectedSection]}
-                    maxSelectCount={seatCount}
-                    selectedSectionIndex={selectedSection}
-                    seatSize={finalSeatSize}
-                  />
+                  {seatStatus !== null ? (
+                    <SeatMap
+                      selectedSeats={selectedSeats}
+                      setSelectedSeats={setSelectedSeats}
+                      selectedSection={sections[selectedSection]}
+                      maxSelectCount={seatCount}
+                      selectedSectionIndex={selectedSection}
+                      seatStatus={seatStatus}
+                      seatSize={finalSeatSize}
+                    />
+                  ) : (
+                    <Loading />
+                  )}
                 </div>
               </div>
             </div>
@@ -219,7 +266,7 @@ export default function SectionAndSeat({
           <SectionSelectorMap
             sections={sectionCo}
             selectedSection={selectedSection}
-            setSelectedSection={setSelectedSection}
+            setSelectedSection={handleSectionClick}
             svgURL={overview}
             viewBoxData={viewBoxData}
           />
@@ -231,7 +278,7 @@ export default function SectionAndSeat({
           className="flex-grow-0"
           sections={sectionCo}
           selectedSection={selectedSection}
-          setSelectedSection={setSelectedSection}
+          setSelectedSection={handleSectionClick}
           svgURL={overview}
           viewBoxData={viewBoxData}
         />
@@ -321,7 +368,7 @@ export default function SectionAndSeat({
           onClick={() => {
             confirmReservation(
               {
-                eventId,
+                eventId: eventId2,
                 seats: selectedSeats.map((seat) => ({
                   sectionIndex: seat.sectionIndex,
                   seatIndex: seat.seatIndex,
