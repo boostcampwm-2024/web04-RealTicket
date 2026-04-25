@@ -12,10 +12,10 @@ export interface SseBroadcasterOptions {
 }
 
 export class SseBroadcaster<T> {
-  private clientsMap = new Map<number, Set<SseClientInfo>>();
-  private subscriptionMap = new Map<number, Subscription>();
-  private latestMessageMap = new Map<number, string>();
-  private messageIdMap = new Map<number, number>();
+  private clientsMap = new Map<string, Set<SseClientInfo>>();
+  private subscriptionMap = new Map<string, Subscription>();
+  private latestMessageMap = new Map<string, string>();
+  private messageIdMap = new Map<string, number>();
 
   constructor(
     private readonly name: string,
@@ -23,42 +23,42 @@ export class SseBroadcaster<T> {
     private readonly options: SseBroadcasterOptions = {},
   ) {}
 
-  startBroadcast(eventId: number, source$: Observable<T>): void {
-    if (this.subscriptionMap.has(eventId)) {
+  startBroadcast(key: string, source$: Observable<T>): void {
+    if (this.subscriptionMap.has(key)) {
       return;
     }
-    this.messageIdMap.set(eventId, 0);
+    this.messageIdMap.set(key, 0);
 
     const subscription = source$.subscribe({
-      next: (data) => this.onData(eventId, data),
-      error: (err) => this.logger.error(`[${this.name}] SSE 브로드캐스트 에러: eventId=${eventId}`, err),
+      next: (data) => this.onData(key, data),
+      error: (err) => this.logger.error(`[${this.name}] SSE 브로드캐스트 에러: key=${key}`, err),
     });
 
-    this.subscriptionMap.set(eventId, subscription);
+    this.subscriptionMap.set(key, subscription);
   }
 
-  stopBroadcast(eventId: number): void {
-    const subscription = this.subscriptionMap.get(eventId);
+  stopBroadcast(key: string): void {
+    const subscription = this.subscriptionMap.get(key);
     if (subscription) {
       subscription.unsubscribe();
-      this.subscriptionMap.delete(eventId);
+      this.subscriptionMap.delete(key);
     }
 
-    const clients = this.clientsMap.get(eventId);
+    const clients = this.clientsMap.get(key);
     if (clients) {
       for (const client of clients) {
         try {
           client.res.end();
         } catch {}
       }
-      this.clientsMap.delete(eventId);
+      this.clientsMap.delete(key);
     }
 
-    this.latestMessageMap.delete(eventId);
-    this.messageIdMap.delete(eventId);
+    this.latestMessageMap.delete(key);
+    this.messageIdMap.delete(key);
   }
 
-  addClient(eventId: number, res: Response, sid: string): void {
+  addClient(key: string, res: Response, sid: string): void {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       Connection: 'keep-alive',
@@ -78,13 +78,13 @@ export class SseBroadcaster<T> {
 
     res.write('\n');
 
-    if (!this.clientsMap.has(eventId)) {
-      this.clientsMap.set(eventId, new Set());
+    if (!this.clientsMap.has(key)) {
+      this.clientsMap.set(key, new Set());
     }
     const clientInfo: SseClientInfo = { res, sid };
-    this.clientsMap.get(eventId).add(clientInfo);
+    this.clientsMap.get(key).add(clientInfo);
 
-    const latestMsg = this.latestMessageMap.get(eventId);
+    const latestMsg = this.latestMessageMap.get(key);
     if (latestMsg) {
       try {
         res.write(latestMsg);
@@ -92,8 +92,8 @@ export class SseBroadcaster<T> {
     }
   }
 
-  removeClient(eventId: number, res: Response): void {
-    const clients = this.clientsMap.get(eventId);
+  removeClient(key: string, res: Response): void {
+    const clients = this.clientsMap.get(key);
     if (!clients) return;
 
     for (const client of clients) {
@@ -104,17 +104,29 @@ export class SseBroadcaster<T> {
     }
 
     if (clients.size === 0) {
-      this.clientsMap.delete(eventId);
+      this.clientsMap.delete(key);
     }
   }
 
-  getClientCount(eventId: number): number {
-    return this.clientsMap.get(eventId)?.size ?? 0;
+  getClientBySid(key: string, sid: string): { key: string; res: Response } | null {
+    const clients = this.clientsMap.get(key);
+    if (!clients) return null;
+
+    for (const client of clients) {
+      if (client.sid === sid) {
+        return { key, res: client.res };
+      }
+    }
+    return null;
   }
 
-  private onData(eventId: number, data: T): void {
-    const currentId = (this.messageIdMap.get(eventId) ?? 0) + 1;
-    this.messageIdMap.set(eventId, currentId);
+  getClientCount(key: string): number {
+    return this.clientsMap.get(key)?.size ?? 0;
+  }
+
+  private onData(key: string, data: T): void {
+    const currentId = (this.messageIdMap.get(key) ?? 0) + 1;
+    this.messageIdMap.set(key, currentId);
 
     const jsonStr = JSON.stringify(data);
     let sseMessage = `id: ${currentId}\n`;
@@ -123,9 +135,9 @@ export class SseBroadcaster<T> {
     }
     sseMessage += `data: ${jsonStr}\n\n`;
 
-    this.latestMessageMap.set(eventId, sseMessage);
+    this.latestMessageMap.set(key, sseMessage);
 
-    const clients = this.clientsMap.get(eventId);
+    const clients = this.clientsMap.get(key);
     if (!clients) return;
 
     for (const client of clients) {

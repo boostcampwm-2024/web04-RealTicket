@@ -41,11 +41,11 @@ export class WaitingQueueService implements OnModuleDestroy {
     if (!this.queueSubscriptionMap.has(eventId)) {
       await this.createQueueSubscription(eventId);
     }
-    this.sseBroadcaster.addClient(eventId, res, sid);
+    this.sseBroadcaster.addClient(String(eventId), res, sid);
   }
 
   removeSseClient(eventId: number, res: Response): void {
-    this.sseBroadcaster.removeClient(eventId, res);
+    this.sseBroadcaster.removeClient(String(eventId), res);
   }
 
   async pushQueue(eventId: number, sid: string) {
@@ -91,7 +91,7 @@ export class WaitingQueueService implements OnModuleDestroy {
     );
 
     this.queueSubscriptionMap.set(eventId, { subject, interval });
-    this.sseBroadcaster.startBroadcast(eventId, subject.asObservable());
+    this.sseBroadcaster.startBroadcast(String(eventId), subject.asObservable());
     return subject;
   }
 
@@ -124,7 +124,7 @@ export class WaitingQueueService implements OnModuleDestroy {
   }
 
   async clearQueue(eventId: number) {
-    this.sseBroadcaster.stopBroadcast(eventId);
+    this.sseBroadcaster.stopBroadcast(String(eventId));
     const queueSubscription = this.queueSubscriptionMap.get(eventId);
     if (queueSubscription) {
       clearInterval(queueSubscription.interval);

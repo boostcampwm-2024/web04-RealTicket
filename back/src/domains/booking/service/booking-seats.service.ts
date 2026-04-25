@@ -15,7 +15,7 @@ import { SeatStatus } from '../const/seatStatus.enum';
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
-import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
+import { runGetSectionSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
 import { runSetSectionsLenLua } from '../luaScripts/setSectionsLenLua';
 import { runUpdateSeatLua } from '../luaScripts/updateSeatLua';
@@ -24,7 +24,8 @@ import { SseBroadcaster } from '../sse/sse-broadcaster';
 import { InBookingService } from './in-booking.service';
 
 type SeatStatusObject = {
-  seatStatus: number[][];
+  sectionIndex: number;
+  seatStatus: number[];
 };
 
 type SeatSubscription = {
@@ -36,11 +37,10 @@ type SeatSubscription = {
 export class BookingSeatsService implements OnModuleDestroy {
   private readonly redis: Redis | null;
   private readonly pubsubClient: Redis;
-  private seatsSubscriptionMap = new Map<number, SeatSubscription>();
-  private broadcastActivateMap = new Map<number, boolean>();
+  private seatsSubscriptionMap = new Map<string, SeatSubscription>();
+  private broadcastActivateMap = new Map<string, boolean>();
   private readonly sseBroadcaster: SseBroadcaster<SeatStatusObject>;
-  private readonly ensureSeatSubscriptionPromise = new Map<number, Promise<void>>();
-  private readonly PUBSUB_CHANNEL = (eventId: number) => `seats:changes:${eventId}`;
+  private readonly ensureSeatSubscriptionPromise = new Map<string, Promise<void>>();
 
   constructor(
     private redisService: RedisService,
@@ -54,9 +54,10 @@ export class BookingSeatsService implements OnModuleDestroy {
     this.sseBroadcaster = new SseBroadcaster('seats', this.logger, { retryMs: SEATS_SSE_RETRY_INTERVAL });
 
     this.pubsubClient.on('message', (channel: string) => {
-      const match = channel.match(/^seats:changes:(\d+)$/);
+      const match = channel.match(/^seats:changes:(\d+):(\d+)$/);
       if (match) {
-        this.broadcastActivateMap.set(parseInt(match[1], 10), true);
+        const key = `${match[1]}:${match[2]}`;
+        this.broadcastActivateMap.set(key, true);
       }
     });
   }
@@ -69,30 +70,52 @@ export class BookingSeatsService implements OnModuleDestroy {
     });
     await runSetSectionsLenLua(this.redis, eventId, seats.length);
 
-    if (this.seatsSubscriptionMap.has(eventId)) {
-      throw new AppException(BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS);
+    // 이미 구독 중인 섹션이 있으면 기존 구독 정리 (재초기화 지원)
+    const existingPrefix = `${eventId}:`;
+    const existingKeys = Array.from(this.seatsSubscriptionMap.keys()).filter((k) =>
+      k.startsWith(existingPrefix),
+    );
+    if (existingKeys.length > 0) {
+      await this.clearSeatsSubscription(eventId);
     }
-    const seatSubscription = await this.createSeatSubscription(eventId, seats);
-    this.seatsSubscriptionMap.set(eventId, seatSubscription);
-    await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
-    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
+
+    for (let sectionIndex = 0; sectionIndex < seats.length; sectionIndex++) {
+      const key = `${eventId}:${sectionIndex}`;
+      const seatSubscription = await this.createSeatSubscription(
+        key,
+        eventId,
+        sectionIndex,
+        seats[sectionIndex],
+      );
+      this.seatsSubscriptionMap.set(key, seatSubscription);
+      await this.pubsubClient.subscribe(`seats:changes:${eventId}:${sectionIndex}`);
+      this.sseBroadcaster.startBroadcast(key, seatSubscription.subject.asObservable());
+    }
   }
 
   async onModuleDestroy() {
-    const eventIds = [...this.seatsSubscriptionMap.keys()];
+    const eventIds = [
+      ...new Set([...this.seatsSubscriptionMap.keys()].map((k) => parseInt(k.split(':')[0], 10))),
+    ];
     await Promise.allSettled(eventIds.map((id) => this.clearSeatsSubscription(id)));
   }
 
   async clearSeatsSubscription(eventId: number) {
-    this.sseBroadcaster.stopBroadcast(eventId);
-    const seatSubscription = this.seatsSubscriptionMap.get(eventId);
-    if (seatSubscription) {
-      clearInterval(seatSubscription.interval);
-      seatSubscription.subject.complete();
-      this.seatsSubscriptionMap.delete(eventId);
+    const prefix = `${eventId}:`;
+    const sectionKeys = Array.from(this.seatsSubscriptionMap.keys()).filter((k) => k.startsWith(prefix));
+
+    for (const key of sectionKeys) {
+      this.sseBroadcaster.stopBroadcast(key);
+      const seatSubscription = this.seatsSubscriptionMap.get(key);
+      if (seatSubscription) {
+        clearInterval(seatSubscription.interval);
+        seatSubscription.subject.complete();
+        this.seatsSubscriptionMap.delete(key);
+      }
+      this.broadcastActivateMap.delete(key);
+      const [eId, sIdx] = key.split(':');
+      await this.pubsubClient.unsubscribe(`seats:changes:${eId}:${sIdx}`);
     }
-    this.broadcastActivateMap.delete(eventId);
-    await this.pubsubClient.unsubscribe(this.PUBSUB_CHANNEL(eventId));
     const keys = await this.redis.keys(`event:${eventId}:*`);
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
@@ -144,7 +167,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     } else if (result === 0) {
       throw new AppException(BookingErrorCode.SEAT_ALREADY_RESERVED);
     } else {
-      await this.redis.publish(this.PUBSUB_CHANNEL(eventId), String(eventId));
+      await this.redis.publish(`seats:changes:${eventId}:${sectionIndex}`, String(sectionIndex));
       return {
         eventId,
         sectionIndex,
@@ -165,7 +188,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     } else if (result === 0) {
       throw new AppException(BookingErrorCode.SEAT_ALREADY_CANCELLED);
     } else {
-      await this.redis.publish(this.PUBSUB_CHANNEL(eventId), String(eventId));
+      await this.redis.publish(`seats:changes:${eventId}:${sectionIndex}`, String(sectionIndex));
       return {
         eventId,
         sectionIndex,
@@ -175,16 +198,10 @@ export class BookingSeatsService implements OnModuleDestroy {
     }
   }
 
-  async getSeats(eventId: number) {
-    const seatStatusBits = await runGetSeatsLua(this.redis, eventId);
-    if (!seatStatusBits) {
-      throw new AppException(BookingErrorCode.SEAT_FETCH_FAILED);
-    }
-    return seatStatusBits;
-  }
-
   getSeatsObservable(eventId: number) {
-    const subscription = this.seatsSubscriptionMap.get(eventId);
+    // Phase 2에서 섹션별 라우팅으로 교체 예정 — 현재는 첫 섹션 구독 반환
+    const key = `${eventId}:0`;
+    const subscription = this.seatsSubscriptionMap.get(key);
     if (!subscription) {
       throw new AppException(BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND);
     }
@@ -192,56 +209,68 @@ export class BookingSeatsService implements OnModuleDestroy {
   }
 
   async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
-    if (!this.seatsSubscriptionMap.has(eventId)) {
-      await this.ensureSeatSubscription(eventId);
+    // Phase 2에서 섹션 라우팅 추가 예정 — 임시로 첫 섹션 키 사용
+    const key = `${eventId}:0`;
+    if (!this.seatsSubscriptionMap.has(key)) {
+      await this.ensureSeatSubscription(key, eventId, 0);
     }
-    this.sseBroadcaster.addClient(eventId, res, sid);
+    this.sseBroadcaster.addClient(key, res, sid);
   }
 
   removeSseClient(eventId: number, res: Response): void {
-    this.sseBroadcaster.removeClient(eventId, res);
+    const key = `${eventId}:0`;
+    this.sseBroadcaster.removeClient(key, res);
   }
 
-  private async ensureSeatSubscription(eventId: number): Promise<void> {
-    if (this.seatsSubscriptionMap.has(eventId)) return;
+  private async ensureSeatSubscription(key: string, eventId: number, sectionIndex: number): Promise<void> {
+    if (this.seatsSubscriptionMap.has(key)) return;
 
-    if (!this.ensureSeatSubscriptionPromise.has(eventId)) {
-      const promise = this._doEnsureSeatSubscription(eventId).finally(() => {
-        this.ensureSeatSubscriptionPromise.delete(eventId);
+    if (!this.ensureSeatSubscriptionPromise.has(key)) {
+      const promise = this._doEnsureSeatSubscription(key, eventId, sectionIndex).finally(() => {
+        this.ensureSeatSubscriptionPromise.delete(key);
       });
-      this.ensureSeatSubscriptionPromise.set(eventId, promise);
+      this.ensureSeatSubscriptionPromise.set(key, promise);
     }
 
-    return this.ensureSeatSubscriptionPromise.get(eventId);
+    return this.ensureSeatSubscriptionPromise.get(key);
   }
 
-  private async _doEnsureSeatSubscription(eventId: number): Promise<void> {
-    if (this.seatsSubscriptionMap.has(eventId)) return;
+  private async _doEnsureSeatSubscription(key: string, eventId: number, sectionIndex: number): Promise<void> {
+    if (this.seatsSubscriptionMap.has(key)) return;
 
-    let initialSeats: number[][];
+    let initialSeats: number[];
     try {
-      initialSeats = await this.getSeats(eventId);
+      initialSeats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
     } catch {
-      this.logger.warn(`[seats] lazy init 실패: eventId=${eventId} — Redis에 좌석 데이터 없음`);
+      this.logger.warn(`[seats] lazy init 실패: key=${key} — Redis에 좌석 데이터 없음`);
+      return;
+    }
+    if (!initialSeats) {
+      this.logger.warn(`[seats] lazy init 실패: key=${key} — Redis에 좌석 데이터 없음`);
       return;
     }
 
-    const seatSubscription = await this.createSeatSubscription(eventId, initialSeats);
-    this.seatsSubscriptionMap.set(eventId, seatSubscription);
-    await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
-    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
+    const seatSubscription = await this.createSeatSubscription(key, eventId, sectionIndex, initialSeats);
+    this.seatsSubscriptionMap.set(key, seatSubscription);
+    await this.pubsubClient.subscribe(`seats:changes:${eventId}:${sectionIndex}`);
+    this.sseBroadcaster.startBroadcast(key, seatSubscription.subject.asObservable());
   }
 
-  private unActivateNextBroadcast = (eventId: number) => {
-    this.broadcastActivateMap.set(eventId, false);
+  private unActivateNextBroadcast = (key: string) => {
+    this.broadcastActivateMap.set(key, false);
   };
 
-  private isBroadcastActivated = (eventId: number) => {
-    return this.broadcastActivateMap.get(eventId);
+  private isBroadcastActivated = (key: string) => {
+    return this.broadcastActivateMap.get(key);
   };
 
-  private async createSeatSubscription(eventId: number, initialSeats: number[][]): Promise<SeatSubscription> {
-    const subject = new BehaviorSubject<SeatStatusObject>({ seatStatus: initialSeats });
+  private async createSeatSubscription(
+    key: string,
+    eventId: number,
+    sectionIndex: number,
+    initialSeats: number[],
+  ): Promise<SeatSubscription> {
+    const subject = new BehaviorSubject<SeatStatusObject>({ sectionIndex, seatStatus: initialSeats });
     let lastBroadcastTime = Date.now();
 
     const interval = setInterval(
@@ -249,17 +278,18 @@ export class BookingSeatsService implements OnModuleDestroy {
         const now = Date.now();
         const timeSinceLastBroadcast = now - lastBroadcastTime;
 
-        if (timeSinceLastBroadcast >= SSE_MAXIMUM_INTERVAL || this.isBroadcastActivated(eventId)) {
+        if (timeSinceLastBroadcast >= SSE_MAXIMUM_INTERVAL || this.isBroadcastActivated(key)) {
           try {
-            const seats = await this.getSeats(eventId);
-            subject.next(new SeatsSseDto(seats));
-            lastBroadcastTime = Date.now();
-
-            if (this.isBroadcastActivated(eventId)) {
-              this.unActivateNextBroadcast(eventId);
+            const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
+            if (seats) {
+              subject.next(new SeatsSseDto(sectionIndex, seats));
+              lastBroadcastTime = Date.now();
+            }
+            if (this.isBroadcastActivated(key)) {
+              this.unActivateNextBroadcast(key);
             }
           } catch (error) {
-            this.logger.error(`좌석 브로드캐스트 실패: eventId=${eventId}`, error);
+            this.logger.error(`좌석 브로드캐스트 실패: key=${key}`, error);
           }
         }
       },

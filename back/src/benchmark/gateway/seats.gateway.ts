@@ -28,7 +28,7 @@ interface CustomWebSocket extends WebSocket {
 }
 
 type SeatStatusObject = {
-  seatStatus: number[][];
+  seatStatus: number[][] | number[];
 };
 
 @WebSocketGateway({
