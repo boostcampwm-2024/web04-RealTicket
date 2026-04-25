@@ -255,7 +255,10 @@ export class BookingSeatsService implements OnModuleDestroy {
     sid: string,
   ): Promise<{ sectionIndex: number; seatStatus: number[] }> {
     const session = await this.inBookingService.getSession(eventId, sid);
-    const currentSection = session?.subscribedSection ?? null;
+    if (!session) {
+      throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
+    }
+    const currentSection = session.subscribedSection ?? null;
 
     // idempotent: 동일 섹션 재요청 — Pitfall 3 방어 (removeClient 호출 전에 체크)
     if (currentSection === sectionIndex) {
@@ -272,19 +275,23 @@ export class BookingSeatsService implements OnModuleDestroy {
       const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
       this.sseBroadcaster.removeClient(currentKey, res);
 
-      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init)
+      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init) — 실패 시 기존 풀에 롤백
       const newKey = `${eventId}:${sectionIndex}`;
-      if (!this.seatsSubscriptionMap.has(newKey)) {
-        await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
+      try {
+        if (!this.seatsSubscriptionMap.has(newKey)) {
+          await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
+        }
+        this.sseBroadcaster.addClient(newKey, res, sid);
+      } catch (error) {
+        // 롤백: 기존 풀에 재등록
+        this.sseBroadcaster.addClient(currentKey, res, sid);
+        throw error;
       }
-      this.sseBroadcaster.addClient(newKey, res, sid);
     }
 
-    // 세션의 subscribedSection 갱신 (D-01)
-    if (session) {
-      session.subscribedSection = sectionIndex;
-      await this.inBookingService.setSession(eventId, session);
-    }
+    // SSE 풀 조작 성공 후에만 세션의 subscribedSection 갱신 (D-01)
+    session.subscribedSection = sectionIndex;
+    await this.inBookingService.setSession(eventId, session);
 
     return { sectionIndex, seatStatus: seats ?? [] };
   }
