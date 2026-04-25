@@ -13,7 +13,6 @@ import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const'
 import { SEATS_SSE_RETRY_INTERVAL } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
-import { SeatsSseDto } from '../dto/seatsSse.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
 import { runGetSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
