@@ -66,7 +66,12 @@ export default function SectionAndSeat({
 
   // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
   // per FE-02: 단일 섹션 타입으로 수신
-  const { data: sseData } = useSSE<{ sectionIndex: number; seatStatus: number[] }>({
+  // Phase 4: occupiedSeats optional 필드 추가 (per D-01)
+  const { data: sseData } = useSSE<{
+    sectionIndex: number;
+    seatStatus: number[];
+    occupiedSeats?: [number, number][];
+  }>({
     sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
   });
 
@@ -92,8 +97,19 @@ export default function SectionAndSeat({
   usePreventLeave();
 
   // FE-02: SSE 브로드캐스트 수신 시 seatStatus 갱신
+  // Phase 4: occupiedSeats 수신 시 selectedSeats 서버 데이터로 동기화 (per D-04)
   useEffect(() => {
-    if (sseData) {
+    if (!sseData) return;
+    if (sseData.occupiedSeats !== undefined) {
+      // Phase 4: 서버 bookedSeats → selectedSeats 동기화 (per D-04)
+      const restored = sseData.occupiedSeats.map(([sectionIdx, seatIndex]) => ({
+        sectionIndex: sectionIdx,
+        seatIndex,
+        name: deriveSeatName(placeInformation, sectionIdx, seatIndex),
+      }));
+      setSelectedSeats(restored);
+    } else if (sseData.sectionIndex >= 0) {
+      // 기존: 좌석 상태 브로드캐스트 업데이트
       setSeatStatus(sseData.seatStatus);
     }
   }, [sseData]);
@@ -411,6 +427,30 @@ const StageDirection = () => {
     </div>
   );
 };
+
+// Phase 4: 서버 bookedSeats [sectionIndex, seatIndex] → SelectedSeat.name 복원 (per D-05)
+// SeatMap.tsx renderSeatMap의 좌석명 생성 로직과 동일하게 구현 (canonical reference)
+export function deriveSeatName(
+  placeInformation: PlaceInformation,
+  sectionIndex: number,
+  seatIndex: number,
+): string {
+  const section = placeInformation.layout.sections[sectionIndex];
+  if (!section) return `${sectionIndex}-${seatIndex}`;
+
+  const { name, seats, colLen } = section;
+  let columnCount = 1;
+  for (let i = 0; i <= seatIndex; i++) {
+    const isNewLine = i % colLen === 0;
+    if (isNewLine) columnCount = 1;
+    if (i === seatIndex) {
+      const rowsCount = Math.floor(i / colLen) + 1;
+      return `${name}구역 ${rowsCount}행 ${columnCount}열`;
+    }
+    if (seats[i]) columnCount++;
+  }
+  return `${sectionIndex}-${seatIndex}`;
+}
 
 const SEAT_STATES = ['선택 가능', '선택 중', '선택 완료', '선택 불가'];
 const getColorClass = (state: string) => {
