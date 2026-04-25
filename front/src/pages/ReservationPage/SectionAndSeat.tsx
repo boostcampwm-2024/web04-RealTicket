@@ -61,6 +61,7 @@ export default function SectionAndSeat({
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [seatStatus, setSeatStatus] = useState<number[] | null>(null);
   const prevSectionRef = useRef<number | null>(null);
+  const prevSeatStatusRef = useRef<number[] | null>(null);
   const { eventId } = useParams();
 
   // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
@@ -81,6 +82,7 @@ export default function SectionAndSeat({
     onError: () => {
       toast.error('섹션 전환에 실패했습니다');
       setSelectedSection(prevSectionRef.current); // D-04: 롤백
+      setSeatStatus(prevSeatStatusRef.current); // D-04: seatStatus 복원
     },
     throwOnError: false,
   });
@@ -141,6 +143,7 @@ export default function SectionAndSeat({
   // per D-04: prevSection 클릭 시점에 캡처 — stale closure 방지를 위해 useRef 사용
   const handleSectionClick = (newSectionIndex: number) => {
     prevSectionRef.current = selectedSection; // 롤백 대상 저장
+    prevSeatStatusRef.current = seatStatus; // D-04: seatStatus 롤백 대상 저장
     setSelectedSection(newSectionIndex); // 낙관적 UI (선택 즉시 반영)
     setSeatStatus(null); // 이전 섹션 좌석 데이터 클리어
     patchSectionMutate(newSectionIndex);
