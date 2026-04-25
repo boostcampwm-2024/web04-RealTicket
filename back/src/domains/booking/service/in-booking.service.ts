@@ -171,6 +171,9 @@ export class InBookingService {
 
   async getBookAmountAndBookedSeats(sid: string, eventId: number) {
     const session = await this.getSession(eventId, sid);
+    if (!session) {
+      throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
+    }
     return {
       bookingAmount: session.bookingAmount,
       bookedSeats: session.bookedSeats,
