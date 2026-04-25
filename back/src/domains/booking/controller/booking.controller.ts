@@ -187,11 +187,7 @@ export class BookingController {
     },
   })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
-  async switchSection(
-    @Req() req: Request,
-    @Body() dto: SectionSwitchReqDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async switchSection(@Req() req: Request, @Body() dto: SectionSwitchReqDto) {
     const sid = req.cookies['SID'];
     const eventId = await this.authService.getUserEventTarget(sid);
     const sseRes = await this.bookingSeatsService.getClientResBySid(eventId, sid);
