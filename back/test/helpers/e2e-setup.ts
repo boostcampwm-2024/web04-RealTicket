@@ -417,3 +417,42 @@ export async function simulateWaitingSseTimeout(app: INestApplication, sid: stri
   // (실제 timeout 처리와 동일하게 상태만 변경)
   await authService.setUserStatusLogin(sid);
 }
+
+/**
+ * PATCH /booking/seat/section 요청을 보낸다.
+ * SELECTING_SEAT 상태 사용자만 성공한다.
+ */
+export function switchSection(app: INestApplication, sid: string, sectionIndex: number) {
+  return withAuth(supertest(app.getHttpServer()).patch('/booking/seat/section'), sid).send({ sectionIndex });
+}
+
+/**
+ * subscribedSection이 설정된 상태에서 SSE 연결 해제를 시뮬레이션한다.
+ * bookingSeatsService.removeSseClient는 실제 Response 객체가 필요하므로
+ * SSE 풀 제거 없이 세션 상태 변경만 수행한다.
+ * (기존 simulateSseDisconnect와 동일한 동작 — 섹션 정보는 세션에 보존됨)
+ */
+export async function simulateSseDisconnectWithSection(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  if (eventId === null) {
+    throw new Error(`simulateSseDisconnectWithSection: sid=${sid}의 targetEvent가 null입니다.`);
+  }
+  await authService.setUserStatusReconnectingSelecting(sid);
+  await inBookingService.addReconnectingSession(eventId, sid);
+}
+
+/**
+ * RECONNECTING_SELECTING → SELECTING_SEAT 상태 복원을 시뮬레이션한다.
+ * (기존 simulateSSEReconnect와 동일한 동작 — 컨트롤러 RECONNECTING_SELECTING 분기 재현)
+ * SSE 풀 복원(addSseClientToSection)은 실제 Response 객체가 필요하므로 제외.
+ * 테스트에서는 getSession으로 subscribedSection이 보존됐는지 직접 확인한다.
+ */
+export async function simulateSSEReconnectWithSection(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  await inBookingService.removeReconnectingSession(eventId, sid);
+  await authService.setUserStatusSelectingSeat(sid);
+}
