@@ -1,12 +1,25 @@
+import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
+import Redis from 'ioredis';
 
-import { BookingSeatsService } from '../../domains/booking/service/booking-seats.service';
+import { runGetSectionSeatsLua } from '../../domains/booking/luaScripts/getSeatsLua';
 
 @Injectable()
 export class SeatsBenchmarkService {
-  constructor(private readonly bookingSeatsService: BookingSeatsService) {}
+  private readonly redis: Redis;
+
+  constructor(private readonly redisService: RedisService) {
+    this.redis = this.redisService.getOrThrow();
+  }
 
   async getSeatsStatusByEventId(eventId: number) {
-    return await this.bookingSeatsService.getSeats(eventId);
+    const sectionsLenRaw = await this.redis.get(`event:${eventId}:sections:len`);
+    if (!sectionsLenRaw) return null;
+    const sectionsLen = parseInt(sectionsLenRaw, 10);
+    const results: (number[] | null)[] = [];
+    for (let i = 0; i < sectionsLen; i++) {
+      results.push(await runGetSectionSeatsLua(this.redis, eventId, i));
+    }
+    return results;
   }
 }
