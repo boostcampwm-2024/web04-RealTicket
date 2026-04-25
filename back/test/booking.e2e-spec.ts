@@ -5,6 +5,8 @@ import supertest from 'supertest';
 
 import { AuthService } from 'src/auth/service/auth.service';
 import { SEATS_BROADCAST_INTERVAL } from 'src/domains/booking/const/seatsBroadcastInterval.const';
+import { BookingSeatsService } from 'src/domains/booking/service/booking-seats.service';
+import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
@@ -379,10 +381,21 @@ describe('Booking (e2e)', () => {
     it(`좌석 변경 후 ${SEATS_BROADCAST_INTERVAL}ms 이내에 브로드캐스트 수신`, async () => {
       await openEventReservation(app, adminSid, eventId).expect(201);
 
-      // SSE 구독용 유저: ENTERING 상태까지 진행
+      // SSE 구독용 유저: SELECTING_SEAT 상태까지 진행
+      // subscribedSection을 null로 유지: HTTP SSE 연결이 ${eventId}:init 풀에 등록되고
+      // getClientResBySid도 init 풀에서 올바르게 조회하도록 한다.
       const sseSid = await loginAsUser(app, 'bcastusr1', 'pass1234');
       await requestPermission(app, sseSid, eventId).expect(200);
       await setBookingCount(app, sseSid, 1).expect(201);
+      await transitionToSelectingSeat(app, sseSid);
+      // transitionToSelectingSeat는 subscribedSection: 0으로 설정하므로
+      // HTTP SSE 연결 전에 null로 되돌려 init 풀 조회를 보장한다.
+      const inBookingService = app.get(InBookingService);
+      const sseSidSession = await inBookingService.getSession(eventId, sseSid);
+      if (sseSidSession) {
+        sseSidSession.subscribedSection = null;
+        await inBookingService.setSession(eventId, sseSidSession);
+      }
 
       // 좌석 변경용 유저: SELECTING_SEAT 상태까지 진행
       const actorSid = await loginAsUser(app, 'bcastusr2', 'pass1234');
@@ -396,6 +409,8 @@ describe('Booking (e2e)', () => {
       }
       const port = server.address().port;
 
+      const bookingSeatsService = app.get(BookingSeatsService);
+
       const broadcastTime = await new Promise<number>((resolve, reject) => {
         const TOLERANCE = 200;
         const timeout = setTimeout(() => {
@@ -403,7 +418,6 @@ describe('Booking (e2e)', () => {
           reject(new Error(`브로드캐스트가 ${SEATS_BROADCAST_INTERVAL + TOLERANCE}ms 내에 도착하지 않음`));
         }, SEATS_BROADCAST_INTERVAL + TOLERANCE);
 
-        let initialReceived = false;
         let changeRequestedAt: number;
         let buffer = '';
 
@@ -411,7 +425,29 @@ describe('Booking (e2e)', () => {
           `http://127.0.0.1:${port}/booking/seat/${eventId}`,
           { headers: { Cookie: `SID=${sseSid}` } },
           (sseStream) => {
+            // Phase 2: SSE 연결 직후 서비스를 통해 섹션 0 풀로 전환.
+            // getClientResBySid로 실제 res 객체를 가져와 switchSseClientSection에 전달한다.
+            setTimeout(() => {
+              bookingSeatsService
+                .getClientResBySid(eventId, sseSid)
+                .then((res) => {
+                  if (!res) {
+                    reject(new Error('getClientResBySid: res not found'));
+                    return;
+                  }
+                  return bookingSeatsService.switchSseClientSection(eventId, 0, res, sseSid);
+                })
+                .then(() => {
+                  // 섹션 전환 완료 → 좌석 변경 수행
+                  changeRequestedAt = Date.now();
+                  bookSeat(app, actorSid, eventId, 0, 0, 'reserved').expect(201).catch(reject);
+                })
+                .catch(reject);
+            }, 50);
+
             sseStream.on('data', (chunk: Buffer) => {
+              if (!changeRequestedAt) return; // 섹션 전환 완료 전 데이터 무시
+
               buffer += chunk.toString();
 
               // SSE 이벤트는 빈 줄(\n\n)로 구분
@@ -420,19 +456,12 @@ describe('Booking (e2e)', () => {
 
               for (const event of events) {
                 if (!event.trim()) continue;
-
-                if (!initialReceived) {
-                  // 초기 브로드캐스트 무시 → 좌석 변경 수행
-                  initialReceived = true;
-                  changeRequestedAt = Date.now();
-                  bookSeat(app, actorSid, eventId, 0, 0, 'reserved').expect(201).catch(reject);
-                } else {
-                  // 변경 후 첫 브로드캐스트
-                  const elapsed = Date.now() - changeRequestedAt;
-                  clearTimeout(timeout);
-                  req.destroy();
-                  resolve(elapsed);
-                }
+                // 변경 후 첫 브로드캐스트
+                const elapsed = Date.now() - changeRequestedAt;
+                clearTimeout(timeout);
+                req.destroy();
+                resolve(elapsed);
+                return;
               }
             });
           },

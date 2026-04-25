@@ -284,10 +284,30 @@ export function bookSeat(
 /**
  * SSE 연결을 우회하여 ENTERING → SELECTING_SEAT 상태 전환을 수행한다.
  * 반드시 setBookingCount 호출 후 사용해야 한다.
+ *
+ * Phase 2 이후 bookSeat/unBookSeat에 VAL 검증이 추가됐으므로,
+ * subscribedSection을 defaultSectionIndex(기본값 0)로 설정한다.
+ * 다른 섹션으로 테스트하려면 호출 후 inBookingService.setSession으로 직접 변경한다.
  */
-export async function transitionToSelectingSeat(app: INestApplication, sid: string) {
+export async function transitionToSelectingSeat(
+  app: INestApplication,
+  sid: string,
+  defaultSectionIndex: number = 0,
+) {
   const bookingService = app.get(BookingService);
   await bookingService.setInBookingFromEntering(sid);
+
+  // Phase 2: VAL 검증을 위해 subscribedSection 초기화
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  if (eventId !== null) {
+    const session = await inBookingService.getSession(eventId, sid);
+    if (session) {
+      session.subscribedSection = defaultSectionIndex;
+      await inBookingService.setSession(eventId, session);
+    }
+  }
 }
 
 /**
@@ -343,7 +363,10 @@ export async function simulateSSEReconnect(app: INestApplication, sid: string) {
 
 /**
  * 유저를 좌석 선택 상태(SELECTING_SEAT)까지 한 번에 진행시킨다.
- * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환
+ * 이벤트 오픈 → 입장 허가 → 인원 설정 → 상태 전환 → subscribedSection 설정
+ *
+ * transitionToSelectingSeat가 subscribedSection을 defaultSectionIndex(기본값 0)로 설정하므로
+ * Phase 2 VAL 검증을 통과할 수 있다.
  */
 export async function setupSelectingSeat(
   app: INestApplication,
@@ -351,11 +374,12 @@ export async function setupSelectingSeat(
   eventId: number,
   userSid: string,
   bookingAmount: number = 1,
+  defaultSectionIndex: number = 0,
 ) {
   await openEventReservation(app, adminSid, eventId).expect(201);
   await requestPermission(app, userSid, eventId).expect(200);
   await setBookingCount(app, userSid, bookingAmount).expect(201);
-  await transitionToSelectingSeat(app, userSid);
+  await transitionToSelectingSeat(app, userSid, defaultSectionIndex);
 }
 
 /**
@@ -392,4 +416,43 @@ export async function simulateWaitingSseTimeout(app: INestApplication, sid: stri
   // getAllWaitingSids가 큐 없음을 캐치할 수 있도록 queueSubscription 정리는 하지 않음
   // (실제 timeout 처리와 동일하게 상태만 변경)
   await authService.setUserStatusLogin(sid);
+}
+
+/**
+ * PATCH /booking/seat/section 요청을 보낸다.
+ * SELECTING_SEAT 상태 사용자만 성공한다.
+ */
+export function switchSection(app: INestApplication, sid: string, sectionIndex: number) {
+  return withAuth(supertest(app.getHttpServer()).patch('/booking/seat/section'), sid).send({ sectionIndex });
+}
+
+/**
+ * subscribedSection이 설정된 상태에서 SSE 연결 해제를 시뮬레이션한다.
+ * bookingSeatsService.removeSseClient는 실제 Response 객체가 필요하므로
+ * SSE 풀 제거 없이 세션 상태 변경만 수행한다.
+ * (기존 simulateSseDisconnect와 동일한 동작 — 섹션 정보는 세션에 보존됨)
+ */
+export async function simulateSseDisconnectWithSection(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  if (eventId === null) {
+    throw new Error(`simulateSseDisconnectWithSection: sid=${sid}의 targetEvent가 null입니다.`);
+  }
+  await authService.setUserStatusReconnectingSelecting(sid);
+  await inBookingService.addReconnectingSession(eventId, sid);
+}
+
+/**
+ * RECONNECTING_SELECTING → SELECTING_SEAT 상태 복원을 시뮬레이션한다.
+ * (기존 simulateSSEReconnect와 동일한 동작 — 컨트롤러 RECONNECTING_SELECTING 분기 재현)
+ * SSE 풀 복원(addSseClientToSection)은 실제 Response 객체가 필요하므로 제외.
+ * 테스트에서는 getSession으로 subscribedSection이 보존됐는지 직접 확인한다.
+ */
+export async function simulateSSEReconnectWithSection(app: INestApplication, sid: string) {
+  const authService = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
+  const eventId = await authService.getUserEventTarget(sid);
+  await inBookingService.removeReconnectingSession(eventId, sid);
+  await authService.setUserStatusSelectingSeat(sid);
 }

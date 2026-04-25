@@ -129,6 +129,13 @@ export class BookingSeatsService implements OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
+    // VAL-01: 구독 섹션 검증 (subscribedSection null 포함)
+    const [sectionIndex] = target;
+    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+    if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
+      throw new AppException(BookingErrorCode.SEAT_UNAUTHORIZED_SECTION);
+    }
+
     await this.inBookingService.validateAndAddBookedSeat(eventId, sid, target);
 
     try {
@@ -144,6 +151,13 @@ export class BookingSeatsService implements OnModuleDestroy {
 
     if (eventId === null) {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
+
+    // VAL-02: 구독 섹션 검증
+    const [sectionIndex] = target;
+    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+    if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
+      throw new AppException(BookingErrorCode.SEAT_UNAUTHORIZED_SECTION);
     }
 
     await this.inBookingService.validateAndRemoveBookedSeat(eventId, sid, target);
@@ -209,17 +223,85 @@ export class BookingSeatsService implements OnModuleDestroy {
   }
 
   async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
-    // Phase 2에서 섹션 라우팅 추가 예정 — 임시로 첫 섹션 키 사용
-    const key = `${eventId}:0`;
+    const initKey = `${eventId}:init`;
+    // startBroadcast 없음 — SSE 헤더만 전송, 좌석 데이터 없음 (SSE-02)
+    this.sseBroadcaster.addClient(initKey, res, sid);
+  }
+
+  async removeSseClient(eventId: number, sid: string, res: Response): Promise<void> {
+    const session = await this.inBookingService.getSession(eventId, sid);
+    const subscribedSection = session?.subscribedSection ?? null;
+    const key = subscribedSection !== null ? `${eventId}:${subscribedSection}` : `${eventId}:init`;
+    this.sseBroadcaster.removeClient(key, res);
+  }
+
+  async addSseClientToSection(
+    eventId: number,
+    sectionIndex: number,
+    res: Response,
+    sid: string,
+  ): Promise<void> {
+    const key = `${eventId}:${sectionIndex}`;
     if (!this.seatsSubscriptionMap.has(key)) {
-      await this.ensureSeatSubscription(key, eventId, 0);
+      await this.ensureSeatSubscription(key, eventId, sectionIndex);
     }
     this.sseBroadcaster.addClient(key, res, sid);
   }
 
-  removeSseClient(eventId: number, res: Response): void {
-    const key = `${eventId}:0`;
-    this.sseBroadcaster.removeClient(key, res);
+  async switchSseClientSection(
+    eventId: number,
+    sectionIndex: number,
+    res: Response,
+    sid: string,
+  ): Promise<{ sectionIndex: number; seatStatus: number[] }> {
+    const session = await this.inBookingService.getSession(eventId, sid);
+    if (!session) {
+      throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
+    }
+    const currentSection = session.subscribedSection ?? null;
+
+    // idempotent: 동일 섹션 재요청 — Pitfall 3 방어 (removeClient 호출 전에 체크)
+    if (currentSection === sectionIndex) {
+      const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
+      return { sectionIndex, seatStatus: seats ?? [] };
+    }
+
+    // 신규 섹션 최신 상태 조회 (SSE-05)
+    const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
+
+    // res가 있을 때만 SSE 풀 조작 수행 (res=null이면 세션 갱신만)
+    if (res !== null) {
+      // 현재 풀에서 제거
+      const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
+      this.sseBroadcaster.removeClient(currentKey, res);
+
+      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init) — 실패 시 기존 풀에 롤백
+      const newKey = `${eventId}:${sectionIndex}`;
+      try {
+        if (!this.seatsSubscriptionMap.has(newKey)) {
+          await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
+        }
+        this.sseBroadcaster.addClient(newKey, res, sid);
+      } catch (error) {
+        // 롤백: 기존 풀에 재등록
+        this.sseBroadcaster.addClient(currentKey, res, sid);
+        throw error;
+      }
+    }
+
+    // SSE 풀 조작 성공 후에만 세션의 subscribedSection 갱신 (D-01)
+    session.subscribedSection = sectionIndex;
+    await this.inBookingService.setSession(eventId, session);
+
+    return { sectionIndex, seatStatus: seats ?? [] };
+  }
+
+  async getClientResBySid(eventId: number, sid: string): Promise<Response | null> {
+    const session = await this.inBookingService.getSession(eventId, sid);
+    const currentSection = session?.subscribedSection ?? null;
+    const key = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
+    const result = this.sseBroadcaster.getClientBySid(key, sid);
+    return result?.res ?? null;
   }
 
   private async ensureSeatSubscription(key: string, eventId: number, sectionIndex: number): Promise<void> {

@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   Res,
@@ -29,6 +30,7 @@ import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { AuthService } from '../../../auth/service/auth.service';
 import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
+import { AppException } from '../../../common/exception/app.exception';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -37,8 +39,11 @@ import { BookingResDto } from '../dto/bookingRes.dto';
 import { InBookingSizeReqDto } from '../dto/inBookingSizeReq.dto';
 import { InBookingSizeResDto } from '../dto/inBookingSizeRes.dto';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
+import { SectionSwitchReqDto } from '../dto/sectionSwitchReq.dto';
+import { SectionSwitchResDto } from '../dto/sectionSwitchRes.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
@@ -130,15 +135,32 @@ export class BookingController {
 
     if (session.userStatus === USER_STATUS.ENTERING) {
       await this.bookingService.setInBookingFromEntering(sid);
+      // ENTERING: init 풀에 등록 (SSE-02)
+      await this.bookingSeatsService.addSseClient(eventId, res, sid);
     } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
       await this.inBookingService.removeReconnectingSession(eventId, sid);
       await this.authService.setUserStatusSelectingSeat(sid);
+
+      // 재연결 복원: 저장된 섹션으로 자동 복원 (SSE-07)
+      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+      if ((inBookingSession?.subscribedSection ?? null) !== null) {
+        await this.bookingSeatsService.addSseClientToSection(
+          eventId,
+          inBookingSession.subscribedSection,
+          res,
+          sid,
+        );
+      } else {
+        // 섹션 미선택 상태였으면 init 풀에 등록 (SSE-02)
+        await this.bookingSeatsService.addSseClient(eventId, res, sid);
+      }
+    } else {
+      // SELECTING_SEAT (정상 진입): init 풀에 등록 (SSE-02)
+      await this.bookingSeatsService.addSseClient(eventId, res, sid);
     }
 
-    await this.bookingSeatsService.addSseClient(eventId, res, sid);
-
     req.on('close', async () => {
-      this.bookingSeatsService.removeSseClient(eventId, res);
+      await this.bookingSeatsService.removeSseClient(eventId, sid, res);
 
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
       if (inBookingSession?.saved) {
@@ -148,6 +170,39 @@ export class BookingController {
         await this.inBookingService.addReconnectingSession(eventId, sid);
       }
     });
+  }
+
+  @Patch('seat/section')
+  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @ApiOperation({
+    summary: '섹션 구독 전환',
+    description: '구독 섹션을 전환하고 해당 섹션의 최신 좌석 상태를 반환한다. SSE 연결은 유지된다.',
+  })
+  @ApiBody({ type: SectionSwitchReqDto })
+  @ApiExtraModels(SuccessResponseDto, SectionSwitchResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(SectionSwitchResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  async switchSection(@Req() req: Request, @Body() dto: SectionSwitchReqDto) {
+    const sid = req.cookies['SID'];
+    const eventId = await this.authService.getUserEventTarget(sid);
+    if (eventId === null) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
+    const sseRes = await this.bookingSeatsService.getClientResBySid(eventId, sid);
+    const result = await this.bookingSeatsService.switchSseClientSection(
+      eventId,
+      dto.sectionIndex,
+      sseRes,
+      sid,
+    );
+    return new SectionSwitchResDto(result);
   }
 
   @Post('')

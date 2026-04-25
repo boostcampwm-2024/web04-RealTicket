@@ -32,6 +32,7 @@ export const ERROR_STATUS_MAP: Record<string, number> = {
   [BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS]: HttpStatus.INTERNAL_SERVER_ERROR,
   [BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND]: HttpStatus.INTERNAL_SERVER_ERROR,
   [BookingErrorCode.SEAT_FETCH_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
+  [BookingErrorCode.SEAT_UNAUTHORIZED_SECTION]: HttpStatus.FORBIDDEN,
 
   // EVENT
   [EventErrorCode.NOT_FOUND]: HttpStatus.NOT_FOUND,
@@ -91,6 +92,7 @@ export const DEFAULT_MESSAGE_MAP: Record<string, string> = {
   [BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS]: '이미 해당 이벤트의 좌석 구독이 존재합니다.',
   [BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND]: '해당 이벤트의 좌석 구독이 존재하지 않습니다.',
   [BookingErrorCode.SEAT_FETCH_FAILED]: '좌석 정보를 가져오는데 실패했습니다.',
+  [BookingErrorCode.SEAT_UNAUTHORIZED_SECTION]: '구독 중인 섹션과 다른 섹션의 좌석 요청입니다.',
 
   // EVENT
   [EventErrorCode.NOT_FOUND]: '해당 이벤트가 존재하지 않습니다.',
