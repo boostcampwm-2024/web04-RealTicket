@@ -108,6 +108,18 @@ export class SseBroadcaster<T> {
     }
   }
 
+  getClientBySid(key: string, sid: string): { key: string; res: Response } | null {
+    const clients = this.clientsMap.get(key);
+    if (!clients) return null;
+
+    for (const client of clients) {
+      if (client.sid === sid) {
+        return { key, res: client.res };
+      }
+    }
+    return null;
+  }
+
   getClientCount(key: string): number {
     return this.clientsMap.get(key)?.size ?? 0;
   }
