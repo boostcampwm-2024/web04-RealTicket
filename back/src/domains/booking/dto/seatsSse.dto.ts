@@ -28,7 +28,8 @@ export class SeatsSseDto {
     ],
     description: '점유 좌석 목록 ([sectionIndex, seatIndex][] 형식). SSE 초기/재연결 시에만 포함.',
     required: false,
-    type: [[Number]],
+    isArray: true,
+    type: [Number],
   })
   occupiedSeats?: [number, number][];
 }
