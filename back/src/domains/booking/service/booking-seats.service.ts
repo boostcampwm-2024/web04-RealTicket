@@ -226,6 +226,14 @@ export class BookingSeatsService implements OnModuleDestroy {
     const initKey = `${eventId}:init`;
     // startBroadcast 없음 — SSE 헤더만 전송, 좌석 데이터 없음 (SSE-02)
     this.sseBroadcaster.addClient(initKey, res, sid);
+
+    // Phase 4: bookedSeats 복원 전송 — session 있고 bookedSeats 비어있지 않을 때만 (D-03)
+    const session = await this.inBookingService.getSession(eventId, sid);
+    if (session && session.bookedSeats.length > 0) {
+      const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
+      const msg = `data: ${JSON.stringify(payload)}\n\n`;
+      try { res.write(msg); } catch {}
+    }
   }
 
   async removeSseClient(eventId: number, sid: string, res: Response): Promise<void> {
@@ -246,6 +254,14 @@ export class BookingSeatsService implements OnModuleDestroy {
       await this.ensureSeatSubscription(key, eventId, sectionIndex);
     }
     this.sseBroadcaster.addClient(key, res, sid);
+
+    // Phase 4: 재연결 복원 — session 있으면 항상 occupiedSeats 전송 (빈 배열 포함, D-03)
+    const session = await this.inBookingService.getSession(eventId, sid);
+    if (session) {
+      const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
+      const msg = `data: ${JSON.stringify(payload)}\n\n`;
+      try { res.write(msg); } catch {}
+    }
   }
 
   async switchSseClientSection(
