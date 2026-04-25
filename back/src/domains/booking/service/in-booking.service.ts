@@ -20,6 +20,7 @@ type InBookingSession = {
   bookingAmount: number;
   bookedSeats: [number, number][];
   saved: boolean;
+  subscribedSection: number | null;
 };
 
 @Injectable()
@@ -75,6 +76,7 @@ export class InBookingService {
       bookingAmount,
       bookedSeats: [],
       saved: false,
+      subscribedSection: null,
     };
     await this.setSession(eventId, session);
     return true;
@@ -221,10 +223,7 @@ export class InBookingService {
   }
 
   async clearInBookingPool(eventId: number) {
-    await this.redis.unlink(
-      `in-booking:${eventId}:sessions`,
-      `in-booking:${eventId}:max-size`,
-    );
+    await this.redis.unlink(`in-booking:${eventId}:sessions`, `in-booking:${eventId}:max-size`);
   }
 
   async gcReconnectingSessions(eventId: number) {
