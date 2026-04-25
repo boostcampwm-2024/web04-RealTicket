@@ -1,13 +1,9 @@
 import { useParams } from 'react-router-dom';
 
-import { BASE_URL } from '@/api/axios.ts';
 import type { PostSeatData } from '@/api/booking.ts';
 import { postSeat } from '@/api/booking.ts';
 
-import useSSE from '@/hooks/useSSE.tsx';
-
 import { toast } from '@/components/Toast/index.ts';
-import Loading from '@/components/common/Loading.tsx';
 
 import type { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat.tsx';
 
@@ -21,6 +17,7 @@ interface SeatMapProps {
   setSelectedSeats: (seats: SelectedSeat[]) => void;
   maxSelectCount: number;
   selectedSeats: SelectedSeat[];
+  seatStatus: number[]; // SectionAndSeat에서 전달
   seatSize?: number; // 좌석 크기 prop 추가
 }
 
@@ -30,6 +27,7 @@ export default function SeatMap({
   setSelectedSeats,
   maxSelectCount,
   selectedSeats,
+  seatStatus,
   seatSize = 24, // 기본값
 }: SeatMapProps) {
   const { eventId } = useParams();
@@ -57,31 +55,20 @@ export default function SeatMap({
     },
     select: (mutation) => mutation.state.variables as PostSeatData,
   });
-  const { data, isLoading } = useSSE<{ seatStatus: number[][] }>({
-    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
-  });
-
-  const seatStatusList = data ? data.seatStatus : null;
-  const selectedSeatStatus = seatStatusList ? seatStatusList[selectedSectionIndex] : null;
-  const canRender = isLoading === false && seatStatusList && seatStatusList.length !== 0;
 
   return (
     <>
-      {canRender ? (
-        renderSeatMap(
-          selectedSection,
-          selectedSectionIndex,
-          selectedSeatStatus!,
-          setSelectedSeats,
-          maxSelectCount,
-          selectedSeats,
-          pickSeat,
-          Number(eventId!),
-          reservingList,
-          seatSize, // 좌석 크기 전달
-        )
-      ) : (
-        <Loading />
+      {renderSeatMap(
+        selectedSection,
+        selectedSectionIndex,
+        seatStatus,
+        setSelectedSeats,
+        maxSelectCount,
+        selectedSeats,
+        pickSeat,
+        Number(eventId!),
+        reservingList,
+        seatSize,
       )}
     </>
   );
