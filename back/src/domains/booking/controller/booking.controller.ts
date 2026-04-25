@@ -30,6 +30,7 @@ import { SessionAuthGuard } from '../../../auth/guard/session.guard';
 import { AuthService } from '../../../auth/service/auth.service';
 import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
+import { AppException } from '../../../common/exception/app.exception';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -42,6 +43,7 @@ import { SectionSwitchReqDto } from '../dto/sectionSwitchReq.dto';
 import { SectionSwitchResDto } from '../dto/sectionSwitchRes.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
@@ -190,6 +192,9 @@ export class BookingController {
   async switchSection(@Req() req: Request, @Body() dto: SectionSwitchReqDto) {
     const sid = req.cookies['SID'];
     const eventId = await this.authService.getUserEventTarget(sid);
+    if (eventId === null) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
     const sseRes = await this.bookingSeatsService.getClientResBySid(eventId, sid);
     const result = await this.bookingSeatsService.switchSseClientSection(
       eventId,
