@@ -75,7 +75,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     const seatSubscription = await this.createSeatSubscription(eventId, seats);
     this.seatsSubscriptionMap.set(eventId, seatSubscription);
     await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
-    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
+    this.sseBroadcaster.startBroadcast(String(eventId), seatSubscription.subject.asObservable());
   }
 
   async onModuleDestroy() {
@@ -84,7 +84,7 @@ export class BookingSeatsService implements OnModuleDestroy {
   }
 
   async clearSeatsSubscription(eventId: number) {
-    this.sseBroadcaster.stopBroadcast(eventId);
+    this.sseBroadcaster.stopBroadcast(String(eventId));
     const seatSubscription = this.seatsSubscriptionMap.get(eventId);
     if (seatSubscription) {
       clearInterval(seatSubscription.interval);
@@ -195,11 +195,11 @@ export class BookingSeatsService implements OnModuleDestroy {
     if (!this.seatsSubscriptionMap.has(eventId)) {
       await this.ensureSeatSubscription(eventId);
     }
-    this.sseBroadcaster.addClient(eventId, res, sid);
+    this.sseBroadcaster.addClient(String(eventId), res, sid);
   }
 
   removeSseClient(eventId: number, res: Response): void {
-    this.sseBroadcaster.removeClient(eventId, res);
+    this.sseBroadcaster.removeClient(String(eventId), res);
   }
 
   private async ensureSeatSubscription(eventId: number): Promise<void> {
@@ -229,7 +229,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     const seatSubscription = await this.createSeatSubscription(eventId, initialSeats);
     this.seatsSubscriptionMap.set(eventId, seatSubscription);
     await this.pubsubClient.subscribe(this.PUBSUB_CHANNEL(eventId));
-    this.sseBroadcaster.startBroadcast(eventId, seatSubscription.subject.asObservable());
+    this.sseBroadcaster.startBroadcast(String(eventId), seatSubscription.subject.asObservable());
   }
 
   private unActivateNextBroadcast = (eventId: number) => {
