@@ -34,6 +34,7 @@ export const API = {
     POST_COUNT: `/booking/count`,
     POST_SEAT: `/booking`,
     GET_RE_PERMISSION: (id: number) => `/booking/re-permission/${id}`,
+    PATCH_SECTION: `/booking/seat/section`,
   },
 };
 
