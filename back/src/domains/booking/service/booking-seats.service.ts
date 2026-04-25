@@ -24,7 +24,7 @@ import { SseBroadcaster } from '../sse/sse-broadcaster';
 import { InBookingService } from './in-booking.service';
 
 type SeatStatusObject = {
-  seatStatus: number[][];
+  seatStatus: number[][] | number[];
 };
 
 type SeatSubscription = {
@@ -252,7 +252,8 @@ export class BookingSeatsService implements OnModuleDestroy {
         if (timeSinceLastBroadcast >= SSE_MAXIMUM_INTERVAL || this.isBroadcastActivated(eventId)) {
           try {
             const seats = await this.getSeats(eventId);
-            subject.next(new SeatsSseDto(seats));
+            // TODO: Plan 01-03에서 섹션 단위 브로드캐스트로 교체 예정
+            subject.next({ seatStatus: seats } as SeatStatusObject);
             lastBroadcastTime = Date.now();
 
             if (this.isBroadcastActivated(eventId)) {

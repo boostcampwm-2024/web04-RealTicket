@@ -1,17 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SeatsSseDto {
-  constructor(seats: number[][]) {
-    this.seatStatus = seats;
+  constructor(sectionIndex: number, seatStatus: number[]) {
+    this.sectionIndex = sectionIndex;
+    this.seatStatus = seatStatus;
   }
+
+  @ApiProperty({
+    name: 'sectionIndex',
+    example: 0,
+    description: '브로드캐스트 대상 섹션 인덱스',
+  })
+  sectionIndex: number;
+
   @ApiProperty({
     name: 'seatStatus',
-    example: [
-      [1, 1, 0],
-      [0, 1, 1, 1],
-    ],
-    description:
-      '각 칸마다 true는 예약 가능, false는 예약 불가. 상위 배열은 구역의 배열이며 하위 배열은 구역 내의 좌석 배열임.',
+    example: [1, 1, 0, 1],
+    description: '해당 섹션의 좌석 상태 배열. 1은 예약 가능, 0은 예약 불가.',
   })
-  seatStatus: number[][];
+  seatStatus: number[];
 }
