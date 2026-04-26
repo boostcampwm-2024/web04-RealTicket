@@ -7,6 +7,7 @@ import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   bookSeat,
+  cleanupReservedSeats,
   createEvent,
   createPlace,
   createProgram,
@@ -58,6 +59,8 @@ describe('크로스-이벤트 격리 (booking-cross-event)', () => {
 
   beforeEach(async () => {
     await redisService.flushAll();
+    await cleanupReservedSeats(app, eventId);
+    await cleanupReservedSeats(app, eventId2);
     adminSid = await loginAsAdmin(app, 'crosadmin1', 'pass1234');
   });
 

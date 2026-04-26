@@ -6,6 +6,7 @@ import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   bookSeat,
+  cleanupReservedSeats,
   createEvent,
   createPlace,
   createProgram,
@@ -50,6 +51,7 @@ describe('Phase 2: 섹션 전환 엔드포인트 + 재연결 복원', () => {
 
   beforeEach(async () => {
     await redisService.flushAll();
+    await cleanupReservedSeats(app, eventId);
     adminSid = await loginAsAdmin(app, 'sectadmin1', 'pass1234');
     userSid = await loginAsUser(app, 'sectionuser1', 'pass1234');
     await setupSelectingSeat(app, adminSid, eventId, userSid, 1, 0);

@@ -5,6 +5,7 @@ import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   bookSeat,
+  cleanupReservedSeats,
   createEvent,
   createPlace,
   createProgram,
@@ -48,6 +49,7 @@ describe('Reservation (e2e)', () => {
 
   beforeEach(async () => {
     await redisService.flushAll();
+    await cleanupReservedSeats(app, eventId);
     adminSid = await loginAsAdmin(app, 'rsadmin1', 'pass1234');
   });
 

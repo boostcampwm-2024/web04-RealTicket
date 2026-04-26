@@ -8,6 +8,7 @@ import { AuthService } from '../../../auth/service/auth.service';
 import { Event } from '../../event/entity/event.entity';
 import { EventRepository } from '../../event/repository/event.reposiotry';
 import { SectionRepository } from '../../place/repository/section.repository';
+import { ReservedSeatRepository } from '../../reservation/repository/reservedSeat.repository';
 import { ONE_MINUTE_BEFORE_THE_HOUR } from '../const/cronExpressions.const';
 import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.const';
 
@@ -31,6 +32,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     private waitingQueueService: WaitingQueueService,
     private enterBookingService: EnterBookingService,
     private schedulerRegistry: SchedulerRegistry,
+    private reservedSeatRepository: ReservedSeatRepository,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -149,13 +151,30 @@ export class OpenBookingService implements OnApplicationBootstrap {
     const defaultMaxSize = await this.inBookingService.getInBookingSessionsDefaultMaxSize();
     await this.inBookingService.setInBookingSessionsMaxSize(eventId, defaultMaxSize);
 
-    const initialSeats = sections.map((section) => section.seats);
-    await this.seatsUpdateService.openReservation(eventId, initialSeats);
+    const acquired = await this.redis.set(`open-booking:${eventId}:opened`, 'true', 'NX');
+
+    if (acquired === 'OK') {
+      try {
+        const initialSeats = sections.map((section) => section.seats);
+
+        const reservedRows = await this.reservedSeatRepository.findByEventId(eventId);
+        const reservedSeats: [number, number][] = reservedRows.map((rs) => [
+          rs.sectionIndex,
+          (rs.row - 1) * rs.colLen + (rs.col - 1),
+        ]);
+
+        await this.seatsUpdateService.openReservation(eventId, initialSeats, reservedSeats);
+      } catch (error) {
+        await this.redis.unlink(`open-booking:${eventId}:opened`);
+        throw error;
+      }
+    } else {
+      this.logger.debug(`[openReservation] eventId=${eventId} skip init — opened 키 선점됨, 구독만 attach`);
+      await this.seatsUpdateService.attachSubscriptionsForExistingEvent(eventId, sections.length);
+    }
 
     await this.enterBookingService.gcEnteringSessions(eventId);
     await this.inBookingService.gcReconnectingSessions(eventId);
-
-    await this.registerOpenedEvent(eventId);
   }
 
   private validateOpeningEvent(event: Event) {
@@ -168,10 +187,6 @@ export class OpenBookingService implements OnApplicationBootstrap {
       return false;
     }
     return true;
-  }
-
-  private async registerOpenedEvent(eventId: number) {
-    await this.redis.set(`open-booking:${eventId}:opened`, 'true');
   }
 
   async closeReservationAnyway(eventId: number) {
