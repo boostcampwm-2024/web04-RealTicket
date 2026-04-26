@@ -7,6 +7,7 @@ import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   bookSeat,
+  cleanupReservedSeats,
   createEvent,
   createPlace,
   createProgram,
@@ -56,6 +57,7 @@ describe('SSE 재연결 시나리오 (booking-reconnect)', () => {
 
   beforeEach(async () => {
     await redisService.flushAll();
+    await cleanupReservedSeats(app, eventId);
     adminSid = await loginAsAdmin(app, 'rcnadmin1', 'pass1234');
   });
 

@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test as NestTest, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
+import { Repository } from 'typeorm';
 
 import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
@@ -10,6 +11,7 @@ import { GlobalExceptionFilter } from 'src/common/exception/global-exception.fil
 import { ResponseWrapperInterceptor } from 'src/common/interceptor/response-wrapper.interceptor';
 import { BookingService } from 'src/domains/booking/service/booking.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
+import { ReservedSeat } from 'src/domains/reservation/entity/reservedSeat.entity';
 import { USER_ROLE } from 'src/domains/user/const/userRole';
 import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 import { UserService } from 'src/domains/user/service/user.service';
@@ -455,4 +457,22 @@ export async function simulateSSEReconnectWithSection(app: INestApplication, sid
   const eventId = await authService.getUserEventTarget(sid);
   await inBookingService.removeReconnectingSession(eventId, sid);
   await authService.setUserStatusSelectingSeat(sid);
+}
+
+/**
+ * 특정 이벤트의 ReservedSeat 레코드를 DB에서 물리 삭제한다.
+ *
+ * BE-01 구현(openReservation 시 DB ReservedSeat 반영) 이후, 예매 확정 테스트가 생성한
+ * ReservedSeat 레코드가 동일 eventId를 공유하는 다음 테스트의 Redis 초기화에 영향을 준다.
+ * 테스트 간 격리를 위해 beforeEach에서 이 함수를 호출하여 예약 데이터를 정리한다.
+ */
+export async function cleanupReservedSeats(app: INestApplication, eventId: number): Promise<void> {
+  const { DataSource } = await import('typeorm');
+  const dataSource = app.get(DataSource);
+  await dataSource
+    .createQueryBuilder()
+    .delete()
+    .from(ReservedSeat)
+    .where('event_id = :eventId', { eventId })
+    .execute();
 }

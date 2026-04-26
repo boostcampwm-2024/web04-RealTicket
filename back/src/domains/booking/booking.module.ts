@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../../auth/auth.module';
 import { EventModule } from '../event/event.module';
 import { PlaceModule } from '../place/place.module';
+import { ReservedSeat } from '../reservation/entity/reservedSeat.entity';
+import { ReservedSeatRepository } from '../reservation/repository/reservedSeat.repository';
 
 import { BookingController } from './controller/booking.controller';
 import { BookingSeatsService } from './service/booking-seats.service';
@@ -14,7 +17,13 @@ import { OpenBookingService } from './service/open-booking.service';
 import { WaitingQueueService } from './service/waiting-queue.service';
 
 @Module({
-  imports: [EventEmitterModule.forRoot(), EventModule, AuthModule, PlaceModule],
+  imports: [
+    EventEmitterModule.forRoot(),
+    TypeOrmModule.forFeature([ReservedSeat]),
+    EventModule,
+    AuthModule,
+    PlaceModule,
+  ],
   controllers: [BookingController],
   providers: [
     BookingService,
@@ -23,6 +32,7 @@ import { WaitingQueueService } from './service/waiting-queue.service';
     BookingSeatsService,
     WaitingQueueService,
     EnterBookingService,
+    ReservedSeatRepository,
   ],
   exports: [BookingService, InBookingService, BookingSeatsService],
 })

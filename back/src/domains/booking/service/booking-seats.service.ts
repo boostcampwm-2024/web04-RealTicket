@@ -62,13 +62,21 @@ export class BookingSeatsService implements OnModuleDestroy {
     });
   }
 
-  async openReservation(eventId: number, seats: number[][]) {
-    seats.forEach((section, sectionIndex) => {
+  async openReservation(eventId: number, seats: number[][], reservedSeats: [number, number][] = []) {
+    const seatsCopy = seats.map((s) => [...s]);
+    for (const [secIdx, seatIdx] of reservedSeats) {
+      if (seatsCopy[secIdx] && seatIdx >= 0 && seatIdx < seatsCopy[secIdx].length) {
+        seatsCopy[secIdx][seatIdx] = 0;
+      }
+    }
+
+    for (let sectionIndex = 0; sectionIndex < seatsCopy.length; sectionIndex++) {
+      const section = seatsCopy[sectionIndex];
       const seatBitMap = section.map((seat) => seat.toString()).join('');
       const key = `event:${eventId}:section:${sectionIndex}:seats`;
-      runInitSectionSeatLua(this.redis, key, seatBitMap);
-    });
-    await runSetSectionsLenLua(this.redis, eventId, seats.length);
+      await runInitSectionSeatLua(this.redis, key, seatBitMap);
+    }
+    await runSetSectionsLenLua(this.redis, eventId, seatsCopy.length);
 
     // 이미 구독 중인 섹션이 있으면 기존 구독 정리 (재초기화 지원)
     const existingPrefix = `${eventId}:`;
@@ -79,14 +87,48 @@ export class BookingSeatsService implements OnModuleDestroy {
       await this.clearSeatsSubscription(eventId);
     }
 
-    for (let sectionIndex = 0; sectionIndex < seats.length; sectionIndex++) {
+    for (let sectionIndex = 0; sectionIndex < seatsCopy.length; sectionIndex++) {
       const key = `${eventId}:${sectionIndex}`;
       const seatSubscription = await this.createSeatSubscription(
         key,
         eventId,
         sectionIndex,
-        seats[sectionIndex],
+        seatsCopy[sectionIndex],
       );
+      this.seatsSubscriptionMap.set(key, seatSubscription);
+      await this.pubsubClient.subscribe(`seats:changes:${eventId}:${sectionIndex}`);
+      this.sseBroadcaster.startBroadcast(key, seatSubscription.subject.asObservable());
+    }
+  }
+
+  async attachSubscriptionsForExistingEvent(eventId: number, sectionsLen: number) {
+    const existingPrefix = `${eventId}:`;
+    const existingKeys = Array.from(this.seatsSubscriptionMap.keys()).filter((k) =>
+      k.startsWith(existingPrefix),
+    );
+    if (existingKeys.length > 0) {
+      return;
+    }
+
+    for (let sectionIndex = 0; sectionIndex < sectionsLen; sectionIndex++) {
+      let initialSeats: number[];
+      try {
+        initialSeats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
+      } catch (error) {
+        this.logger.warn(
+          `[seats] attach 실패: eventId=${eventId} section=${sectionIndex} — Lua 호출 오류: ${error?.message ?? error}`,
+        );
+        continue;
+      }
+      if (!initialSeats) {
+        this.logger.warn(
+          `[seats] attach 실패: eventId=${eventId} section=${sectionIndex} — Redis에 좌석 데이터 없음`,
+        );
+        continue;
+      }
+
+      const key = `${eventId}:${sectionIndex}`;
+      const seatSubscription = await this.createSeatSubscription(key, eventId, sectionIndex, initialSeats);
       this.seatsSubscriptionMap.set(key, seatSubscription);
       await this.pubsubClient.subscribe(`seats:changes:${eventId}:${sectionIndex}`);
       this.sseBroadcaster.startBroadcast(key, seatSubscription.subject.asObservable());
@@ -232,7 +274,9 @@ export class BookingSeatsService implements OnModuleDestroy {
     if (session && session.bookedSeats.length > 0) {
       const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
       const msg = `data: ${JSON.stringify(payload)}\n\n`;
-      try { res.write(msg); } catch {}
+      try {
+        res.write(msg);
+      } catch {}
     }
   }
 
@@ -260,7 +304,9 @@ export class BookingSeatsService implements OnModuleDestroy {
     if (session) {
       const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
       const msg = `data: ${JSON.stringify(payload)}\n\n`;
-      try { res.write(msg); } catch {}
+      try {
+        res.write(msg);
+      } catch {}
     }
   }
 

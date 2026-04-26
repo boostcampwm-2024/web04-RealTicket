@@ -6,6 +6,7 @@ import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   bookSeat,
+  cleanupReservedSeats,
   createEvent,
   createPlace,
   createProgram,
@@ -54,6 +55,8 @@ describe('이상 패턴 & 경계 케이스 (booking-abnormal)', () => {
 
   beforeEach(async () => {
     await redisService.flushAll();
+    await cleanupReservedSeats(app, eventId);
+    await cleanupReservedSeats(app, eventId2);
     adminSid = await loginAsAdmin(app, 'abnadmin1', 'pass1234');
   });
 
