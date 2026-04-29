@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Select from 'react-select';
 
 import { BASE_URL } from '@/api/axios.ts';
-import { patchSection, postSeatCount } from '@/api/booking.ts';
+import { postSeatCount } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
 
 import useConfirm from '@/hooks/useConfirm.tsx';
@@ -60,8 +60,6 @@ export default function SectionAndSeat({
   const [isChangingCount, setIsChangingCount] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [seatStatus, setSeatStatus] = useState<number[] | null>(null);
-  const prevSectionRef = useRef<number | null>(null);
-  const prevSeatStatusRef = useRef<number[] | null>(null);
   const { eventId } = useParams();
 
   // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
@@ -80,20 +78,6 @@ export default function SectionAndSeat({
 
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
-
-  // per D-01, D-03, D-04, D-05
-  const { mutate: patchSectionMutate } = useMutation({
-    mutationFn: (sectionIndex: number) => patchSection({ sectionIndex }),
-    onSuccess: (data) => {
-      setSeatStatus(data.seatStatus); // FE-03: 즉시 반영
-    },
-    onError: () => {
-      toast.error('섹션 전환에 실패했습니다');
-      setSelectedSection(prevSectionRef.current); // D-04: 롤백
-      setSeatStatus(prevSeatStatusRef.current); // D-04: seatStatus 복원
-    },
-    throwOnError: false,
-  });
 
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
@@ -159,13 +143,10 @@ export default function SectionAndSeat({
     }
   }, [selectedSection]);
 
-  // per D-04: prevSection 클릭 시점에 캡처 — stale closure 방지를 위해 useRef 사용
+  // D-A2: 섹션 클릭 시 sseURL 변경 → useSSE useEffect cleanup이 EventSource close+open 자동 처리
   const handleSectionClick = (newSectionIndex: number) => {
-    prevSectionRef.current = selectedSection; // 롤백 대상 저장
-    prevSeatStatusRef.current = seatStatus; // D-04: seatStatus 롤백 대상 저장
-    setSelectedSection(newSectionIndex); // 낙관적 UI (선택 즉시 반영)
-    setSeatStatus(null); // 이전 섹션 좌석 데이터 클리어
-    patchSectionMutate(newSectionIndex);
+    setSelectedSection(newSectionIndex);
+    setSeatStatus(null); // transit 구간 skeleton 트리거 (D-10)
   };
 
   return (
@@ -267,19 +248,16 @@ export default function SectionAndSeat({
                     margin: '0 auto',
                   }}>
                   {isChangingCount && <Dimmed />}
-                  {seatStatus !== null ? (
-                    <SeatMap
-                      selectedSeats={selectedSeats}
-                      setSelectedSeats={setSelectedSeats}
-                      selectedSection={sections[selectedSection]}
-                      maxSelectCount={seatCount}
-                      selectedSectionIndex={selectedSection}
-                      seatStatus={seatStatus}
-                      seatSize={finalSeatSize}
-                    />
-                  ) : (
-                    <Loading />
-                  )}
+                  <SeatMap
+                    selectedSeats={selectedSeats}
+                    setSelectedSeats={setSelectedSeats}
+                    selectedSection={sections[selectedSection]}
+                    maxSelectCount={seatCount}
+                    selectedSectionIndex={selectedSection}
+                    seatStatus={seatStatus ?? []}
+                    seatSize={finalSeatSize}
+                    disabled={seatStatus === null}
+                  />
                 </div>
               </div>
             </div>
