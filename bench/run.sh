@@ -289,10 +289,256 @@ collect_prometheus() {
 }
 
 # ---------------------------------------------------------------------------
-# --- main ---
-# Plan 03에서 반복 루프가 추가될 예정 — 여기서는 Usage 메시지만 출력
+# write_progress: progress.json atomic write (D-19 6개 필드, D-20 갱신 시점)
+# Args: run_dir, current_iter, total_iter, phase, slot, failed_iters,
+#       run_start_ts, per_run_s, cooldown_s
 # ---------------------------------------------------------------------------
+write_progress() {
+  local run_dir="$1"
+  local current_iter="$2"
+  local total_iter="$3"
+  local phase="$4"
+  local slot="$5"
+  local failed_iters="$6"
+  local run_start_ts="$7"
+  local per_run_s="$8"
+  local cooldown_s="$9"
+
+  # ETA 계산
+  local remaining_iters=$(( total_iter - current_iter ))
+  local eta_secs=$(( remaining_iters * (per_run_s + cooldown_s) ))
+  local eta_ts=$(( $(date +%s) + eta_secs ))
+  local eta_str
+  eta_str=$(date -d "@$eta_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
+            date -r "$eta_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
+            echo "unknown")
+
+  # D-19 progress.json 6개 필드
+  local json
+  json=$(jq -n \
+    --argjson ci "$current_iter" \
+    --argjson ti "$total_iter" \
+    --arg eta "$eta_str" \
+    --arg phase "$phase" \
+    --arg slot "$slot" \
+    --argjson fi "$failed_iters" \
+    '{
+      current_iter: $ci,
+      total_iter: $ti,
+      eta: $eta,
+      phase: $phase,
+      slot: $slot,
+      failed_iters: $fi
+    }')
+
+  # atomic write: tmpfile + mv rename (T-04-10 mitigate)
+  local progress_tmp="${run_dir}/progress.json.tmp.$$"
+  echo "$json" > "$progress_tmp"
+  mv "$progress_tmp" "${run_dir}/progress.json"
+}
+
+# ---------------------------------------------------------------------------
+# --- main ---
+# ---------------------------------------------------------------------------
+main() {
+  local manifest="$1"
+  local dry_run="${2:-}"
+
+  [[ -f "$manifest" ]] || die "매니페스트 파일이 없음: $manifest"
+  check_deps
+
+  # .env 로드
+  local env_file="${SCRIPT_DIR}/.env"
+  [[ -f "$env_file" ]] && source "$env_file" || \
+    log WARN ".env 파일 없음 — 환경변수 ADMIN_ID, ADMIN_PASSWORD 직접 설정 필요"
+  [[ -n "${ADMIN_ID:-}" ]] || die "ADMIN_ID가 설정되지 않음"
+  [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD가 설정되지 않음"
+
+  # 매니페스트 파싱
+  local manifest_id run_id_prefix warmup per_run cooldown max_failures
+  manifest_id=$(yq '.manifest_id' "$manifest")
+  run_id_prefix=$(yq '.run_id_prefix' "$manifest")
+  warmup=$(yq '.warmup' "$manifest")
+  per_run=$(yq '.per_run' "$manifest")
+  cooldown=$(yq '.cooldown' "$manifest")
+  max_failures=$(yq '.max_failures // "3"' "$manifest")
+
+  local warmup_s per_run_s cooldown_s
+  warmup_s=$(parse_duration "$warmup")
+  per_run_s=$(parse_duration "$per_run")
+  cooldown_s=$(parse_duration "$cooldown")
+
+  # 종료 조건: iterations 또는 duration (D-14, MAN-05)
+  local total_iter
+  local iter_mode
+  local iter_val
+  iter_val=$(yq '.iterations // ""' "$manifest")
+  local dur_val
+  dur_val=$(yq '.duration // ""' "$manifest")
+
+  if [[ -n "$iter_val" && -n "$dur_val" ]]; then
+    die "iterations와 duration을 동시에 지정할 수 없습니다. 둘 중 하나만 사용하세요."
+  elif [[ -n "$iter_val" ]]; then
+    total_iter=$iter_val
+    iter_mode="iterations"
+  elif [[ -n "$dur_val" ]]; then
+    local dur_s
+    dur_s=$(parse_duration "$dur_val")
+    total_iter=$(( (dur_s - warmup_s) / (per_run_s + cooldown_s) ))
+    [[ $total_iter -gt 0 ]] || die "duration이 너무 짧아 iter를 1회도 실행할 수 없음"
+    iter_mode="duration:${dur_val}"
+    log INFO "duration 기반 N 사전 계산: total_iter=$total_iter (D-14)"
+  else
+    die "iterations 또는 duration 중 하나를 지정해야 합니다"
+  fi
+
+  local slots_count
+  slots_count=$(yq '.slots | length' "$manifest")
+
+  # --dry-run 모드: 실행 계획만 출력 후 종료 (D-23)
+  if [[ "$dry_run" == "--dry-run" ]]; then
+    echo "=== DRY-RUN 실행 계획 ==="
+    echo "manifest_id: $manifest_id"
+    echo "종료 조건: $iter_mode"
+    echo "total_iter: $total_iter"
+    echo "slots: $slots_count 개"
+    local total_secs=$(( warmup_s + total_iter * (per_run_s + cooldown_s) ))
+    echo "예상 총 소요: $((total_secs / 60))분"
+    local eta_ts=$(( $(date +%s) + total_secs ))
+    echo "예상 완료: $(date -d "@$eta_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -r "$eta_ts" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo 'N/A')"
+    echo ""
+    echo "iter 순서 (alternating, D-13):"
+    for (( i=1; i<=total_iter && i<=10; i++ )); do
+      local sidx
+      sidx=$(get_slot_for_iter "$i" "$slots_count")
+      local sname
+      sname=$(yq ".slots[$sidx].name" "$manifest")
+      echo "  iter $i → slot: $sname (idx $sidx)"
+    done
+    [[ $total_iter -gt 10 ]] && echo "  ... (이후 $((total_iter-10))개 iter 생략)"
+    exit 0
+  fi
+
+  # run_id 생성 (D-21)
+  local run_id
+  run_id=$(generate_run_id)
+  local run_dir="${SCRIPT_DIR}/raw/${manifest_id}-${run_id}"
+  mkdir -p "$run_dir"
+
+  log INFO "벤치마크 시작: manifest=$manifest_id, run_id=$run_id, total_iter=$total_iter"
+
+  # RUNNING 마커 생성 (D-21)
+  echo "started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') manifest=$manifest_id" > "${run_dir}/RUNNING"
+
+  # 첫 슬롯 targetUrl로 ADMIN 로그인 (D-11)
+  local first_target_url
+  first_target_url=$(yq '.slots[0].targetUrl' "$manifest")
+  local SID
+  SID=$(admin_login "$first_target_url")
+  log INFO "ADMIN SID 발급 완료"
+
+  # warmup sleep
+  log INFO "warmup: ${warmup}"
+  sleep "$warmup_s"
+
+  local consecutive_failures=0
+  local run_start_ts
+  run_start_ts=$(date +%s)
+
+  for (( iter=1; iter<=total_iter; iter++ )); do
+    # duration 기반: 남은 시간 확인 (D-18)
+    if [[ "$iter_mode" == duration:* ]]; then
+      local elapsed=$(( $(date +%s) - run_start_ts + warmup_s ))
+      local total_dur_s
+      total_dur_s=$(parse_duration "${iter_mode#duration:}")
+      local remaining=$(( total_dur_s - elapsed ))
+      if (( remaining < per_run_s )); then
+        log INFO "남은 시간(${remaining}s)이 per_run(${per_run_s}s)보다 짧아 조기 종료 (D-18)"
+        break
+      fi
+    fi
+
+    local slot_idx
+    slot_idx=$(get_slot_for_iter "$iter" "$slots_count")
+    local slot_name
+    slot_name=$(yq ".slots[$slot_idx].name" "$manifest")
+    local slot_target
+    slot_target=$(yq ".slots[$slot_idx].targetUrl" "$manifest")
+
+    local iter_dir="${run_dir}/iter-${iter}-slot-${slot_name}"
+    mkdir -p "$iter_dir"
+
+    log INFO "=== iter $iter/$total_iter → slot=$slot_name ==="
+
+    # SID 만료 방지 (TTL=1h → 50분마다 재발급)
+    SID=$(maybe_refresh_sid "$slot_target" "$SID")
+
+    # progress.json 갱신 — phase=reset (D-20)
+    write_progress "$run_dir" "$iter" "$total_iter" "reset" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+
+    # 1. reset
+    local iter_ok=1
+    if ! reset_slots "$manifest" "$SID"; then
+      log WARN "iter $iter: reset 실패"
+      iter_ok=0
+    fi
+
+    # 2. Gatling (reset 성공 시만)
+    local iter_start_ts
+    iter_start_ts=$(date +%s)
+    if [[ $iter_ok -eq 1 ]]; then
+      write_progress "$run_dir" "$iter" "$total_iter" "gatling" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+      if ! run_gatling "$manifest" "$slot_idx" "$iter_dir" "$SID"; then
+        log WARN "iter $iter: Gatling 실패 (exit != 0)"
+        iter_ok=0
+      fi
+    fi
+    local iter_end_ts
+    iter_end_ts=$(date +%s)
+
+    # 3. Prometheus 수집 (iter 성공/실패 무관 — D-16)
+    if [[ $iter_ok -eq 1 ]]; then
+      write_progress "$run_dir" "$iter" "$total_iter" "prometheus" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+      collect_prometheus "$manifest" "$iter_dir" "$iter_start_ts" "$iter_end_ts"
+    fi
+
+    # 4. 실패 처리 (D-15, D-17)
+    if [[ $iter_ok -eq 0 ]]; then
+      echo "reset/gatling failed at iter $iter, slot $slot_name" > "${iter_dir}/FAILED"
+      consecutive_failures=$(( consecutive_failures + 1 ))
+      log WARN "iter $iter FAILED (consecutive: $consecutive_failures/$max_failures)"
+
+      if (( consecutive_failures >= max_failures )); then
+        log ERROR "연속 ${max_failures}회 실패 — 전체 FAILED 마커 생성 후 즉시 종료 (D-15)"
+        echo "consecutive_failures=${consecutive_failures}, max_failures=${max_failures}" > "${run_dir}/FAILED"
+        rm -f "${run_dir}/RUNNING"
+        exit 1
+      fi
+    else
+      # 성공 시 연속 실패 카운터 리셋 (D-15)
+      consecutive_failures=0
+    fi
+
+    # progress.json 갱신 — phase=idle (D-20)
+    write_progress "$run_dir" "$iter" "$total_iter" "idle" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+
+    # cooldown (마지막 iter 제외)
+    if (( iter < total_iter )); then
+      log INFO "cooldown: ${cooldown}"
+      sleep "$cooldown_s"
+    fi
+  done
+
+  # 완료 마커 생성 (D-21)
+  echo "completed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') total_iter=$total_iter failed_iters=$consecutive_failures" > "${run_dir}/COMPLETED"
+  rm -f "${run_dir}/RUNNING"
+  log INFO "벤치마크 완료: run_dir=$run_dir"
+}
+
 if [[ "${1:-}" == "" ]]; then
   echo "Usage: bash bench/run.sh <manifest.yaml> [--dry-run]"
+  echo "  --dry-run  실행 계획만 출력하고 종료"
   exit 0
 fi
+
+main "$1" "${2:-}"
