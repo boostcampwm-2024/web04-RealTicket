@@ -361,14 +361,23 @@ main() {
   local dry_run="${2:-}"
 
   [[ -f "$manifest" ]] || die "매니페스트 파일이 없음: $manifest"
-  check_deps
 
-  # .env 로드
+  # --dry-run은 java(Gatling) 불필요 — yq/jq/curl만 확인
+  if [[ "${2:-}" == "--dry-run" ]]; then
+    command -v yq  >/dev/null 2>&1 || die "yq가 없습니다 (https://github.com/mikefarah/yq)"
+    command -v jq  >/dev/null 2>&1 || die "jq가 없습니다"
+  else
+    check_deps
+  fi
+
+  # .env 로드 (dry-run은 ADMIN 불필요이므로 skip)
   local env_file="${SCRIPT_DIR}/.env"
-  [[ -f "$env_file" ]] && source "$env_file" || \
-    log WARN ".env 파일 없음 — 환경변수 ADMIN_ID, ADMIN_PASSWORD 직접 설정 필요"
-  [[ -n "${ADMIN_ID:-}" ]] || die "ADMIN_ID가 설정되지 않음"
-  [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD가 설정되지 않음"
+  if [[ "${2:-}" != "--dry-run" ]]; then
+    [[ -f "$env_file" ]] && source "$env_file" || \
+      log WARN ".env 파일 없음 — 환경변수 ADMIN_ID, ADMIN_PASSWORD 직접 설정 필요"
+    [[ -n "${ADMIN_ID:-}" ]] || die "ADMIN_ID가 설정되지 않음"
+    [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD가 설정되지 않음"
+  fi
 
   # 매니페스트 파싱
   local manifest_id run_id_prefix warmup per_run cooldown max_failures
