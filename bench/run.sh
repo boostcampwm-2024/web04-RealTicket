@@ -1,7 +1,23 @@
 #!/usr/bin/env bash
 # bench/run.sh — RealTicket 벤치마크 자동화 진입 스크립트
-# Usage: bash bench/run.sh <manifest.yaml> [--dry-run]
-# fire-and-forget: nohup bash bench/run.sh manifests/X.yaml > bench/raw/run.log 2>&1 & disown
+#
+# Usage:
+#   bash bench/run.sh <manifest.yaml>              # 전경 실행
+#   bash bench/run.sh <manifest.yaml> --dry-run    # 실행 계획만 출력
+#
+# fire-and-forget (BG-01, Lock #5):
+#   nohup bash bench/run.sh bench/manifests/X.yaml > bench/raw/X-run.log 2>&1 & disown
+#   → 터미널/Claude conversation 종료 후에도 프로세스 지속
+#
+# 결과 확인 (BG-03 schedule 가이드):
+#   ssh VM_ubuntu 'cat bench/raw/<manifest_id>-<run_id>/progress.json'
+#   ssh VM_ubuntu 'cat bench/raw/<manifest_id>-<run_id>/COMPLETED'
+#   → Claude에게: "/schedule remind me at <eta> to check bench results"
+#      → Claude가 자동으로 ssh → progress.json → SUMMARY.md fetch 후 알림
+#
+# 환경 변수:
+#   ADMIN_ID, ADMIN_PASSWORD  — bench/.env 파일에서 로드 (gitignore 대상)
+#   GATLING_DIR               — Gatling 프로젝트 경로 (default: 아래 참조)
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -425,10 +441,25 @@ main() {
   local run_dir="${SCRIPT_DIR}/raw/${manifest_id}-${run_id}"
   mkdir -p "$run_dir"
 
-  log INFO "벤치마크 시작: manifest=$manifest_id, run_id=$run_id, total_iter=$total_iter"
+  # RUNNING 마커 생성 (BG-02, D-21)
+  touch "${run_dir}/RUNNING"
+  echo "started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') manifest=$manifest_id" >> "${run_dir}/RUNNING"
+  log INFO "RUNNING 마커 생성: ${run_dir}/RUNNING"
 
-  # RUNNING 마커 생성 (D-21)
-  echo "started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') manifest=$manifest_id" > "${run_dir}/RUNNING"
+  # trap: 비정상 종료(오류, 신호) 시 FAILED 마커 생성 + RUNNING 삭제
+  local _trap_run_dir="$run_dir"
+  cleanup_on_exit() {
+    local exit_code=$?
+    rm -f "${_trap_run_dir}/RUNNING"
+    if [[ $exit_code -ne 0 ]]; then
+      echo "exit_code=${exit_code}, stopped_at=$(date '+%Y-%m-%dT%H:%M:%SZ')" \
+        >> "${_trap_run_dir}/FAILED"
+      log ERROR "비정상 종료 (exit $exit_code) — FAILED 마커 생성"
+    fi
+  }
+  trap cleanup_on_exit EXIT
+
+  log INFO "벤치마크 시작: manifest=$manifest_id, run_id=$run_id, total_iter=$total_iter"
 
   # 첫 슬롯 targetUrl로 ADMIN 로그인 (D-11)
   local first_target_url
@@ -510,8 +541,15 @@ main() {
 
       if (( consecutive_failures >= max_failures )); then
         log ERROR "연속 ${max_failures}회 실패 — 전체 FAILED 마커 생성 후 즉시 종료 (D-15)"
-        echo "consecutive_failures=${consecutive_failures}, max_failures=${max_failures}" > "${run_dir}/FAILED"
+        {
+          echo "consecutive_failures=${consecutive_failures}"
+          echo "max_failures=${max_failures}"
+          echo "stopped_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "last_failed_iter=${iter}"
+          echo "last_failed_slot=${slot_name}"
+        } > "${run_dir}/FAILED"
         rm -f "${run_dir}/RUNNING"
+        trap - EXIT  # cleanup_on_exit 중복 실행 방지
         exit 1
       fi
     else
@@ -529,10 +567,18 @@ main() {
     fi
   done
 
-  # 완료 마커 생성 (D-21)
-  echo "completed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') total_iter=$total_iter failed_iters=$consecutive_failures" > "${run_dir}/COMPLETED"
+  # 정상 종료: RUNNING 삭제 + COMPLETED 마커 (BG-02, D-21)
   rm -f "${run_dir}/RUNNING"
-  log INFO "벤치마크 완료: run_dir=$run_dir"
+  {
+    echo "completed_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "total_iter_executed=${iter}"
+    echo "failed_iters=${consecutive_failures}"
+    echo "manifest_id=${manifest_id}"
+    echo "run_id=${run_id}"
+  } > "${run_dir}/COMPLETED"
+  log INFO "벤치마크 완료: ${run_dir}/COMPLETED"
+  # trap을 정상 종료로 처리하기 위해 재설정
+  trap - EXIT
 }
 
 if [[ "${1:-}" == "" ]]; then
