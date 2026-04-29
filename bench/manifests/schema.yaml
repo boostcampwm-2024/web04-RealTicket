@@ -1,0 +1,221 @@
+# =============================================================================
+# bench/manifests/schema.yaml
+# bench-automation 워크스트림 — YAML 매니페스트 스키마 명세 + 예시
+#
+# 이 파일은 run.sh(Plan 02)와 분석기(Phase 5)가 모두 참조하는 단일 계약이다.
+# 스키마 변경 시 run.sh의 yq 쿼리, Phase 5 분석기, 가설 검증 로직을 함께 검토할 것.
+#
+# 파일 구조:
+#   섹션 1: 스키마 필드 명세 (주석)
+#   섹션 2: 예시 1 — iterations 기반 SSE vs WS 비교 (2 슬롯)
+#   섹션 3: 예시 2 — duration 기반 단일 슬롯 dry-run (1 슬롯)
+#
+# yq 접근 패턴 (run.sh에서 사용):
+#   yq '.manifest_id' manifest.yaml
+#   yq '.iterations // ""' manifest.yaml
+#   yq '.duration // ""' manifest.yaml
+#   yq '.slots | length' manifest.yaml
+#   yq '.slots[0].name' manifest.yaml
+#   yq '.slots[0].targetUrl' manifest.yaml
+#   yq '.event_ids[]' manifest.yaml
+#   yq '.queries[] | .name + "|" + .promql + "|" + .unit' manifest.yaml
+# =============================================================================
+
+# =============================================================================
+# [섹션 1] 스키마 필드 명세 (주석 형식 문서화)
+# =============================================================================
+#
+# 최상위 필드:
+#
+# manifest_id   string    required   D-01
+#   벤치마크 세트 식별자. bench/raw/ 하위 디렉토리 prefix로 사용.
+#   예: "sse-vs-ws-001", "dry-run-001"
+#
+# run_id_prefix string    required   D-01
+#   각 run의 고유 ID 생성에 사용. YYYYMMDD-HHMMSS 타임스탬프와 조합.
+#   예: "sse-vs-ws-2026-04"  →  run_id: sse-vs-ws-2026-04-20260429-031800
+#
+# iterations    int       optional*  D-14 (MAN-05)
+#   반복 횟수 기반 종료 조건. duration과 상호 배타적 — 둘 중 하나만 지정.
+#   * iterations 또는 duration 중 하나는 반드시 있어야 함.
+#
+# duration      string    optional*  D-08, D-14 (MAN-05)
+#   시간 기반 종료 조건. Go/Prometheus 표기법 (예: "6h", "30m", "90s").
+#   run.sh가 N = floor((duration_secs - warmup_secs) / (per_run_secs + cooldown_secs)) 계산.
+#   * iterations 또는 duration 중 하나는 반드시 있어야 함.
+#   ⚠️  iterations와 동시 지정 금지 — run.sh가 파싱 오류 처리.
+#
+# warmup        string    required   D-08
+#   각 iteration 시작 시 Gatling 시뮬레이션 실행 전 대기 시간.
+#   예: "30s"
+#
+# per_run       string    required   D-08
+#   한 iteration당 Gatling 시뮬레이션 실행 시간.
+#   예: "5m"
+#
+# cooldown      string    required   D-08
+#   각 iteration 완료 후 다음 iteration 시작 전 대기 시간.
+#   예: "1m"
+#
+# max_failures  int       optional   D-15 (default: 3)
+#   연속 실패 허용 횟수. 초과 시 FAILED 마커 생성 + 즉시 종료.
+#   일시적 장애(네트워크 블립)는 통과, 구조적 장애는 조기 종료.
+#   성공한 iteration이 하나라도 나오면 연속 실패 카운터 리셋.
+#
+# plan_path     string    required   D-02, Lock #4
+#   PlanGenerator.py가 생성한 Gatling Plan JSON의 절대 경로.
+#   run.sh가 -PplanPath=<plan_path> 로 Gatling에 주입.
+#   ⚠️  Lock #4 경고: region 정의(regions[].duration|actions)의 단일 진실은
+#       PlanConfig.json에 있다. manifest에서 regions를 직접 수정하거나
+#       override하는 것은 절대 금지 — region을 변경하려면 PlanConfig.json을
+#       수정하고 PlanGenerator.py를 재실행해야 한다.
+#       시뮬레이션 행동·simulation.log 라벨·분석기 시간 구간이 모두
+#       PlanConfig.json의 regions 정의에서 파생된다.
+#
+# prom_url      string    required   D-05
+#   Prometheus HTTP API 기본 URL.
+#   예: "http://192.168.138.2:9090"
+#
+# prom_step     string    required   D-05
+#   Prometheus range query step. 전체 queries[]에 동일 step 적용 (쿼리별 override 없음).
+#   예: "5s"
+#
+# reset_path    string    required   D-06
+#   예매 세션 초기화 endpoint 경로 템플릿. {eventId} 자리표시자 포함.
+#   run.sh가 slots[].targetUrl + reset_path를 합성하여 이벤트별 URL 생성.
+#   예: "/booking/init/{eventId}"
+#   실제 호출: curl -X POST {targetUrl}/booking/init/{eventId} -H 'Cookie: SID=...'
+#   이벤트 간 순차, 슬롯 간 병렬 호출 (Phase 1 RESET-ENDPOINT.md 호출 패턴 참조)
+#
+# event_ids     list[int] required   D-06
+#   reset 및 시뮬레이션 대상 이벤트 ID 목록. 이벤트 간 순차 처리.
+#
+# queries       list[obj] required   D-05
+#   Prometheus 메트릭 쿼리 목록. 분석기(Phase 5)가 regions × queries cross product 표 생성.
+#   각 항목:
+#     name    string  SUMMARY 표 컬럼명 및 CSV 파일명으로 사용
+#     promql  string  Prometheus query 표현식
+#     unit    string  단위 표기 (예: '%', 'bytes', 'ms')
+#
+# slots         list[obj] required   D-03, D-07 (1~2개 허용)
+#   측정 대상 슬롯 목록. 1개 = smoke/dry-run, 2개 = alternating 비교.
+#   ⚠️  D-07: 최대 2개. 3개 이상 지정 시 run.sh가 오류 처리.
+#   ⚠️  Lock #3: 두 슬롯에 동시(concurrent) 부하 절대 금지 — alternating only.
+#       한 iteration에 한 슬롯만 측정, 다른 슬롯은 idle.
+#       (단, reset 호출은 두 슬롯 병렬 허용 — D-03, Phase 1 D-03)
+#   각 항목:
+#     name      string  슬롯 식별자 (예: "baseline", "candidate")
+#     image     string  Docker 이미지 태그 (예: "nest:latest", "nest:sentinel")
+#     targetUrl string  nest 컨테이너 HTTP 기본 URL (예: "http://192.168.138.2:8080")
+#
+# hypotheses    list[obj] optional   D-04 (ANL-04)
+#   가설 검증 목록. Phase 5 분석기가 자동 판정(검증/반증/판정 보류).
+#   hypotheses 절이 없으면 SUMMARY에 가설 섹션 미생성.
+#   각 항목:
+#     id        string  가설 식별자 (예: "H1")
+#     statement string  가설 서술 (자연어)
+#     check:
+#       region    string  검증 대상 region (PlanConfig.json regions 키와 일치해야 함)
+#       query     string  queries[].name 중 하나와 일치해야 함
+#       op        string  비교 연산자: "<" | ">" | "delta"
+#       threshold number  비교 기준값 (unit은 queries[].unit 참조)
+
+
+# =============================================================================
+# [섹션 2] 예시 1: iterations 기반 SSE vs WS 비교 (2 슬롯)
+# =============================================================================
+
+# ========== 예시 1: iterations 기반 SSE vs WS 비교 ==========
+manifest_id: sse-vs-ws-001
+run_id_prefix: sse-vs-ws-2026-04
+
+# 종료 조건 (iterations 또는 duration 둘 중 하나만 — D-14, MAN-05)
+iterations: 10
+# duration: 6h  # 주석 처리 — 사용 시 iterations 제거
+
+warmup: 30s
+per_run: 5m
+cooldown: 1m
+max_failures: 3          # 연속 실패 N회 시 FAILED 마커 + 즉시 종료 (D-15)
+
+# ⚠️  Lock #4: plan_path는 PlanConfig.json(region 단일 진실)의 포인터
+# region 정의를 변경하려면 이 파일이 아닌 PlanConfig.json을 수정하고
+# PlanGenerator.py를 재실행할 것 — manifest에서 regions를 override하는 것은 금지
+plan_path: /abs/path/to/Plan.json   # -PplanPath 로 Gatling에 주입됨
+
+prom_url: http://192.168.138.2:9090
+prom_step: 5s
+
+reset_path: /booking/init/{eventId}  # slots[].targetUrl + reset_path 합성 (D-06)
+event_ids:
+  - 1
+
+queries:
+  - name: cpu_avg
+    promql: 'avg(rate(container_cpu_usage_seconds_total{name=~"realticket.*"}[30s])) * 100'
+    unit: '%'
+  - name: mem_rss
+    promql: 'sum(container_memory_rss{name=~"realticket.*"})'
+    unit: 'bytes'
+  - name: p95_response_time
+    promql: 'histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[1m])) * 1000'
+    unit: 'ms'
+
+# ⚠️  D-07: slots 최대 2개 (1개=dry-run, 2개=alternating 비교)
+# ⚠️  Lock #3: 두 슬롯 동시 부하 절대 금지 — alternating only
+slots:
+  - name: baseline
+    image: nest:latest
+    targetUrl: http://192.168.138.2:8080
+  - name: candidate
+    image: nest:sentinel
+    targetUrl: http://192.168.138.2:8081
+
+hypotheses:
+  - id: H1
+    statement: "SSE 재연결(A안)이 PATCH(B안)보다 booking region p95가 낮다"
+    check:
+      region: booking         # PlanConfig.json regions 키와 일치해야 함 (Lock #4)
+      query: p95_response_time
+      op: "<"
+      threshold: 500
+
+
+# =============================================================================
+# [섹션 3] 예시 2: duration 기반 단일 슬롯 dry-run (1 슬롯)
+# =============================================================================
+
+---
+# ========== 예시 2: duration 기반 단일 슬롯 dry-run ==========
+manifest_id: dry-run-001
+run_id_prefix: dry-run-2026-04
+
+# duration 기반 종료 (D-14: N = floor((duration_secs - warmup_secs) / (per_run_secs + cooldown_secs)))
+# 예시: duration=10m, warmup=30s, per_run=2m, cooldown=30s
+#   N = floor((600 - 30) / (120 + 30)) = floor(570 / 150) = floor(3.8) = 3 iterations
+duration: 10m
+warmup: 30s
+per_run: 2m
+cooldown: 30s
+max_failures: 2
+
+# ⚠️  Lock #4: plan_path는 PlanConfig.json 포인터 — regions override 금지
+plan_path: /abs/path/to/Plan.json
+prom_url: http://192.168.138.2:9090
+prom_step: 5s
+
+reset_path: /booking/init/{eventId}
+event_ids:
+  - 1
+
+queries:
+  - name: cpu_avg
+    promql: 'avg(rate(container_cpu_usage_seconds_total{name=~"realticket.*"}[30s])) * 100'
+    unit: '%'
+
+# ⚠️  D-07: slots 1개 = smoke/dry-run 시나리오
+slots:
+  - name: single
+    image: nest:latest
+    targetUrl: http://192.168.138.2:8080
+# hypotheses 절 없음 — Phase 5 분석기가 SUMMARY에 가설 섹션 미생성 (D-04)
