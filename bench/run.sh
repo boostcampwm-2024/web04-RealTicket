@@ -62,6 +62,16 @@ parse_duration() {
 }
 
 # ---------------------------------------------------------------------------
+# manifest_yq: YAML multi-document 파일의 첫 번째 manifest document만 조회
+# schema.yaml은 예시 manifest를 2개 포함하므로 direct yq 조회 시 값이 합쳐진다.
+# ---------------------------------------------------------------------------
+manifest_yq() {
+  local manifest="$1"
+  local expr="$2"
+  yq "select(document_index == 0) | ${expr}" "$manifest"
+}
+
+# ---------------------------------------------------------------------------
 # generate_run_id: YYYYMMDD-HHMMSS 형식 run_id 생성 (Claude's Discretion)
 # ---------------------------------------------------------------------------
 generate_run_id() {
@@ -137,9 +147,9 @@ reset_slots() {
   local sid="$2"
 
   local slots_count
-  slots_count=$(yq '.slots | length' "$manifest")
+  slots_count=$(manifest_yq "$manifest" '.slots | length')
   local -a event_ids
-  mapfile -t event_ids < <(yq '.event_ids[]' "$manifest")
+  mapfile -t event_ids < <(manifest_yq "$manifest" '.event_ids[]')
 
   for event_id in "${event_ids[@]}"; do
     log INFO "reset event_id=$event_id (슬롯 ${slots_count}개 병렬)"
@@ -148,11 +158,11 @@ reset_slots() {
     # 슬롯 병렬 호출 (Lock #3: reset은 두 슬롯 병렬 허용)
     for (( i=0; i<slots_count; i++ )); do
       local target_url
-      target_url=$(yq ".slots[$i].targetUrl" "$manifest")
+      target_url=$(manifest_yq "$manifest" ".slots[$i].targetUrl")
       # reset_path: RESET-ENDPOINT.md 패턴 — /booking/init/{eventId} (Phase 1 D-06)
       local reset_path
       local raw_reset_path
-      raw_reset_path=$(yq '.reset_path // "/booking/init/{eventId}"' "$manifest")
+      raw_reset_path=$(manifest_yq "$manifest" '.reset_path // "/booking/init/{eventId}"')
       reset_path=$(echo "$raw_reset_path" | sed "s/{eventId}/${event_id}/g")
       (
         local http_code
@@ -206,17 +216,17 @@ run_gatling() {
   local sid="$4"
 
   local slot_name target_url subscription_type scenario_mode
-  slot_name=$(yq ".slots[$slot_idx].name" "$manifest")
-  target_url=$(yq ".slots[$slot_idx].targetUrl" "$manifest")
-  subscription_type=$(yq '.subscription_type // "SSE"' "$manifest")
-  scenario_mode=$(yq '.scenario_mode // "DYNAMIC"' "$manifest")
+  slot_name=$(manifest_yq "$manifest" ".slots[$slot_idx].name")
+  target_url=$(manifest_yq "$manifest" ".slots[$slot_idx].targetUrl")
+  subscription_type=$(manifest_yq "$manifest" '.subscription_type // "SSE"')
+  scenario_mode=$(manifest_yq "$manifest" '.scenario_mode // "DYNAMIC"')
 
   local plan_path target_event dynamic_user_count fixed_booking_amount max_retry
-  plan_path=$(yq '.plan_path' "$manifest")
-  target_event=$(yq '.event_ids[0]' "$manifest")
-  dynamic_user_count=$(yq '.dynamic_user_count // 100' "$manifest")
-  fixed_booking_amount=$(yq '.fixed_booking_amount // 4' "$manifest")
-  max_retry=$(yq '.max_retry_in_booking_conflict // 100' "$manifest")
+  plan_path=$(manifest_yq "$manifest" '.plan_path')
+  target_event=$(manifest_yq "$manifest" '.event_ids[0]')
+  dynamic_user_count=$(manifest_yq "$manifest" '.dynamic_user_count // 100')
+  fixed_booking_amount=$(manifest_yq "$manifest" '.fixed_booking_amount // 4')
+  max_retry=$(manifest_yq "$manifest" '.max_retry_in_booking_conflict // 100')
 
   log INFO "Gatling 실행: slot=$slot_name, targetUrl=$target_url"
 
@@ -263,8 +273,8 @@ collect_prometheus() {
   local end_ts="$4"     # Unix timestamp (정수)
 
   local prom_url prom_step
-  prom_url=$(yq '.prom_url' "$manifest")
-  prom_step=$(yq '.prom_step' "$manifest")
+  prom_url=$(manifest_yq "$manifest" '.prom_url')
+  prom_step=$(manifest_yq "$manifest" '.prom_step')
 
   local ts
   ts=$(date '+%Y%m%d%H%M%S')
@@ -272,12 +282,12 @@ collect_prometheus() {
 
   local queries_json="{}"
   local query_count
-  query_count=$(yq '.queries | length' "$manifest")
+  query_count=$(manifest_yq "$manifest" '.queries | length')
 
   for (( qi=0; qi<query_count; qi++ )); do
     local qname promql
-    qname=$(yq ".queries[$qi].name" "$manifest")
-    promql=$(yq ".queries[$qi].promql" "$manifest")
+    qname=$(manifest_yq "$manifest" ".queries[$qi].name")
+    promql=$(manifest_yq "$manifest" ".queries[$qi].promql")
 
     local result
     result=$(curl -sG "${prom_url}/api/v1/query_range" \
@@ -381,12 +391,12 @@ main() {
 
   # 매니페스트 파싱
   local manifest_id run_id_prefix warmup per_run cooldown max_failures
-  manifest_id=$(yq '.manifest_id' "$manifest")
-  run_id_prefix=$(yq '.run_id_prefix' "$manifest")
-  warmup=$(yq '.warmup' "$manifest")
-  per_run=$(yq '.per_run' "$manifest")
-  cooldown=$(yq '.cooldown' "$manifest")
-  max_failures=$(yq '.max_failures // "3"' "$manifest")
+  manifest_id=$(manifest_yq "$manifest" '.manifest_id')
+  run_id_prefix=$(manifest_yq "$manifest" '.run_id_prefix')
+  warmup=$(manifest_yq "$manifest" '.warmup')
+  per_run=$(manifest_yq "$manifest" '.per_run')
+  cooldown=$(manifest_yq "$manifest" '.cooldown')
+  max_failures=$(manifest_yq "$manifest" '.max_failures // "3"')
 
   local warmup_s per_run_s cooldown_s
   warmup_s=$(parse_duration "$warmup")
@@ -397,9 +407,9 @@ main() {
   local total_iter
   local iter_mode
   local iter_val
-  iter_val=$(yq '.iterations // ""' "$manifest")
+  iter_val=$(manifest_yq "$manifest" '.iterations // ""')
   local dur_val
-  dur_val=$(yq '.duration // ""' "$manifest")
+  dur_val=$(manifest_yq "$manifest" '.duration // ""')
 
   if [[ -n "$iter_val" && -n "$dur_val" ]]; then
     die "iterations와 duration을 동시에 지정할 수 없습니다. 둘 중 하나만 사용하세요."
@@ -418,7 +428,7 @@ main() {
   fi
 
   local slots_count
-  slots_count=$(yq '.slots | length' "$manifest")
+  slots_count=$(manifest_yq "$manifest" '.slots | length')
 
   # --dry-run 모드: 실행 계획만 출력 후 종료 (D-23)
   if [[ "$dry_run" == "--dry-run" ]]; then
@@ -437,7 +447,7 @@ main() {
       local sidx
       sidx=$(get_slot_for_iter "$i" "$slots_count")
       local sname
-      sname=$(yq ".slots[$sidx].name" "$manifest")
+      sname=$(manifest_yq "$manifest" ".slots[$sidx].name")
       echo "  iter $i → slot: $sname (idx $sidx)"
     done
     [[ $total_iter -gt 10 ]] && echo "  ... (이후 $((total_iter-10))개 iter 생략)"
@@ -472,7 +482,7 @@ main() {
 
   # 첫 슬롯 targetUrl로 ADMIN 로그인 (D-11)
   local first_target_url
-  first_target_url=$(yq '.slots[0].targetUrl' "$manifest")
+  first_target_url=$(manifest_yq "$manifest" '.slots[0].targetUrl')
   local SID
   SID=$(admin_login "$first_target_url")
   log INFO "ADMIN SID 발급 완료"
@@ -501,9 +511,9 @@ main() {
     local slot_idx
     slot_idx=$(get_slot_for_iter "$iter" "$slots_count")
     local slot_name
-    slot_name=$(yq ".slots[$slot_idx].name" "$manifest")
+    slot_name=$(manifest_yq "$manifest" ".slots[$slot_idx].name")
     local slot_target
-    slot_target=$(yq ".slots[$slot_idx].targetUrl" "$manifest")
+    slot_target=$(manifest_yq "$manifest" ".slots[$slot_idx].targetUrl")
 
     local iter_dir="${run_dir}/iter-${iter}-slot-${slot_name}"
     mkdir -p "$iter_dir"
