@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -20,6 +21,7 @@ import {
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -120,47 +122,49 @@ export class BookingController {
   )
   @ApiOperation({
     summary: '실시간 좌석 예약 현황 SSE',
-    description: '실시간으로 좌석 예약 현황을 조회한다.',
+    description:
+      '실시간으로 좌석 예약 현황을 조회한다. query.section이 있으면 해당 섹션 풀에 직접 등록되고, 없으면 init 풀에 등록된다.',
+  })
+  @ApiQuery({
+    name: 'section',
+    required: false,
+    type: Number,
+    description: '구독할 섹션 인덱스 (0 이상). 미지정 시 init 풀에 등록.',
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(
     @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
+    @Query('section') sectionRaw: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ) {
     const sid = req.cookies['SID'];
 
-    const session = await this.authService.getUserSession(sid);
+    // T-5: query.section 입력 검증 — parseInt + Number.isFinite + ≥ 0
+    const sectionIndex =
+      sectionRaw !== undefined && /^\d+$/.test(sectionRaw) ? parseInt(sectionRaw, 10) : null;
 
+    // D-A1·D-04: USER_STATUS 정상화 — ENTERING/RECONNECTING → SELECTING_SEAT 승격
+    const session = await this.authService.getUserSession(sid);
     if (session.userStatus === USER_STATUS.ENTERING) {
       await this.bookingService.setInBookingFromEntering(sid);
-      // ENTERING: init 풀에 등록 (SSE-02)
-      await this.bookingSeatsService.addSseClient(eventId, res, sid);
     } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
       await this.inBookingService.removeReconnectingSession(eventId, sid);
       await this.authService.setUserStatusSelectingSeat(sid);
-
-      // 재연결 복원: 저장된 섹션으로 자동 복원 (SSE-07)
-      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
-      if ((inBookingSession?.subscribedSection ?? null) !== null) {
-        await this.bookingSeatsService.addSseClientToSection(
-          eventId,
-          inBookingSession.subscribedSection,
-          res,
-          sid,
-        );
-      } else {
-        // 섹션 미선택 상태였으면 init 풀에 등록 (SSE-02)
-        await this.bookingSeatsService.addSseClient(eventId, res, sid);
-      }
-    } else {
-      // SELECTING_SEAT (정상 진입): init 풀에 등록 (SSE-02)
-      await this.bookingSeatsService.addSseClient(eventId, res, sid);
     }
 
+    // D-04: 풀 등록 단일 분기 (query.section 유무로 결정)
+    let seq: number;
+    if (sectionIndex !== null && Number.isFinite(sectionIndex) && sectionIndex >= 0) {
+      seq = await this.bookingSeatsService.addSseClientToSection(eventId, sectionIndex, res, sid);
+    } else {
+      seq = await this.bookingSeatsService.addSseClient(eventId, res, sid);
+    }
+
+    // D-02·D-05: close handler — closure로 seq 캡처
     req.on('close', async () => {
-      await this.bookingSeatsService.removeSseClient(eventId, sid, res);
+      await this.bookingSeatsService.removeSseClient(eventId, sid, res, seq);
 
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
       if (inBookingSession?.saved) {

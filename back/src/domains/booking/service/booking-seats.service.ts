@@ -264,10 +264,10 @@ export class BookingSeatsService implements OnModuleDestroy {
     return subscription.subject.asObservable();
   }
 
-  async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
+  async addSseClient(eventId: number, res: Response, sid: string): Promise<number> {
     const initKey = `${eventId}:init`;
     // startBroadcast 없음 — SSE 헤더만 전송, 좌석 데이터 없음 (SSE-02)
-    this.sseBroadcaster.addClient(initKey, res, sid);
+    const seq = this.sseBroadcaster.addClient(initKey, res, sid);
 
     // Phase 4: bookedSeats 복원 전송 — session 있고 bookedSeats 비어있지 않을 때만 (D-03)
     const session = await this.inBookingService.getSession(eventId, sid);
@@ -278,13 +278,23 @@ export class BookingSeatsService implements OnModuleDestroy {
         res.write(msg);
       } catch {}
     }
+
+    return seq;
   }
 
-  async removeSseClient(eventId: number, sid: string, res: Response): Promise<void> {
+  async removeSseClient(eventId: number, sid: string, res: Response, expectedSeq?: number): Promise<void> {
     const session = await this.inBookingService.getSession(eventId, sid);
-    const subscribedSection = session?.subscribedSection ?? null;
+    if (!session) return;
+
+    const subscribedSection = session.subscribedSection ?? null;
     const key = subscribedSection !== null ? `${eventId}:${subscribedSection}` : `${eventId}:init`;
-    this.sseBroadcaster.removeClient(key, res);
+    const removed = this.sseBroadcaster.removeClient(key, res, expectedSeq);
+
+    // D-02: 풀 분리 성공 + 구독 섹션이 있던 경우에만 subscribedSection 리셋 (단일 lifecycle)
+    if (removed && session.subscribedSection !== null) {
+      session.subscribedSection = null;
+      await this.inBookingService.setSession(eventId, session);
+    }
   }
 
   async addSseClientToSection(
@@ -292,22 +302,28 @@ export class BookingSeatsService implements OnModuleDestroy {
     sectionIndex: number,
     res: Response,
     sid: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const key = `${eventId}:${sectionIndex}`;
     if (!this.seatsSubscriptionMap.has(key)) {
       await this.ensureSeatSubscription(key, eventId, sectionIndex);
     }
-    this.sseBroadcaster.addClient(key, res, sid);
+    const seq = this.sseBroadcaster.addClient(key, res, sid);
 
     // Phase 4: 재연결 복원 — session 있으면 항상 occupiedSeats 전송 (빈 배열 포함, D-03)
+    // D-02: addSseClientToSection 내부에서만 subscribedSection 갱신 (단일 진실원)
     const session = await this.inBookingService.getSession(eventId, sid);
     if (session) {
+      session.subscribedSection = sectionIndex;
+      await this.inBookingService.setSession(eventId, session);
+
       const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
       const msg = `data: ${JSON.stringify(payload)}\n\n`;
       try {
         res.write(msg);
       } catch {}
     }
+
+    return seq;
   }
 
   async switchSseClientSection(
