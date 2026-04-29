@@ -442,11 +442,41 @@ export async function simulateWaitingSseTimeout(app: INestApplication, sid: stri
 }
 
 /**
+ * @deprecated D-07: PATCH /booking/seat/section 엔드포인트가 제거됨.
+ * 02-04에서 addSseClientToSectionDirect로 대체됨. 참조 스펙에서 제거 예정.
  * PATCH /booking/seat/section 요청을 보낸다.
  * SELECTING_SEAT 상태 사용자만 성공한다.
  */
 export function switchSection(app: INestApplication, sid: string, sectionIndex: number) {
   return withAuth(supertest(app.getHttpServer()).patch('/booking/seat/section'), sid).send({ sectionIndex });
+}
+
+/**
+ * BookingSeatsService.addSseClientToSection을 직접 호출하여 풀 등록을 시뮬한다.
+ * 실제 Response 객체 대신 모킹된 res를 주입 — supertest로 SSE 연결 라이프사이클을 흉내내기 어려운 한계 우회.
+ * Phase 2 (A안): query.section?N 경로에서 풀 등록 후 검증 시나리오용.
+ *
+ * @param app - NestJS 앱 인스턴스
+ * @param sid - 세션 ID
+ * @param sectionIndex - 등록할 섹션 인덱스
+ * @returns mockRes와 seq를 담은 객체
+ */
+export async function addSseClientToSectionDirect(
+  app: INestApplication,
+  sid: string,
+  sectionIndex: number,
+): Promise<{ mockRes: ReturnType<typeof createMockSseResponse>; seq: number }> {
+  const authService = app.get(AuthService);
+  const eventId = await authService.getUserEventTarget(sid);
+  if (eventId === null) {
+    throw new Error(`addSseClientToSectionDirect: sid=${sid}의 targetEvent가 null입니다.`);
+  }
+
+  const { BookingSeatsService } = await import('src/domains/booking/service/booking-seats.service');
+  const bookingSeatsService = app.get(BookingSeatsService);
+  const mockRes = createMockSseResponse();
+  const seq = await bookingSeatsService.addSseClientToSection(eventId, sectionIndex, mockRes, sid);
+  return { mockRes, seq };
 }
 
 /**
