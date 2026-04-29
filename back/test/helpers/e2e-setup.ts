@@ -2,7 +2,6 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test as NestTest, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
-import { Repository } from 'typeorm';
 
 import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
