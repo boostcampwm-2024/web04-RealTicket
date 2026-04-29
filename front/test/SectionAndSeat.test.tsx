@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// FE-01, FE-02, FE-03 로직 단위 테스트
+// FE-01, FE-02 로직 단위 테스트
 // EventSource와 useMutation mock이 복잡하므로 핵심 로직을 직접 테스트
 
 // Phase 4: deriveSeatName 로직을 직접 재현 (컴포넌트 import 시 createBrowserRouter → document 오류 발생)
@@ -28,36 +28,25 @@ function deriveSeatName(
 }
 
 describe('SectionAndSeat — 섹션 전환 로직', () => {
-  // FE-01: 섹션 클릭 시 PATCH API 호출 로직
-  it('FE-01: handleSectionClick은 prevSection을 저장하고 patchSectionMutate를 호출한다', () => {
-    let storedPrev: number | null = null;
-    let mutateCalledWith: number | null = null;
+  // FE-01: 섹션 클릭 시 SSE URL 변경 + skeleton trigger
+  it('FE-01: handleSectionClick은 selectedSection을 갱신하고 seatStatus를 비운다', () => {
     let seatStatusCleared = false;
 
     // handleSectionClick 로직 재현
-    const selectedSection = 0;
-    const patchSectionMutate = (index: number) => {
-      mutateCalledWith = index;
-    };
     const setSeatStatus = (val: null) => {
       seatStatusCleared = val === null;
     };
     const setSelectedSection = vi.fn();
 
     const handleSectionClick = (newSectionIndex: number) => {
-      const prevSection = selectedSection;
-      storedPrev = prevSection;
       setSelectedSection(newSectionIndex);
       setSeatStatus(null);
-      patchSectionMutate(newSectionIndex);
     };
 
     handleSectionClick(2);
 
-    expect(storedPrev).toBe(0); // prevSection 캡처
-    expect(setSelectedSection).toHaveBeenCalledWith(2); // 낙관적 UI
-    expect(seatStatusCleared).toBe(true); // 이전 섹션 데이터 클리어
-    expect(mutateCalledWith).toBe(2); // PATCH 호출
+    expect(setSelectedSection).toHaveBeenCalledWith(2); // sseURL 변경 트리거
+    expect(seatStatusCleared).toBe(true); // transit 구간 skeleton trigger
   });
 
   // FE-02: SSE 수신 데이터를 단일 섹션 형태로 처리
@@ -68,7 +57,7 @@ describe('SectionAndSeat — 섹션 전환 로직', () => {
     };
 
     // SSE 브로드캐스트 수신 로직 재현
-    const sseData = { sectionIndex: 1, seatStatus: [1, 0, 1, 1, 0] };
+    const sseData = { sectionIndex: 1, seatStatus: [1, 0, 1, 1, 0] } as const;
     if (sseData) {
       setSeatStatus(sseData.seatStatus);
     }
@@ -79,37 +68,71 @@ describe('SectionAndSeat — 섹션 전환 로직', () => {
     expect(Array.isArray(currentSeatStatus![0])).toBe(false);
   });
 
-  // FE-03: PATCH 응답으로 좌석 상태 즉시 반영
-  it('FE-03: PATCH 성공 시 응답의 seatStatus로 즉시 갱신된다', () => {
-    let currentSeatStatus: number[] | null = null;
-    const setSeatStatus = (val: number[]) => {
-      currentSeatStatus = val;
+  it('FE-03: occupiedSeats 메시지는 selectedSeats만 복원한다', () => {
+    let currentSelectedSeats: { sectionIndex: number; seatIndex: number; name: string }[] = [];
+
+    const setSelectedSeats = (val: typeof currentSelectedSeats) => {
+      currentSelectedSeats = val;
     };
 
-    // onSuccess 콜백 로직 재현
-    const patchResponse = { sectionIndex: 2, seatStatus: [1, 1, 0, 1] };
-    setSeatStatus(patchResponse.seatStatus);
+    const sseData = {
+      occupiedSeats: [[1, 2] as [number, number]],
+    } as const;
+    const mockPlaceInformation = {
+      layout: {
+        sections: [
+          { name: 'A', seats: [1, 1, 1], colLen: 3 },
+          { name: 'B', seats: [1, 1, 1, 1], colLen: 2 },
+        ],
+      },
+    };
 
-    expect(currentSeatStatus).toEqual([1, 1, 0, 1]);
-    expect(currentSeatStatus).not.toBeNull();
+    if ('occupiedSeats' in sseData) {
+      setSelectedSeats(
+        sseData.occupiedSeats.map(([sectionIndex, seatIndex]) => ({
+          sectionIndex,
+          seatIndex,
+          name: deriveSeatName(mockPlaceInformation, sectionIndex, seatIndex),
+        })),
+      );
+    }
+
+    expect(currentSelectedSeats).toEqual([{ sectionIndex: 1, seatIndex: 2, name: 'B구역 2행 1열' }]);
   });
 
-  // D-04: PATCH 실패 시 selectedSection 롤백
-  it('D-04: PATCH 실패 시 selectedSection이 이전 값으로 롤백된다', () => {
-    let currentSection: number | null = 2; // 낙관적 업데이트 후 값
-    const prevSectionRef = { current: 0 }; // 클릭 전 값
+  it('FE-04: 연결 직후 occupiedSeats 전용 메시지가 이어져도 첫 seatStatus를 유지한다', () => {
+    let currentSeatStatus: number[] | null = null;
+    let currentSelectedSeats: { sectionIndex: number; seatIndex: number; name: string }[] = [];
 
-    // onError 콜백 로직 재현
-    const setSelectedSection = (val: number | null) => {
-      currentSection = val;
+    const selectedSection = 0;
+    const mockPlaceInformation = {
+      layout: {
+        sections: [{ name: 'A', seats: [1, 1, 1, 1], colLen: 2 }],
+      },
     };
-    const onError = () => {
-      setSelectedSection(prevSectionRef.current);
+    const messages = [
+      { sectionIndex: 0, seatStatus: [1, 1, 0, 1] },
+      { occupiedSeats: [] as [number, number][] },
+    ] as const;
+
+    const handleSeatsSseMessage = (message: (typeof messages)[number]) => {
+      if ('occupiedSeats' in message) {
+        currentSelectedSeats = message.occupiedSeats.map(([sectionIndex, seatIndex]) => ({
+          sectionIndex,
+          seatIndex,
+          name: deriveSeatName(mockPlaceInformation, sectionIndex, seatIndex),
+        }));
+      }
+
+      if ('seatStatus' in message && message.sectionIndex === selectedSection) {
+        currentSeatStatus = message.seatStatus;
+      }
     };
 
-    onError();
+    messages.forEach(handleSeatsSseMessage);
 
-    expect(currentSection).toBe(0); // 이전 섹션으로 롤백
+    expect(currentSeatStatus).toEqual([1, 1, 0, 1]);
+    expect(currentSelectedSeats).toEqual([]);
   });
 
   // D-02: 섹션 전환 시 selectedSeats 유지
@@ -142,14 +165,13 @@ describe('deriveSeatName', () => {
     layout: {
       sections: [
         {
-          id: 1,
           name: 'A',
           colLen: 3,
           seats: [1, 1, 0, 1, 1, 0, 1, 1, 0], // 각 행: 실제좌석, 실제좌석, 통로
         },
       ],
     },
-  } as any;
+  };
 
   it('0번 인덱스(1행 1열)를 A구역 1행 1열로 변환한다', () => {
     expect(deriveSeatName(mockPlaceInformation, 0, 0)).toBe('A구역 1행 1열');

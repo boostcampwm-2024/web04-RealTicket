@@ -1,5 +1,8 @@
 import { INestApplication } from '@nestjs/common';
+import { Request, Response } from 'express';
 
+import { AuthService } from 'src/auth/service/auth.service';
+import { BookingController } from 'src/domains/booking/controller/booking.controller';
 import { BookingService } from 'src/domains/booking/service/booking.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
@@ -28,11 +31,17 @@ describe('Phase 2 (A안): GET ?section=N 기반 풀 등록 + isSidInPool 권한 
   let adminSid: string;
   let userSid: string;
   let eventId: number;
+  let authService: AuthService;
+  let bookingController: BookingController;
+  let bookingService: BookingService;
   let inBookingService: InBookingService;
 
   beforeAll(async () => {
     app = await createTestApp();
     redisService = getRedisService(app);
+    authService = app.get(AuthService);
+    bookingController = app.get(BookingController);
+    bookingService = app.get(BookingService);
     inBookingService = app.get(InBookingService);
 
     adminSid = await loginAsAdmin(app, 'sectadmin1', 'pass1234');
@@ -98,6 +107,66 @@ describe('Phase 2 (A안): GET ?section=N 기반 풀 등록 + isSidInPool 권한 
     expect(session?.subscribedSection).toBe(1);
   });
 
+  // ─── SSE-11·SSE-12: close handler race 방지 ───
+
+  it('SSE-11: 현재 활성 SSE close는 RECONNECTING_SELECTING으로 전이하고 subscribedSection을 비운다', async () => {
+    const activeSid = await setupSelectingSeatWithoutSsePool('sse11active');
+    const activeReq = await openSeatSse(activeSid, 0);
+
+    await activeReq.emitClose();
+
+    const userSession = await authService.getUserSession(activeSid);
+    const inBookingSession = await inBookingService.getSession(eventId, activeSid);
+
+    expect(userSession.userStatus).toBe('RECONNECTING_SELECTING');
+    expect(inBookingSession?.subscribedSection).toBeNull();
+    expect(await inBookingService.getReconnectingSessionCount(eventId)).toBe(1);
+  });
+
+  it('SSE-12: 이전 섹션 stale close는 새 섹션 연결을 RECONNECTING_SELECTING으로 덮어쓰지 않는다', async () => {
+    const raceSid = await setupSelectingSeatWithoutSsePool('sse12race');
+    const oldReq = await openSeatSse(raceSid, 0);
+    await openSeatSse(raceSid, 1);
+
+    await oldReq.emitClose();
+
+    const userSession = await authService.getUserSession(raceSid);
+    const inBookingSession = await inBookingService.getSession(eventId, raceSid);
+
+    expect(userSession.userStatus).toBe('SELECTING_SEAT');
+    expect(inBookingSession?.subscribedSection).toBe(1);
+    expect(await inBookingService.getReconnectingSessionCount(eventId)).toBe(0);
+
+    const staleSectionRes = await bookSeat(app, raceSid, eventId, 0, 0, 'reserved');
+    expect(staleSectionRes.status).toBe(403);
+    expect(staleSectionRes.body.error.code).toBe('BOOKING_SEAT_UNAUTHORIZED_SECTION');
+
+    const activeSectionRes = await bookSeat(app, raceSid, eventId, 1, 0, 'reserved');
+    expect(activeSectionRes.status).toBe(201);
+  });
+
+  it('SSE-13: occupiedSeats 복원 메시지는 좌석 현황 필드를 포함하지 않는다', async () => {
+    const payloadSid = await setupSelectingSeatWithoutSsePool('sse13payload');
+    const req = createMockSseRequest(payloadSid);
+    const { res, writes } = createRecordingMockSseResponse();
+
+    await bookingController.getReservationStatusByEventId(eventId, '0', req, res);
+
+    const messages = parseSseDataMessages(writes);
+    const seatStatusMessage = messages.find((message) => 'seatStatus' in message);
+    const occupiedSeatsMessage = messages.find((message) => 'occupiedSeats' in message);
+
+    expect(seatStatusMessage).toMatchObject({
+      sectionIndex: 0,
+      seatStatus: expect.any(Array),
+    });
+    expect(seatStatusMessage).not.toHaveProperty('type');
+    expect(occupiedSeatsMessage).toEqual({ occupiedSeats: [] });
+    expect(occupiedSeatsMessage).not.toHaveProperty('type');
+    expect(occupiedSeatsMessage).not.toHaveProperty('sectionIndex');
+    expect(occupiedSeatsMessage).not.toHaveProperty('seatStatus');
+  });
+
   // ─── VAL-01: bookSeat 섹션 검증 ───
 
   it('VAL-01: 풀에 등록된 섹션(0)과 다른 sectionIndex(1)로 bookSeat → 403 BOOKING_SEAT_UNAUTHORIZED_SECTION', async () => {
@@ -140,4 +209,81 @@ describe('Phase 2 (A안): GET ?section=N 기반 풀 등록 + isSidInPool 권한 
     const res = await bookSeat(app, userSid, eventId, 0, 0, 'reserved');
     expect(res.status).toBe(201);
   });
+
+  async function setupSelectingSeatWithoutSsePool(loginId: string): Promise<string> {
+    const sid = await loginAsUser(app, loginId, 'pass1234');
+    await requestPermission(app, sid, eventId).expect(200);
+    await setBookingCount(app, sid, 1).expect(201);
+    await bookingService.setInBookingFromEntering(sid);
+    return sid;
+  }
+
+  async function openSeatSse(sid: string, sectionIndex: number): Promise<MockSseRequest> {
+    const req = createMockSseRequest(sid);
+    await bookingController.getReservationStatusByEventId(
+      eventId,
+      String(sectionIndex),
+      req,
+      createMockSseResponse(),
+    );
+    return req;
+  }
 });
+
+type MockSseRequest = Request & {
+  emitClose: () => Promise<void>;
+};
+
+function createMockSseRequest(sid: string): MockSseRequest {
+  let closeHandler: (() => void | Promise<void>) | null = null;
+
+  return {
+    cookies: { SID: sid },
+    on(event: string, handler: () => void | Promise<void>) {
+      if (event === 'close') {
+        closeHandler = handler;
+      }
+      return this;
+    },
+    async emitClose() {
+      if (!closeHandler) {
+        throw new Error('close handler was not registered');
+      }
+      await closeHandler();
+    },
+  } as unknown as MockSseRequest;
+}
+
+function createMockSseResponse(): Response {
+  return createRecordingMockSseResponse().res;
+}
+
+function createRecordingMockSseResponse(): { res: Response; writes: string[] } {
+  const noop = () => undefined;
+  const writes: string[] = [];
+  const res = {
+    headersSent: false,
+    writeHead: noop,
+    flushHeaders: noop,
+    write: (chunk: string) => {
+      writes.push(chunk);
+      return true;
+    },
+    end: noop,
+    socket: {
+      setKeepAlive: noop,
+      setNoDelay: noop,
+      setTimeout: noop,
+    },
+  } as unknown as Response;
+  return { res, writes };
+}
+
+function parseSseDataMessages(writes: string[]): Record<string, unknown>[] {
+  return writes.flatMap((write) =>
+    write
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice('data: '.length)) as Record<string, unknown>),
+  );
+}

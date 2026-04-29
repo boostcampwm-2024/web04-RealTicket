@@ -1,30 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 
-interface useSSEProps {
+interface useSSEProps<T> {
   sseURL: string;
+  onMessage?: (data: T) => void;
 }
 //에러 핸들링 필요, axios 레벨에서 가능?
-export default function useSSE<T>({ sseURL }: useSSEProps) {
+export default function useSSE<T>({ sseURL, onMessage }: useSSEProps<T>) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const onMessageRef = useRef<typeof onMessage>(onMessage);
+  onMessageRef.current = onMessage;
 
   const [data, setData] = useState<T | null>(null);
 
   useEffect(() => {
-    if (eventSourceRef.current === null) {
-      eventSourceRef.current = new EventSource(`${sseURL}`, {
-        withCredentials: true,
-      });
-      eventSourceRef.current.onmessage = (event) => {
-        const parsed = JSON.parse(event.data);
+    setData(null);
 
-        if (parsed) {
-          setData(() => parsed);
-        }
-      };
-    }
+    const eventSource = new EventSource(`${sseURL}`, {
+      withCredentials: true,
+    });
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      if (eventSourceRef.current !== eventSource) return;
+
+      const parsed = JSON.parse(event.data);
+
+      if (parsed) {
+        onMessageRef.current?.(parsed);
+        setData(() => parsed);
+      }
+    };
+
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      eventSource.close();
+      if (eventSourceRef.current === eventSource) {
         eventSourceRef.current = null;
       }
     };

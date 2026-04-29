@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Select from 'react-select';
 
@@ -35,6 +35,17 @@ export interface SelectedSeat {
   name: string;
 }
 
+interface SeatStatusSseData {
+  sectionIndex: number;
+  seatStatus: number[];
+}
+
+interface OccupiedSeatsSseData {
+  occupiedSeats: [number, number][];
+}
+
+type SeatsSsePayload = SeatStatusSseData | OccupiedSeatsSseData;
+
 interface ISectionAndSeatProps {
   seatCount: SeatCount;
   changeSeatCount: (count: SeatCount) => void;
@@ -70,11 +81,26 @@ export default function SectionAndSeat({
     selectedSection !== null
       ? `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId), selectedSection)}`
       : `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`;
-  const { data: sseData } = useSSE<{
-    sectionIndex: number;
-    seatStatus: number[];
-    occupiedSeats?: [number, number][];
-  }>({ sseURL });
+
+  const handleSeatsSseMessage = useCallback(
+    (message: SeatsSsePayload) => {
+      if ('occupiedSeats' in message) {
+        const restored = message.occupiedSeats.map(([sectionIdx, seatIndex]) => ({
+          sectionIndex: sectionIdx,
+          seatIndex,
+          name: deriveSeatName(placeInformation, sectionIdx, seatIndex),
+        }));
+        setSelectedSeats(restored);
+      }
+
+      if ('seatStatus' in message && message.sectionIndex === selectedSection) {
+        setSeatStatus(message.seatStatus);
+      }
+    },
+    [placeInformation, selectedSection],
+  );
+
+  useSSE<SeatsSsePayload>({ sseURL, onMessage: handleSeatsSseMessage });
 
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
@@ -82,24 +108,6 @@ export default function SectionAndSeat({
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
   usePreventLeave();
-
-  // FE-02: SSE 브로드캐스트 수신 시 seatStatus 갱신
-  // Phase 4: occupiedSeats 수신 시 selectedSeats 서버 데이터로 동기화 (per D-04)
-  useEffect(() => {
-    if (!sseData) return;
-    if (sseData.occupiedSeats !== undefined) {
-      // Phase 4: 서버 bookedSeats → selectedSeats 동기화 (per D-04)
-      const restored = sseData.occupiedSeats.map(([sectionIdx, seatIndex]) => ({
-        sectionIndex: sectionIdx,
-        seatIndex,
-        name: deriveSeatName(placeInformation, sectionIdx, seatIndex),
-      }));
-      setSelectedSeats(restored);
-    } else if (sseData.sectionIndex >= 0) {
-      // 기존: 좌석 상태 브로드캐스트 업데이트
-      setSeatStatus(sseData.seatStatus);
-    }
-  }, [sseData]);
 
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
@@ -141,7 +149,7 @@ export default function SectionAndSeat({
       const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen, rowLen);
       setZoomLevel(initialZoom);
     }
-  }, [selectedSection]);
+  }, [selectedSectionSeatMap]);
 
   // D-A2: 섹션 클릭 시 sseURL 변경 → useSSE useEffect cleanup이 EventSource close+open 자동 처리
   const handleSectionClick = (newSectionIndex: number) => {

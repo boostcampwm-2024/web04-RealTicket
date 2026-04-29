@@ -38,7 +38,7 @@ import { BookingReqDto } from '../dto/bookingReq.dto';
 import { BookingResDto } from '../dto/bookingRes.dto';
 import { InBookingSizeReqDto } from '../dto/inBookingSizeReq.dto';
 import { InBookingSizeResDto } from '../dto/inBookingSizeRes.dto';
-import { SeatsSseDto } from '../dto/seatsSse.dto';
+import { OccupiedSeatsSseDto, SeatsSseDto } from '../dto/seatsSse.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
 import { BookingSeatsService } from '../service/booking-seats.service';
@@ -126,7 +126,16 @@ export class BookingController {
     type: Number,
     description: '구독할 섹션 인덱스 (0 이상). 미지정 시 init 풀에 등록.',
   })
-  @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
+  @ApiExtraModels(SeatsSseDto, OccupiedSeatsSseDto)
+  @ApiOkResponse({
+    description: 'SSE 연결 성공',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(SeatsSseDto) },
+        { $ref: getSchemaPath(OccupiedSeatsSseDto) },
+      ],
+    },
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   async getReservationStatusByEventId(
     @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
@@ -157,12 +166,19 @@ export class BookingController {
       seq = await this.bookingSeatsService.addSseClient(eventId, res, sid);
     }
 
-    // D-02·D-05: close handler — closure로 seq 캡처
+    // D-02·D-05: close handler — closure로 등록 당시 section/seq 캡처
+    const registeredSection = sectionIndex;
     req.on('close', async () => {
-      await this.bookingSeatsService.removeSseClient(eventId, sid, res, seq);
+      const closeResult = await this.bookingSeatsService.removeSseClient(eventId, sid, res, {
+        expectedSeq: seq,
+        sectionIndex: registeredSection,
+      });
 
-      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
-      if (inBookingSession?.saved) {
+      if (!closeResult.activeConnectionClosed) {
+        return;
+      }
+
+      if (closeResult.saved) {
         await this.bookingService.onSeatsSseDisconnected({ sid });
       } else {
         await this.authService.setUserStatusReconnectingSelecting(sid);

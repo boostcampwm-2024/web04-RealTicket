@@ -13,7 +13,7 @@ import { SEATS_BROADCAST_INTERVAL } from '../const/seatsBroadcastInterval.const'
 import { SEATS_SSE_RETRY_INTERVAL } from '../const/seatsSseRetryTime.const';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { SSE_MAXIMUM_INTERVAL } from '../const/sseMaximumInterval';
-import { SeatsSseDto } from '../dto/seatsSse.dto';
+import { OccupiedSeatsSseDto, SeatsSseDto, SeatsSsePayloadDto } from '../dto/seatsSse.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
 import { runGetSectionSeatsLua } from '../luaScripts/getSeatsLua';
 import { runInitSectionSeatLua } from '../luaScripts/initSectionSeatLua';
@@ -23,14 +23,20 @@ import { SseBroadcaster } from '../sse/sse-broadcaster';
 
 import { InBookingService } from './in-booking.service';
 
-type SeatStatusObject = {
-  sectionIndex: number;
-  seatStatus: number[];
+type SeatSubscription = {
+  subject: BehaviorSubject<SeatsSseDto>;
+  interval: NodeJS.Timeout;
 };
 
-type SeatSubscription = {
-  subject: BehaviorSubject<SeatStatusObject>;
-  interval: NodeJS.Timeout;
+type RemoveSseClientOptions = {
+  expectedSeq?: number;
+  sectionIndex: number | null;
+};
+
+type RemoveSseClientResult = {
+  removed: boolean;
+  activeConnectionClosed: boolean;
+  saved: boolean;
 };
 
 @Injectable()
@@ -39,7 +45,7 @@ export class BookingSeatsService implements OnModuleDestroy {
   private readonly pubsubClient: Redis;
   private seatsSubscriptionMap = new Map<string, SeatSubscription>();
   private broadcastActivateMap = new Map<string, boolean>();
-  private readonly sseBroadcaster: SseBroadcaster<SeatStatusObject>;
+  private readonly sseBroadcaster: SseBroadcaster<SeatsSseDto>;
   private readonly ensureSeatSubscriptionPromise = new Map<string, Promise<void>>();
 
   constructor(
@@ -272,29 +278,35 @@ export class BookingSeatsService implements OnModuleDestroy {
     // Phase 4: bookedSeats 복원 전송 — session 있고 bookedSeats 비어있지 않을 때만 (D-03)
     const session = await this.inBookingService.getSession(eventId, sid);
     if (session && session.bookedSeats.length > 0) {
-      const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
-      const msg = `data: ${JSON.stringify(payload)}\n\n`;
-      try {
-        res.write(msg);
-      } catch {}
+      this.writeSseData(res, new OccupiedSeatsSseDto(session.bookedSeats));
     }
 
     return seq;
   }
 
-  async removeSseClient(eventId: number, sid: string, res: Response, expectedSeq?: number): Promise<void> {
+  async removeSseClient(
+    eventId: number,
+    sid: string,
+    res: Response,
+    options: RemoveSseClientOptions,
+  ): Promise<RemoveSseClientResult> {
     const session = await this.inBookingService.getSession(eventId, sid);
-    if (!session) return;
+    if (!session) {
+      return { removed: false, activeConnectionClosed: false, saved: false };
+    }
 
-    const subscribedSection = session.subscribedSection ?? null;
-    const key = subscribedSection !== null ? `${eventId}:${subscribedSection}` : `${eventId}:init`;
-    const removed = this.sseBroadcaster.removeClient(key, res, expectedSeq);
+    const closeSection = options.sectionIndex;
+    const key = closeSection !== null ? `${eventId}:${closeSection}` : `${eventId}:init`;
+    const removed = this.sseBroadcaster.removeClient(key, res, options.expectedSeq);
+    const activeConnectionClosed = removed && (session.subscribedSection ?? null) === closeSection;
 
-    // D-02: 풀 분리 성공 + 구독 섹션이 있던 경우에만 subscribedSection 리셋 (단일 lifecycle)
-    if (removed && session.subscribedSection !== null) {
+    // Stale close는 자기 풀 entry만 지우고 현재 활성 섹션 lifecycle은 건드리지 않는다.
+    if (activeConnectionClosed && session.subscribedSection !== null) {
       session.subscribedSection = null;
       await this.inBookingService.setSession(eventId, session);
     }
+
+    return { removed, activeConnectionClosed, saved: session.saved };
   }
 
   async addSseClientToSection(
@@ -316,11 +328,7 @@ export class BookingSeatsService implements OnModuleDestroy {
       session.subscribedSection = sectionIndex;
       await this.inBookingService.setSession(eventId, session);
 
-      const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
-      const msg = `data: ${JSON.stringify(payload)}\n\n`;
-      try {
-        res.write(msg);
-      } catch {}
+      this.writeSseData(res, new OccupiedSeatsSseDto(session.bookedSeats));
     }
 
     return seq;
@@ -374,7 +382,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     sectionIndex: number,
     initialSeats: number[],
   ): Promise<SeatSubscription> {
-    const subject = new BehaviorSubject<SeatStatusObject>({ sectionIndex, seatStatus: initialSeats });
+    const subject = new BehaviorSubject(new SeatsSseDto(sectionIndex, initialSeats));
     let lastBroadcastTime = Date.now();
 
     const interval = setInterval(
@@ -401,6 +409,12 @@ export class BookingSeatsService implements OnModuleDestroy {
     );
 
     return { subject, interval };
+  }
+
+  private writeSseData(res: Response, payload: SeatsSsePayloadDto): void {
+    try {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch {}
   }
 
   @OnEvent('logout-release-seats')
