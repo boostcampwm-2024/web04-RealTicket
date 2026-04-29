@@ -38,3 +38,29 @@ scrape_configs:
         target_label: instance
         regex: '(.*):8080'
         replacement: '${1}'
+
+  - job_name: 'nest-baseline'
+    scrape_interval: 3s
+    dns_sd_configs:
+      - names:
+          - 'tasks.nest-baseline'
+        type: 'A'
+        port: 8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.*):8080'
+        replacement: '${1}'
+
+  - job_name: 'nest-candidate'
+    scrape_interval: 3s
+    dns_sd_configs:
+      - names:
+          - 'tasks.nest-candidate'
+        type: 'A'
+        port: 8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.*):8080'
+        replacement: '${1}'
