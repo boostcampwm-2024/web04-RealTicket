@@ -326,62 +326,6 @@ export class BookingSeatsService implements OnModuleDestroy {
     return seq;
   }
 
-  async switchSseClientSection(
-    eventId: number,
-    sectionIndex: number,
-    res: Response,
-    sid: string,
-  ): Promise<{ sectionIndex: number; seatStatus: number[] }> {
-    const session = await this.inBookingService.getSession(eventId, sid);
-    if (!session) {
-      throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
-    }
-    const currentSection = session.subscribedSection ?? null;
-
-    // idempotent: 동일 섹션 재요청 — Pitfall 3 방어 (removeClient 호출 전에 체크)
-    if (currentSection === sectionIndex) {
-      const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
-      return { sectionIndex, seatStatus: seats ?? [] };
-    }
-
-    // 신규 섹션 최신 상태 조회 (SSE-05)
-    const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
-
-    // res가 있을 때만 SSE 풀 조작 수행 (res=null이면 세션 갱신만)
-    if (res !== null) {
-      // 현재 풀에서 제거
-      const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
-      this.sseBroadcaster.removeClient(currentKey, res);
-
-      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init) — 실패 시 기존 풀에 롤백
-      const newKey = `${eventId}:${sectionIndex}`;
-      try {
-        if (!this.seatsSubscriptionMap.has(newKey)) {
-          await this.ensureSeatSubscription(newKey, eventId, sectionIndex);
-        }
-        this.sseBroadcaster.addClient(newKey, res, sid);
-      } catch (error) {
-        // 롤백: 기존 풀에 재등록
-        this.sseBroadcaster.addClient(currentKey, res, sid);
-        throw error;
-      }
-    }
-
-    // SSE 풀 조작 성공 후에만 세션의 subscribedSection 갱신 (D-01)
-    session.subscribedSection = sectionIndex;
-    await this.inBookingService.setSession(eventId, session);
-
-    return { sectionIndex, seatStatus: seats ?? [] };
-  }
-
-  async getClientResBySid(eventId: number, sid: string): Promise<Response | null> {
-    const session = await this.inBookingService.getSession(eventId, sid);
-    const currentSection = session?.subscribedSection ?? null;
-    const key = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
-    const result = this.sseBroadcaster.getClientBySid(key, sid);
-    return result?.res ?? null;
-  }
-
   private async ensureSeatSubscription(key: string, eventId: number, sectionIndex: number): Promise<void> {
     if (this.seatsSubscriptionMap.has(key)) return;
 
