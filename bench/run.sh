@@ -364,6 +364,36 @@ write_progress() {
 }
 
 # ---------------------------------------------------------------------------
+# write_iter_meta: iter start metadata for Phase 5 analyzers (D-10)
+# Args: iter_dir, iter_start_epoch, slot, iter_num, plan_path
+# ---------------------------------------------------------------------------
+write_iter_meta() {
+  local iter_dir="$1"
+  local iter_start_epoch="$2"
+  local slot="$3"
+  local iter_num="$4"
+  local plan_path="$5"
+
+  local json
+  json=$(jq -n \
+    --argjson ise "$iter_start_epoch" \
+    --arg slot "$slot" \
+    --argjson inum "$iter_num" \
+    --arg pp "$plan_path" \
+    '{
+      iter_start_epoch: $ise,
+      slot: $slot,
+      iter_num: $inum,
+      plan_path: $pp
+    }')
+
+  local meta_tmp="${iter_dir}/iter_meta.json.tmp.$$"
+  echo "$json" > "$meta_tmp"
+  mv "$meta_tmp" "${iter_dir}/iter_meta.json"
+  log INFO "iter_meta.json 저장: ${iter_dir}/iter_meta.json"
+}
+
+# ---------------------------------------------------------------------------
 # --- main ---
 # ---------------------------------------------------------------------------
 main() {
@@ -397,6 +427,8 @@ main() {
   per_run=$(manifest_yq "$manifest" '.per_run')
   cooldown=$(manifest_yq "$manifest" '.cooldown')
   max_failures=$(manifest_yq "$manifest" '.max_failures // "3"')
+  local plan_path
+  plan_path=$(manifest_yq "$manifest" '.plan_path')
 
   local warmup_s per_run_s cooldown_s
   warmup_s=$(parse_duration "$warmup")
@@ -536,6 +568,8 @@ main() {
     # 2. Gatling (reset 성공 시만)
     local iter_start_ts
     iter_start_ts=$(date +%s)
+    # D-10: iter_meta.json 저장 (Phase 5 analyzer input)
+    write_iter_meta "$iter_dir" "$iter_start_ts" "$slot_name" "$iter" "$plan_path"
     if [[ $iter_ok -eq 1 ]]; then
       write_progress "$run_dir" "$iter" "$total_iter" "gatling" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
       if ! run_gatling "$manifest" "$slot_idx" "$iter_dir" "$SID"; then
@@ -585,6 +619,10 @@ main() {
       sleep "$cooldown_s"
     fi
   done
+
+  # D-11: summarize.py 자동 호출 (Phase 5). 실패해도 COMPLETED 마커 생성은 유지한다.
+  python3 "${SCRIPT_DIR}/analyze/summarize.py" "$run_dir" \
+    || log WARN "summarize 실패 — raw 데이터는 보존됨 (D-11)"
 
   # 정상 종료: RUNNING 삭제 + COMPLETED 마커 (BG-02, D-21)
   rm -f "${run_dir}/RUNNING"
