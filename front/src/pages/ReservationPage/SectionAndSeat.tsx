@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import Select from 'react-select';
 import { useParams } from 'react-router-dom';
+import Select from 'react-select';
 
 import { BASE_URL } from '@/api/axios.ts';
 import { patchSection, postSeatCount } from '@/api/booking.ts';
@@ -67,13 +67,16 @@ export default function SectionAndSeat({
   // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
   // per FE-02: 단일 섹션 타입으로 수신
   // Phase 4: occupiedSeats optional 필드 추가 (per D-01)
+  // D-03 FE: selectedSection 기반으로 sseURL 동적 생성 — 섹션 변경 시 useSSE useEffect cleanup이 자동 close+open
+  const sseURL =
+    selectedSection !== null
+      ? `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId), selectedSection)}`
+      : `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`;
   const { data: sseData } = useSSE<{
     sectionIndex: number;
     seatStatus: number[];
     occupiedSeats?: [number, number][];
-  }>({
-    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
-  });
+  }>({ sseURL });
 
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });

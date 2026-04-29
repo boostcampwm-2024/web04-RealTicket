@@ -19,6 +19,7 @@ interface SeatMapProps {
   selectedSeats: SelectedSeat[];
   seatStatus: number[]; // SectionAndSeat에서 전달
   seatSize?: number; // 좌석 크기 prop 추가
+  disabled?: boolean; // D-10: transit 구간 skeleton + 클릭 차단
 }
 
 export default function SeatMap({
@@ -29,6 +30,7 @@ export default function SeatMap({
   selectedSeats,
   seatStatus,
   seatSize = 24, // 기본값
+  disabled = false,
 }: SeatMapProps) {
   const { eventId } = useParams();
   const { mutate: pickSeat } = useMutation({
@@ -69,6 +71,7 @@ export default function SeatMap({
         Number(eventId!),
         reservingList,
         seatSize,
+        disabled,
       )}
     </>
   );
@@ -91,6 +94,7 @@ const renderSeatMap = (
   eventId: number,
   reservingList: PostSeatData[],
   seatSize: number, // 좌석 크기 매개변수 추가
+  disabled: boolean,
 ) => {
   let columnCount = 1;
   const { name, seats, colLen } = selectedSection;
@@ -107,8 +111,9 @@ const renderSeatMap = (
     );
     const isOthers = seatStatus[index] === 0;
 
-    const stateClass =
-      seat === 0
+    const stateClass = disabled
+      ? 'bg-surface-sub pointer-events-none animate-pulse opacity-50'
+      : seat === 0
         ? 'bg-transparent pointer-events-none'
         : isReserving
           ? 'bg-warning pointer-events-none'
