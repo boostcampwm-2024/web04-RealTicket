@@ -133,8 +133,11 @@ reset_slots() {
     for (( i=0; i<slots_count; i++ )); do
       local target_url
       target_url=$(yq ".slots[$i].targetUrl" "$manifest")
+      # reset_path: RESET-ENDPOINT.md 패턴 — /booking/init/{eventId} (Phase 1 D-06)
       local reset_path
-      reset_path=$(yq '.reset_path' "$manifest" | sed "s/{eventId}/${event_id}/g")
+      local raw_reset_path
+      raw_reset_path=$(yq '.reset_path // "/booking/init/{eventId}"' "$manifest")
+      reset_path=$(echo "$raw_reset_path" | sed "s/{eventId}/${event_id}/g")
       (
         local http_code
         http_code=$(curl -s -o /dev/null -w "%{http_code}" \
