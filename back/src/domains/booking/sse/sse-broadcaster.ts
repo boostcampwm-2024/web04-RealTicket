@@ -5,6 +5,7 @@ import { Logger as WinstonLogger } from 'winston';
 interface SseClientInfo {
   res: Response;
   sid: string;
+  seq: number;
 }
 
 export interface SseBroadcasterOptions {
@@ -16,6 +17,7 @@ export class SseBroadcaster<T> {
   private subscriptionMap = new Map<string, Subscription>();
   private latestMessageMap = new Map<string, string>();
   private messageIdMap = new Map<string, number>();
+  private seqCounter = 0;
 
   constructor(
     private readonly name: string,
@@ -58,7 +60,7 @@ export class SseBroadcaster<T> {
     this.messageIdMap.delete(key);
   }
 
-  addClient(key: string, res: Response, sid: string): void {
+  addClient(key: string, res: Response, sid: string): number {
     if (!res.headersSent) {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -83,7 +85,8 @@ export class SseBroadcaster<T> {
     if (!this.clientsMap.has(key)) {
       this.clientsMap.set(key, new Set());
     }
-    const clientInfo: SseClientInfo = { res, sid };
+    const seq = ++this.seqCounter;
+    const clientInfo: SseClientInfo = { res, sid, seq };
     this.clientsMap.get(key).add(clientInfo);
 
     const latestMsg = this.latestMessageMap.get(key);
@@ -92,22 +95,25 @@ export class SseBroadcaster<T> {
         res.write(latestMsg);
       } catch {}
     }
+
+    return seq;
   }
 
-  removeClient(key: string, res: Response): void {
+  removeClient(key: string, res: Response, expectedSeq?: number): boolean {
     const clients = this.clientsMap.get(key);
-    if (!clients) return;
+    if (!clients) return false;
 
     for (const client of clients) {
-      if (client.res === res) {
+      if (client.res === res && (expectedSeq === undefined || client.seq === expectedSeq)) {
         clients.delete(client);
-        break;
+        if (clients.size === 0) {
+          this.clientsMap.delete(key);
+        }
+        return true;
       }
     }
 
-    if (clients.size === 0) {
-      this.clientsMap.delete(key);
-    }
+    return false;
   }
 
   getClientBySid(key: string, sid: string): { key: string; res: Response } | null {
@@ -120,6 +126,16 @@ export class SseBroadcaster<T> {
       }
     }
     return null;
+  }
+
+  isSidInPool(key: string, sid: string): boolean {
+    const clients = this.clientsMap.get(key);
+    if (!clients) return false;
+
+    for (const client of clients) {
+      if (client.sid === sid) return true;
+    }
+    return false;
   }
 
   getClientCount(key: string): number {
