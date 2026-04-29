@@ -171,10 +171,10 @@ export class BookingSeatsService implements OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
-    // VAL-01: 구독 섹션 검증 (subscribedSection null 포함)
+    // VAL-01 (D-08): SSE 풀 소속이 권한의 본질 — isSidInPool 기반 검증
     const [sectionIndex] = target;
-    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
-    if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
+    const key = `${eventId}:${sectionIndex}`;
+    if (!this.sseBroadcaster.isSidInPool(key, sid)) {
       throw new AppException(BookingErrorCode.SEAT_UNAUTHORIZED_SECTION);
     }
 
@@ -195,10 +195,10 @@ export class BookingSeatsService implements OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
-    // VAL-02: 구독 섹션 검증
+    // VAL-02 (D-08): SSE 풀 소속이 권한의 본질 — isSidInPool 기반 검증
     const [sectionIndex] = target;
-    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
-    if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
+    const key = `${eventId}:${sectionIndex}`;
+    if (!this.sseBroadcaster.isSidInPool(key, sid)) {
       throw new AppException(BookingErrorCode.SEAT_UNAUTHORIZED_SECTION);
     }
 

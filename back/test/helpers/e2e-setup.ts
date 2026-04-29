@@ -287,9 +287,10 @@ export function bookSeat(
  * SSE 연결을 우회하여 ENTERING → SELECTING_SEAT 상태 전환을 수행한다.
  * 반드시 setBookingCount 호출 후 사용해야 한다.
  *
- * Phase 2 이후 bookSeat/unBookSeat에 VAL 검증이 추가됐으므로,
- * subscribedSection을 defaultSectionIndex(기본값 0)로 설정한다.
- * 다른 섹션으로 테스트하려면 호출 후 inBookingService.setSession으로 직접 변경한다.
+ * Phase 2 이후 bookSeat/unBookSeat에 VAL 검증이 추가됐다 (D-08: isSidInPool 기반).
+ * 권한 검증 통과를 위해 mock Response로 broadcaster 풀(`${eventId}:${defaultSectionIndex}`)에
+ * sid를 등록한다. 다른 섹션으로 테스트하려면 호출 후 inBookingService.setSession +
+ * BookingSeatsService.addSseClientToSection을 직접 호출한다.
  */
 export async function transitionToSelectingSeat(
   app: INestApplication,
@@ -299,17 +300,37 @@ export async function transitionToSelectingSeat(
   const bookingService = app.get(BookingService);
   await bookingService.setInBookingFromEntering(sid);
 
-  // Phase 2: VAL 검증을 위해 subscribedSection 초기화
   const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
-  if (eventId !== null) {
-    const session = await inBookingService.getSession(eventId, sid);
-    if (session) {
-      session.subscribedSection = defaultSectionIndex;
-      await inBookingService.setSession(eventId, session);
-    }
-  }
+  if (eventId === null) return;
+
+  // D-08: 테스트 헬퍼에서 mock Response 사용해 SSE 풀에 sid 등록
+  // (실제 SSE 연결을 맺지 않는 e2e 테스트가 isSidInPool 검증을 통과하기 위함)
+  const { BookingSeatsService } = await import('src/domains/booking/service/booking-seats.service');
+  const bookingSeatsService = app.get(BookingSeatsService);
+  const mockRes = createMockSseResponse();
+  await bookingSeatsService.addSseClientToSection(eventId, defaultSectionIndex, mockRes, sid);
+}
+
+/**
+ * SSE 풀 등록용 mock Response 객체. 실제 HTTP 연결 없이 broadcaster.addClient의
+ * 부수 효과(헤더 전송·socket 옵션·initial write)를 안전하게 흡수한다.
+ */
+function createMockSseResponse(): import('express').Response {
+  const noop = () => undefined;
+  const mock = {
+    headersSent: false,
+    writeHead: noop,
+    flushHeaders: noop,
+    write: () => true,
+    end: noop,
+    socket: {
+      setKeepAlive: noop,
+      setNoDelay: noop,
+      setTimeout: noop,
+    },
+  };
+  return mock as unknown as import('express').Response;
 }
 
 /**

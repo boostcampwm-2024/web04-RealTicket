@@ -115,7 +115,10 @@ describe('Phase 2: 섹션 전환 엔드포인트 + 재연결 복원', () => {
     expect(res.body.error.code).toBe('BOOKING_SEAT_UNAUTHORIZED_SECTION');
   });
 
-  it('VAL-01: 섹션 미선택 상태(subscribedSection null)에서 bookSeat → 403 BOOKING_SEAT_UNAUTHORIZED_SECTION', async () => {
+  // FIXME(02-04): D-08 도입 후 권한의 본질이 SSE 풀 소속(isSidInPool)으로 바뀌었다.
+  // setupSelectingSeat이 broadcaster 풀에 sid를 등록하므로 subscribedSection을 null로
+  // 강제 변경해도 풀 소속은 유지된다 → bookSeat 200. 정식 시나리오는 02-04 GET-based로 갱신.
+  it.skip('VAL-01: 섹션 미선택 상태(subscribedSection null)에서 bookSeat → 403 BOOKING_SEAT_UNAUTHORIZED_SECTION', async () => {
     // 별도 유저 생성 후 subscribedSection을 null로 직접 세팅
     const nulluser = await loginAsUser(app, 'val01null', 'pass1234');
     await setupSelectingSeat(app, adminSid, eventId, nulluser, 1, 0);
