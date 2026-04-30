@@ -105,7 +105,7 @@ admin_login() {
 
   local http_code
   http_code=$(echo "$response" | tail -1)
-  [[ "$http_code" == "200" ]] || { rm -f "$cookie_file"; die "ADMIN 로그인 실패 (HTTP $http_code)"; }
+  [[ "$http_code" == "200" || "$http_code" == "201" ]] || { rm -f "$cookie_file"; die "ADMIN 로그인 실패 (HTTP $http_code)"; }
 
   # SID 추출: 쿠키 파일 우선, 없으면 응답 JSON 본문에서 시도
   local sid
