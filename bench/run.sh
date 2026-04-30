@@ -261,18 +261,21 @@ run_gatling() {
   )
   local gatling_exit=$?
 
-  # Gatling archive 결과를 iter_dir로 복사 (D-21 결과 경로 구조)
-  local archive_dir="${GATLING_DIR}/archive/reports"
+  # 이번 실행의 Gatling 결과를 iter_dir로 복사 (D-21 결과 경로 구조)
+  # app/build/reports/gatling/ 에서 가장 최근 폴더 = 방금 실행한 결과 (archive/ 는 mtime 오염으로 사용 금지)
+  local build_reports_dir="${GATLING_DIR}/app/build/reports/gatling"
   local latest_results
-  latest_results=$(ls -td "${archive_dir}"/results_* 2>/dev/null | head -1 || true)
+  latest_results=$(ls -td "${build_reports_dir}"/bookingsimulation-* 2>/dev/null | head -1 || true)
   if [[ -n "$latest_results" && -d "$latest_results" ]]; then
-    cp -r "$latest_results" "${iter_dir}/"
-    log INFO "Gatling 결과 복사: $latest_results → $iter_dir"
+    local result_dirname
+    result_dirname=$(basename "$latest_results")
+    cp -r "$latest_results" "${iter_dir}/${result_dirname}"
+    log INFO "Gatling 결과 복사: $latest_results → $iter_dir/$result_dirname"
     # effective-config.json 복사 (Phase 2 D-12)
     local eff_cfg="${latest_results}/effective-config.json"
     [[ -f "$eff_cfg" ]] && cp "$eff_cfg" "${iter_dir}/effective-config.json"
   else
-    log WARN "Gatling 결과 폴더를 찾을 수 없음: $archive_dir/results_*"
+    log WARN "Gatling 결과 폴더를 찾을 수 없음: $build_reports_dir/bookingsimulation-*"
   fi
 
   return $gatling_exit
