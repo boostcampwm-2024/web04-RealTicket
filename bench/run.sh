@@ -81,7 +81,8 @@ generate_run_id() {
 # ---------------------------------------------------------------------------
 # 전역 변수 (환경 변수 기본값 포함)
 # ---------------------------------------------------------------------------
-GATLING_DIR="${GATLING_DIR:-/c/Users/kxu45/ProgramStudy/gatling-practice/realticket-gatling-simulations}"
+# VM 기본 경로; 로컬 실행 시 GATLING_DIR 환경변수로 override
+GATLING_DIR="${GATLING_DIR:-/home/kyu4583/gatling-practice/realticket-gatling-simulations}"
 
 # ADMIN 로그인 시각 추적 (maybe_refresh_sid에서 사용)
 LAST_LOGIN_AT=0
@@ -640,7 +641,7 @@ main() {
   rm -f "${run_dir}/RUNNING"
   {
     echo "completed_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
-    echo "total_iter_executed=${iter}"
+    echo "total_iter_executed=$((iter - 1))"
     echo "failed_iters=${consecutive_failures}"
     echo "manifest_id=${manifest_id}"
     echo "run_id=${run_id}"
