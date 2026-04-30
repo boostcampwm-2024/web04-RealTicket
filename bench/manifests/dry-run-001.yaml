@@ -1,0 +1,65 @@
+# =============================================================================
+# bench/manifests/dry-run-001.yaml
+# bench-automation Phase 6 — dual 스택 dry-run 파이프라인 검증 매니페스트
+#
+# 목적: Phase 1~5 산출물 전체를 결합한 단대단 자동화 검증 (D-06~D-10)
+# 실행: bash bench/run.sh bench/manifests/dry-run-001.yaml
+# fire-and-forget: nohup bash bench/run.sh bench/manifests/dry-run-001.yaml > bench/raw/dry-run-001-run.log 2>&1 & disown
+#
+# 전제 조건:
+#   - nest:dic-baseline-patch, nest:dic-reconnect 이미지가 VM에 존재
+#   - docker stack realticket이 docker-stack-test-account-up-dual.yml로 배포됨
+#   - bench/.env에 ADMIN_ID, ADMIN_PASSWORD 설정됨
+# =============================================================================
+manifest_id: dry-run-001
+run_id_prefix: dry-run-2026-04
+
+# 종료 조건 (D-06: 파이프라인 검증 — 3 iter × 2슬롯 alternating = 총 8분)
+# 총 예상 소요 = warmup(30s) + iterations×(per_run(120s) + cooldown(30s)) = 30 + 3×150 = 480s ≈ 8분
+iterations: 3
+warmup: 30s
+per_run: 2m
+cooldown: 30s
+max_failures: 2
+
+# ⚠️  Lock #4: plan_path는 PlanConfig.json(region 단일 진실)의 포인터
+# region 정의를 변경하려면 이 파일이 아닌 dic-section-review-plan-config.json을 수정하고
+# PlanGenerator.py를 재실행할 것 — manifest에서 regions를 override하는 것은 금지
+# VM 절대 경로 — 06-03-SUMMARY.md에서 확인된 plan_path 값
+plan_path: /home/kyu4583/web04-RealTicket/bench/plans/dic-section-review-plan.json
+
+prom_url: http://192.168.138.2:9090
+prom_step: 5s
+
+reset_path: /booking/init/{eventId}
+event_ids:
+  - 1
+
+# dic-section-review SSE vs PATCH 비교 설정 (D-09)
+subscription_type: SSE
+scenario_mode: DYNAMIC
+
+# Prometheus 쿼리 (3개 — CPU, 메모리, 응답 시간)
+queries:
+  - name: cpu_avg
+    promql: 'avg(rate(container_cpu_usage_seconds_total{name=~"realticket.*"}[30s])) * 100'
+    unit: '%'
+  - name: mem_rss
+    promql: 'sum(container_memory_rss{name=~"realticket.*"})'
+    unit: 'bytes'
+  - name: http_p95_ms
+    promql: 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~"nest-.*"}[1m])) by (le)) * 1000'
+    unit: 'ms'
+
+# ⚠️  D-07: hypotheses 절 미포함 — dry-run은 파이프라인 검증 목적
+# 가설 검증은 dic-section-review 실제 측정 매니페스트에서 수행
+# ⚠️  Lock #3: 두 슬롯 동시 부하 절대 금지 — alternating only
+#     (iter1→baseline, iter2→candidate, iter3→baseline)
+# ⚠️  D-10: baseline=B안(PATCH+SSE유지, 8080), candidate=A안(SSE재연결, 8081)
+slots:
+  - name: baseline
+    image: nest:dic-baseline-patch
+    targetUrl: http://192.168.138.2:8080
+  - name: candidate
+    image: nest:dic-reconnect
+    targetUrl: http://192.168.138.2:8081
