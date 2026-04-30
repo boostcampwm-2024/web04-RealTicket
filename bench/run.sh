@@ -108,8 +108,9 @@ admin_login() {
   [[ "$http_code" == "200" || "$http_code" == "201" ]] || { rm -f "$cookie_file"; die "ADMIN 로그인 실패 (HTTP $http_code)"; }
 
   # SID 추출: 쿠키 파일 우선, 없으면 응답 JSON 본문에서 시도
+  # curl -c 쿠키 파일 형식: <#HttpOnly_>host\tFALSE\t/\tFALSE\t0\tSID\t<value>
   local sid
-  sid=$(grep -oP 'SID=\K[^\s;]+' "$cookie_file" 2>/dev/null || true)
+  sid=$(grep -P '\tSID\t' "$cookie_file" 2>/dev/null | awk '{print $NF}' || true)
   if [[ -z "$sid" ]]; then
     sid=$(echo "$response" | head -n -1 | jq -r '.data.SID // empty' 2>/dev/null || true)
   fi
