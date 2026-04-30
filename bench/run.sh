@@ -141,12 +141,13 @@ maybe_refresh_sid() {
 
 # ---------------------------------------------------------------------------
 # reset_slots: 이벤트 순차 × 슬롯 병렬 reset (Phase 1 D-03, RESET-ENDPOINT.md)
-# 인자: manifest 경로, SID
+# 인자: manifest 경로
 # 반환: 0=성공, 1=실패 (호출자가 D-16 정책에 따라 처리)
+# 각 슬롯마다 별도 ADMIN 로그인: dual 스택은 서버별 세션이 독립적이므로
+# 슬롯 0(8080)의 SID를 슬롯 1(8081)에서 재사용하면 403 발생
 # ---------------------------------------------------------------------------
 reset_slots() {
   local manifest="$1"
-  local sid="$2"
 
   local slots_count
   slots_count=$(manifest_yq "$manifest" '.slots | length')
@@ -167,10 +168,19 @@ reset_slots() {
       raw_reset_path=$(manifest_yq "$manifest" '.reset_path // "/booking/init/{eventId}"')
       reset_path=$(echo "$raw_reset_path" | sed "s/{eventId}/${event_id}/g")
       (
+        # 슬롯별 ADMIN 로그인 — 서버별 세션이 독립적이므로 각각 발급
+        local slot_cookie="/tmp/bench_reset_cookie_${i}_$$.txt"
+        curl -s -c "$slot_cookie" -o /dev/null \
+          -X POST "${target_url}/user/login" \
+          -H "Content-Type: application/json" \
+          -d "{\"loginId\":\"${ADMIN_ID}\",\"loginPassword\":\"${ADMIN_PASSWORD}\"}"
+        local slot_sid
+        slot_sid=$(awk '/[[:space:]]SID[[:space:]]/{print $NF}' "$slot_cookie" 2>/dev/null || true)
+        rm -f "$slot_cookie"
         local http_code
         http_code=$(curl -s -o /dev/null -w "%{http_code}" \
           -X POST "${target_url}${reset_path}" \
-          -H "Cookie: SID=${sid}")
+          -H "Cookie: SID=${slot_sid}")
         echo "$http_code" > "/tmp/bench_reset_${i}_$$.tmp"
       ) &
       pids+=($!)
@@ -562,7 +572,7 @@ main() {
 
     # 1. reset
     local iter_ok=1
-    if ! reset_slots "$manifest" "$SID"; then
+    if ! reset_slots "$manifest"; then
       log WARN "iter $iter: reset 실패"
       iter_ok=0
     fi
