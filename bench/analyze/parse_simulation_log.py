@@ -99,12 +99,72 @@ def _parse_regions(root: StatsDict) -> dict[str, StatsDict]:
 def find_stats_json(iter_dir: str | os.PathLike[str]) -> str | None:
     """Find the newest stats.json below an iteration directory.
 
-    Expected layout:
-        iter-N-slot-X/results_<ts>/<scenario>/js/stats.json
+    Tries two layouts:
+      (legacy) iter-N-slot-X/results_<ts>/<scenario>/js/stats.json
+      (current) iter-N-slot-X/<scenario>/js/stats.json
     """
-    pattern = os.path.join(str(iter_dir), "results_*", "*", "js", "stats.json")
-    matches = sorted(glob.glob(pattern), reverse=True)
-    return matches[0] if matches else None
+    for pattern in [
+        os.path.join(str(iter_dir), "results_*", "*", "js", "stats.json"),
+        os.path.join(str(iter_dir), "bookingsimulation-*", "js", "stats.json"),
+    ]:
+        matches = sorted(glob.glob(pattern), reverse=True)
+        if matches:
+            return matches[0]
+    return None
+
+
+def find_gatling_html(iter_dir: str | os.PathLike[str]) -> str | None:
+    """Find Gatling index.html (Gatling 3.x HTML report) inside iter directory."""
+    for pattern in [
+        os.path.join(str(iter_dir), "bookingsimulation-*", "index.html"),
+        os.path.join(str(iter_dir), "results_*", "*", "index.html"),
+    ]:
+        matches = sorted(glob.glob(pattern), reverse=True)
+        if matches:
+            return matches[0]
+    return None
+
+
+def parse_gatling_html_stats(html_path: str | os.PathLike[str]) -> StatsDict | None:
+    """Extract p50/p75/p95/p99 from Gatling HTML report index.html.
+
+    Gatling 3.14.x tbody column order (global stats row):
+      total(0), ok(1), ko(2), ko%(3), rps(4),
+      min(5), p50(6), p75(7), p95(8), p99(9), max(10), mean(11), stddev(12)
+    """
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return None
+
+    tbody_m = re.search(r"<tbody>(.*?)</tbody>", content, re.DOTALL)
+    if not tbody_m:
+        return None
+
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tbody_m.group(1), re.DOTALL)
+    if not rows:
+        return None
+
+    cells = re.findall(r"<td[^>]*>\s*([^<\s][^<]*?)\s*</td>", rows[0])
+    if len(cells) < 13:
+        return None
+
+    try:
+        ok = int(cells[1])
+        ko = int(cells[2])
+        total = ok + ko
+        return {
+            "p50": float(cells[6]),
+            "p75": float(cells[7]),
+            "p95": float(cells[8]),
+            "p99": float(cells[9]),
+            "ok": ok,
+            "ko": ko,
+            "failure_rate": ko / total if total > 0 else 0.0,
+        }
+    except (ValueError, IndexError):
+        return None
 
 
 def find_iter_meta(iter_dir: str | os.PathLike[str]) -> StatsDict:
@@ -174,21 +234,35 @@ def parse_iter_stats(iter_dir: str | os.PathLike[str]) -> StatsDict:
         result["slot"] = fallback_slot
 
     stats_path = find_stats_json(iter_path)
-    if stats_path is None:
+    if stats_path is not None:
+        stats_parts = Path(stats_path).parts
+        if len(stats_parts) >= 4:
+            result["scenario"] = stats_parts[-3]
+
+        try:
+            with open(stats_path, "r", encoding="utf-8") as stats_file:
+                root = json.load(stats_file)
+            result["regions"] = _parse_regions(root)
+        except (OSError, json.JSONDecodeError) as exc:
+            result["error"] = f"stats.json parse error: {exc}"
+        return result
+
+    # stats.json 없음 → Gatling HTML 리포트에서 p50/p95 추출 (Gatling 3.14.x)
+    html_path = find_gatling_html(iter_path)
+    if html_path is None:
         result["error"] = f"stats.json not found in {iter_path}"
         return result
 
-    stats_parts = Path(stats_path).parts
-    if len(stats_parts) >= 4:
-        result["scenario"] = stats_parts[-3]
+    html_parts = Path(html_path).parts
+    if len(html_parts) >= 2:
+        result["scenario"] = html_parts[-2]
 
-    try:
-        with open(stats_path, "r", encoding="utf-8") as stats_file:
-            root = json.load(stats_file)
-        result["regions"] = _parse_regions(root)
-    except (OSError, json.JSONDecodeError) as exc:
-        result["error"] = f"stats.json parse error: {exc}"
+    html_stats = parse_gatling_html_stats(html_path)
+    if html_stats is None:
+        result["error"] = f"Gatling HTML parse failed: {html_path}"
+        return result
 
+    result["regions"] = {"default": html_stats}
     return result
 
 
