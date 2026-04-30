@@ -2,14 +2,17 @@ import { RedisModuleOptions } from '@liaoliaots/nestjs-redis';
 
 const isSentinelMode = process.env.REDIS_SENTINEL_MODE === 'true';
 
+function parseSentinels(hostsEnv: string): { host: string; port: number }[] {
+  return hostsEnv.split(',').map((entry) => {
+    const [host, portStr] = entry.trim().split(':');
+    return { host, port: parseInt(portStr || '26379', 10) };
+  });
+}
+
 const sharedConnection = isSentinelMode
   ? {
-      sentinels: [
-        { host: 'redis-sentinel-1', port: 26379 },
-        { host: 'redis-sentinel-2', port: 26379 },
-        { host: 'redis-sentinel-3', port: 26379 },
-      ],
-      name: 'mymaster',
+      sentinels: parseSentinels(process.env.REDIS_SENTINEL_HOSTS),
+      name: process.env.REDIS_SENTINEL_NAME || 'mymaster',
       password: process.env.REDIS_PASSWORD || undefined,
     }
   : {
