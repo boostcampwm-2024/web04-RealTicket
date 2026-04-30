@@ -81,8 +81,7 @@ generate_run_id() {
 # ---------------------------------------------------------------------------
 # 전역 변수 (환경 변수 기본값 포함)
 # ---------------------------------------------------------------------------
-# VM 기본 경로; 로컬 실행 시 GATLING_DIR 환경변수로 override
-GATLING_DIR="${GATLING_DIR:-/home/kyu4583/gatling-practice/realticket-gatling-simulations}"
+GATLING_DIR="${GATLING_DIR:-/c/Users/kxu45/ProgramStudy/gatling-practice/realticket-gatling-simulations}"
 
 # ADMIN 로그인 시각 추적 (maybe_refresh_sid에서 사용)
 LAST_LOGIN_AT=0
@@ -511,7 +510,7 @@ main() {
   log INFO "RUNNING 마커 생성: ${run_dir}/RUNNING"
 
   # trap: 비정상 종료(오류, 신호) 시 FAILED 마커 생성 + RUNNING 삭제
-  local _trap_run_dir="$run_dir"
+  _trap_run_dir="$run_dir"
   cleanup_on_exit() {
     local exit_code=$?
     rm -f "${_trap_run_dir}/RUNNING"

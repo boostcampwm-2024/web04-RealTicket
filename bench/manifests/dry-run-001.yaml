@@ -25,8 +25,8 @@ max_failures: 2
 # ⚠️  Lock #4: plan_path는 PlanConfig.json(region 단일 진실)의 포인터
 # region 정의를 변경하려면 이 파일이 아닌 dic-section-review-plan-config.json을 수정하고
 # PlanGenerator.py를 재실행할 것 — manifest에서 regions를 override하는 것은 금지
-# VM 절대 경로 — 06-03-SUMMARY.md에서 확인된 plan_path 값
-plan_path: /home/kyu4583/web04-RealTicket/bench/plans/dic-section-review-plan.json
+# 로컬 Git Bash 경로 (로컬 PC에서 Gatling 실행 — CLAUDE.md 명세)
+plan_path: /c/Users/kxu45/ProgramStudy/naver-boostcamp-membership/GroupProject/web04-RealTicket/bench/plans/dic-section-review-plan.json
 
 prom_url: http://192.168.138.2:9090
 prom_step: 5s
