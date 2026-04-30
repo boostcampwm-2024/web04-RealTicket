@@ -98,9 +98,9 @@ admin_login() {
   local cookie_file="/tmp/bench_cookies_$$.txt"
   local response
   response=$(curl -s -c "$cookie_file" \
-    -X POST "${target_url}/auth/login" \
+    -X POST "${target_url}/user/login" \
     -H "Content-Type: application/json" \
-    -d "{\"id\":\"${ADMIN_ID}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+    -d "{\"loginId\":\"${ADMIN_ID}\",\"loginPassword\":\"${ADMIN_PASSWORD}\"}" \
     -w "\n%{http_code}")
 
   local http_code
