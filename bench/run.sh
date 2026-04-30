@@ -240,7 +240,11 @@ run_gatling() {
   fixed_booking_amount=$(manifest_yq "$manifest" '.fixed_booking_amount // 4')
   max_retry=$(manifest_yq "$manifest" '.max_retry_in_booking_conflict // 100')
 
-  log INFO "Gatling 실행: slot=$slot_name, targetUrl=$target_url"
+  # Config.java가 "http://" + ROOT_URL로 URL을 조합하므로 scheme 제거 후 전달
+  local target_url_noscheme="${target_url#http://}"
+  target_url_noscheme="${target_url_noscheme#https://}"
+
+  log INFO "Gatling 실행: slot=$slot_name, targetUrl=$target_url (Gatling에는 scheme 제외: $target_url_noscheme)"
 
   # Lock #3: 단일 슬롯만 실행 (concurrent 미지원)
   (
@@ -248,7 +252,7 @@ run_gatling() {
     ./gradlew gatlingRun \
       -PsubscriptionType="${subscription_type}" \
       -PscenarioMode="${scenario_mode}" \
-      -PtargetUrl="${target_url}" \
+      -PtargetUrl="${target_url_noscheme}" \
       -PplanPath="${plan_path}" \
       -PtargetEvent="${target_event}" \
       -PdynamicUserCount="${dynamic_user_count}" \
