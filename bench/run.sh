@@ -109,8 +109,9 @@ admin_login() {
 
   # SID 추출: 쿠키 파일 우선, 없으면 응답 JSON 본문에서 시도
   # curl -c 쿠키 파일 형식: <#HttpOnly_>host\tFALSE\t/\tFALSE\t0\tSID\t<value>
+  # grep -P 는 Windows curl 환경에서 UTF-8 locale 오류 발생 → awk 단독으로 처리
   local sid
-  sid=$(grep -P '\tSID\t' "$cookie_file" 2>/dev/null | awk '{print $NF}' || true)
+  sid=$(awk '/[[:space:]]SID[[:space:]]/{print $NF}' "$cookie_file" 2>/dev/null || true)
   if [[ -z "$sid" ]]; then
     sid=$(echo "$response" | head -n -1 | jq -r '.data.SID // empty' 2>/dev/null || true)
   fi
