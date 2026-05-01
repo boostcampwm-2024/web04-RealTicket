@@ -586,7 +586,19 @@ main() {
   log INFO "warmup: ${warmup}"
   sleep "$warmup_s"
 
-  local consecutive_failures=0
+  # 실패 카운터 (06-08 D-16 강화):
+  #   global_consecutive — 어떤 슬롯이든 인접 iter 연속 실패 (인프라 전체 장애)
+  #   per_slot_consecutive[i] — 같은 슬롯의 *최근 시도* 연속 실패 (해당 슬롯 단독 장애)
+  #   total_failed — 매니페스트 전체 누적 실패 횟수 (COMPLETED 마커 + progress.json 보고용)
+  # 둘 중 하나라도 max_failures 도달 시 매니페스트 abort.
+  # 1회 실패 후 회복은 일시 장애로 tolerate (해당 카운터만 리셋).
+  local global_consecutive=0
+  local total_failed=0
+  local -a per_slot_consecutive
+  local _slot_init_idx
+  for (( _slot_init_idx=0; _slot_init_idx<slots_count; _slot_init_idx++ )); do
+    per_slot_consecutive[$_slot_init_idx]=0
+  done
   local run_start_ts
   run_start_ts=$(date +%s)
 
@@ -618,13 +630,16 @@ main() {
     # SID 만료 방지 (TTL=1h → 50분마다 재발급)
     SID=$(maybe_refresh_sid "$slot_target" "$SID")
 
-    # progress.json 갱신 — phase=reset (D-20)
-    write_progress "$run_dir" "$iter" "$total_iter" "reset" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+    # progress.json 갱신 — phase=reset (D-20). failed_iters는 누적 total_failed (06-08).
+    write_progress "$run_dir" "$iter" "$total_iter" "reset" "$slot_name" "$total_failed" "$run_start_ts" "$per_run_s" "$cooldown_s"
 
-    # 1. reset
+    # 1. reset (06-08: 실패 시 reason 캡처)
     local iter_ok=1
+    local iter_fail_reason=""
+    local iter_fail_detail=""
     if ! reset_slots "$manifest"; then
       log WARN "iter $iter: reset 실패"
+      iter_fail_reason="reset_failed"
       iter_ok=0
     fi
 
@@ -634,9 +649,13 @@ main() {
     # D-10: iter_meta.json 저장 (Phase 5 analyzer input)
     write_iter_meta "$iter_dir" "$iter_start_ts" "$slot_name" "$iter" "$plan_path"
     if [[ $iter_ok -eq 1 ]]; then
-      write_progress "$run_dir" "$iter" "$total_iter" "gatling" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
-      if ! run_gatling "$manifest" "$slot_idx" "$iter_dir" "$SID"; then
-        log WARN "iter $iter: Gatling 실패 (exit != 0)"
+      write_progress "$run_dir" "$iter" "$total_iter" "gatling" "$slot_name" "$total_failed" "$run_start_ts" "$per_run_s" "$cooldown_s"
+      local gatling_rc=0
+      run_gatling "$manifest" "$slot_idx" "$iter_dir" "$SID" || gatling_rc=$?
+      if (( gatling_rc != 0 )); then
+        log WARN "iter $iter: Gatling 실패 (exit=$gatling_rc)"
+        iter_fail_reason="gatling_failed"
+        iter_fail_detail="gatling_exit=${gatling_rc}"
         iter_ok=0
       fi
     fi
@@ -645,36 +664,64 @@ main() {
 
     # 3. Prometheus 수집 (iter 성공/실패 무관 — D-16)
     if [[ $iter_ok -eq 1 ]]; then
-      write_progress "$run_dir" "$iter" "$total_iter" "prometheus" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+      write_progress "$run_dir" "$iter" "$total_iter" "prometheus" "$slot_name" "$total_failed" "$run_start_ts" "$per_run_s" "$cooldown_s"
       collect_prometheus "$manifest" "$iter_dir" "$iter_start_ts" "$iter_end_ts"
     fi
 
-    # 4. 실패 처리 (D-15, D-17)
+    # 4. 실패 처리 (D-15·D-17, 06-08 강화):
+    #    - iter_dir/FAILED: 구조화 reason (reset_failed | gatling_failed)
+    #    - global_consecutive 또는 per_slot_consecutive[slot] 둘 중 하나가 max_failures 도달 시 abort
+    #    - 1회 실패 후 회복은 일시 장애로 tolerate (해당 카운터만 리셋)
     if [[ $iter_ok -eq 0 ]]; then
-      echo "reset/gatling failed at iter $iter, slot $slot_name" > "${iter_dir}/FAILED"
-      consecutive_failures=$(( consecutive_failures + 1 ))
-      log WARN "iter $iter FAILED (consecutive: $consecutive_failures/$max_failures)"
+      {
+        echo "reason=${iter_fail_reason:-unknown}"
+        echo "slot=${slot_name}"
+        echo "iter=${iter}"
+        [[ -n "$iter_fail_detail" ]] && echo "$iter_fail_detail"
+        echo "failed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+      } > "${iter_dir}/FAILED"
 
-      if (( consecutive_failures >= max_failures )); then
-        log ERROR "연속 ${max_failures}회 실패 — 전체 FAILED 마커 생성 후 즉시 종료 (D-15)"
+      global_consecutive=$(( global_consecutive + 1 ))
+      per_slot_consecutive[$slot_idx]=$(( ${per_slot_consecutive[$slot_idx]} + 1 ))
+      total_failed=$(( total_failed + 1 ))
+      log WARN "iter $iter FAILED (reason=${iter_fail_reason}, global_consec=${global_consecutive}/${max_failures}, slot=${slot_name} consec=${per_slot_consecutive[$slot_idx]}/${max_failures}, total_failed=${total_failed})"
+
+      local trip_condition=""
+      if (( global_consecutive >= max_failures )); then
+        trip_condition="global_consecutive"
+      elif (( ${per_slot_consecutive[$slot_idx]} >= max_failures )); then
+        trip_condition="per_slot:${slot_name}"
+      fi
+
+      if [[ -n "$trip_condition" ]]; then
+        log ERROR "max_failures(${max_failures}) trip — condition=${trip_condition}. 매니페스트 abort (06-08)"
         {
-          echo "consecutive_failures=${consecutive_failures}"
+          echo "reason=max_failures_exceeded"
+          echo "trip_condition=${trip_condition}"
           echo "max_failures=${max_failures}"
-          echo "stopped_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "global_consecutive=${global_consecutive}"
+          local _slot_dump_idx _slot_dump_name
+          for (( _slot_dump_idx=0; _slot_dump_idx<slots_count; _slot_dump_idx++ )); do
+            _slot_dump_name=$(manifest_yq "$manifest" ".slots[$_slot_dump_idx].name")
+            echo "per_slot_consecutive_${_slot_dump_name}=${per_slot_consecutive[$_slot_dump_idx]}"
+          done
+          echo "total_failed=${total_failed}"
           echo "last_failed_iter=${iter}"
           echo "last_failed_slot=${slot_name}"
+          echo "stopped_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
         } > "${run_dir}/FAILED"
         rm -f "${run_dir}/RUNNING"
-        trap - EXIT  # cleanup_on_exit 중복 실행 방지
-        exit 1
+        trap - EXIT  # cleanup_on_exit 중복 append 방지
+        exit 3
       fi
     else
-      # 성공 시 연속 실패 카운터 리셋 (D-15)
-      consecutive_failures=0
+      # 성공 시 글로벌·해당 슬롯 연속 카운터 리셋. 다른 슬롯 카운터는 유지.
+      global_consecutive=0
+      per_slot_consecutive[$slot_idx]=0
     fi
 
     # progress.json 갱신 — phase=idle (D-20)
-    write_progress "$run_dir" "$iter" "$total_iter" "idle" "$slot_name" "$consecutive_failures" "$run_start_ts" "$per_run_s" "$cooldown_s"
+    write_progress "$run_dir" "$iter" "$total_iter" "idle" "$slot_name" "$total_failed" "$run_start_ts" "$per_run_s" "$cooldown_s"
 
     # cooldown (마지막 iter 제외)
     if (( iter < total_iter )); then
@@ -687,12 +734,15 @@ main() {
   python3 "${SCRIPT_DIR}/analyze/summarize.py" "$run_dir" \
     || log WARN "summarize 실패 — raw 데이터는 보존됨 (D-11)"
 
-  # 정상 종료: RUNNING 삭제 + COMPLETED 마커 (BG-02, D-21)
+  # 정상 종료: RUNNING 삭제 + COMPLETED 마커 (BG-02, D-21).
+  # 06-08: total_failed_iters는 매니페스트 전체 누적 실패 횟수.
+  # 일시 장애로 tolerate된 isolated fail이 있어도 매니페스트가 완주했으면 COMPLETED 발급.
+  # analyzer는 total_failed_iters > 0인 경우 해당 iter_dir/FAILED 마커를 읽어 진단 가능.
   rm -f "${run_dir}/RUNNING"
   {
     echo "completed_at=$(date '+%Y-%m-%dT%H:%M:%SZ')"
     echo "total_iter_executed=$((iter - 1))"
-    echo "failed_iters=${consecutive_failures}"
+    echo "total_failed_iters=${total_failed}"
     echo "manifest_id=${manifest_id}"
     echo "run_id=${run_id}"
   } > "${run_dir}/COMPLETED"
