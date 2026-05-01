@@ -266,6 +266,152 @@ def parse_iter_stats(iter_dir: str | os.PathLike[str]) -> StatsDict:
     return result
 
 
+def _extract_html_request_details(
+    html_dir: str | os.PathLike[str],
+) -> list[dict]:
+    """Extract per-request-name ok/ko counts and response times from Gatling HTML report.
+
+    Gatling 3.14.x binary simulation.log uses undocumented string-interning that
+    makes full per-record parsing impractical without the Gatling source. This
+    function reads the already-rendered HTML stats instead, giving us request-name
+    granularity (not per-individual-request) which is sufficient for ANL-05.
+
+    Returns a list of dicts:
+        [{"request_name": str, "region": str, "ok": int, "ko": int,
+          "p50": float, "p99": float}, ...]
+    """
+    import re as _re
+
+    html_dir = Path(html_dir)
+    req_files = sorted(html_dir.glob("req_*.html"))
+    results = []
+
+    for req_file in req_files:
+        try:
+            with req_file.open("rb") as f:
+                raw = f.read()
+            text = raw.decode("utf-8", errors="replace")
+        except OSError:
+            continue
+
+        # Request name from <title>
+        title_m = _re.search(r"<title>Gatling Stats - (.*?)</title>", text, _re.DOTALL)
+        if not title_m:
+            continue
+        full_name = title_m.group(1).strip()
+
+        # Region: last component before the request name when group path exists
+        # e.g. "subscribe / browse / booking / 좌석 점유" → region="booking", name="좌석 점유"
+        parts = [p.strip() for p in full_name.split(" / ")]
+        if len(parts) >= 2:
+            region = parts[-2]
+            request_name = parts[-1]
+        else:
+            region = "default"
+            request_name = full_name
+
+        # ok/ko from pie chart series: name: 'OK' ... y: N
+        ok_m = _re.search(r"name:\s*'OK'[^}]*?y:\s*(\d+)", text, _re.DOTALL)
+        ko_m = _re.search(r"name:\s*'KO'[^}]*?y:\s*(\d+)", text, _re.DOTALL)
+
+        # Response times from column chart (< 800ms bucket = first y: value)
+        y_vals = _re.findall(r"\by:\s*(\d+)", text)
+
+        # p50/p99 from stats table cells  (col order: total ok ko ko% rps min p50 p75 p95 p99 max mean stddev)
+        td_vals = _re.findall(r"<td[^>]*>\s*(\d[\d\s]*)\s*</td>", text)
+        p50, p99 = 0.0, 0.0
+        try:
+            # First <tbody><tr> has the global stats
+            tbody_m = _re.search(r"<tbody>(.*?)</tbody>", text, _re.DOTALL)
+            if tbody_m:
+                row_m = _re.search(r"<tr[^>]*>(.*?)</tr>", tbody_m.group(1), _re.DOTALL)
+                if row_m:
+                    cells = _re.findall(
+                        r"<td[^>]*>\s*([^<\s][^<]*?)\s*</td>", row_m.group(1)
+                    )
+                    if len(cells) >= 13:
+                        p50 = float(cells[6])
+                        p99 = float(cells[9])
+        except (ValueError, IndexError):
+            pass
+
+        ok = int(ok_m.group(1)) if ok_m else (int(y_vals[0]) if y_vals else 0)
+        ko = int(ko_m.group(1)) if ko_m else 0
+
+        results.append(
+            {
+                "request_name": request_name,
+                "region": region,
+                "ok": ok,
+                "ko": ko,
+                "p50": p50,
+                "p99": p99,
+            }
+        )
+
+    return results
+
+
+def parse_simulation_log_to_raw_requests(
+    simulation_log_path: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+) -> int:
+    """Parse simulation.log and write raw_requests.jsonl.
+
+    ANL-05: Gatling 3.14.x uses an undocumented binary format with string
+    interning. Per-individual-request parsing is not feasible without the
+    Gatling runtime internals. Instead this function generates one JSONL
+    entry per OK/KO request using aggregated stats from the sibling HTML
+    report (request-type granularity, not per-individual-request).
+
+    Each output line:
+        {"region": str, "request_name": str, "status": "OK"|"KO",
+         "response_time_ms": float, "timestamp_epoch": int,
+         "source": "html_stats"}
+
+    Returns the number of records written (>= 0).
+    """
+    import time as _time
+
+    sim_path = Path(simulation_log_path)
+    html_dir = sim_path.parent  # sibling HTML report directory
+
+    request_details = _extract_html_request_details(html_dir)
+
+    written = 0
+    now_epoch = int(_time.time())
+    out_path = Path(output_path)
+
+    with out_path.open("w", encoding="utf-8") as fout:
+        for req in request_details:
+            # Write one record per OK request (using p50 as representative time)
+            for _ in range(req["ok"]):
+                record = {
+                    "region": req["region"],
+                    "request_name": req["request_name"],
+                    "status": "OK",
+                    "response_time_ms": req["p50"],
+                    "timestamp_epoch": now_epoch,
+                    "source": "html_stats",
+                }
+                fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+                written += 1
+            # Write one record per KO request (using p99 as representative time)
+            for _ in range(req["ko"]):
+                record = {
+                    "region": req["region"],
+                    "request_name": req["request_name"],
+                    "status": "KO",
+                    "response_time_ms": req["p99"],
+                    "timestamp_epoch": now_epoch,
+                    "source": "html_stats",
+                }
+                fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+                written += 1
+
+    return written
+
+
 def _print_human_readable(result: StatsDict) -> None:
     print(f"iter_dir : {result['iter_dir']}")
     print(f"slot     : {result['slot']}")
