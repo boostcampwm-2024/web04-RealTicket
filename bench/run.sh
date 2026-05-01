@@ -123,6 +123,35 @@ admin_login() {
 }
 
 # ---------------------------------------------------------------------------
+# admin_login_precheck: 매니페스트 시작 전 VM 인프라 연결성 검증 (D-13, 06-07)
+# 첫 슬롯 targetUrl에 단발성 POST /user/login 호출 → HTTP 200/201이면 통과
+# 쿠키·SID는 폐기 (검증 전용 — 실제 로그인은 admin_login()이 수행)
+# 반환: 0=통과, 1=실패 (호출자가 FAILED 마커 발급 + exit 2)
+# --dry-run에서는 호출되지 않음 (main flow가 dry-run 분기에서 조기 exit)
+# ---------------------------------------------------------------------------
+admin_login_precheck() {
+  local manifest="$1"
+  local target_url
+  target_url=$(manifest_yq "$manifest" '.slots[0].targetUrl')
+  [[ -n "$target_url" ]] || { log ERROR "admin_login_precheck: slots[0].targetUrl 추출 실패"; return 1; }
+
+  log INFO "admin_login_precheck: ${target_url}/user/login 연결성 검증 (D-13)"
+  local http_code
+  http_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    --max-time 10 \
+    -X POST "${target_url}/user/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"loginId\":\"${ADMIN_ID}\",\"loginPassword\":\"${ADMIN_PASSWORD}\"}" 2>/dev/null) || http_code="000"
+
+  if [[ "$http_code" != "200" && "$http_code" != "201" ]]; then
+    log ERROR "admin_login_precheck 실패: HTTP $http_code (target: $target_url) — VM stack 재시작 필요 (D-13)"
+    return 1
+  fi
+  log INFO "admin_login_precheck 통과: HTTP $http_code"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # maybe_refresh_sid: SID TTL 1시간 → 3000s(50분)마다 재발급 (10분 마진)
 # 반환값: 갱신된 SID (stdout)
 # ---------------------------------------------------------------------------
@@ -528,6 +557,21 @@ main() {
     fi
   }
   trap cleanup_on_exit EXIT
+
+  # admin login pre-check (D-13, 06-07): VM 인프라 연결성 게이트
+  # 실패 시 매니페스트 진행 중단 — VM stack force-restart 후 재실행 필요
+  if ! admin_login_precheck "$manifest"; then
+    {
+      echo "reason=admin_login_precheck_failed"
+      echo "run_id=${run_id}"
+      echo "manifest_id=${manifest_id}"
+      echo "failed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    } > "${run_dir}/FAILED"
+    rm -f "${run_dir}/RUNNING"
+    log ERROR "매니페스트 진행 중단 — D-13 VM 복구 절차로 stack 재시작 후 재실행 필요"
+    trap - EXIT  # cleanup_on_exit 중복 append 방지
+    exit 2
+  fi
 
   log INFO "벤치마크 시작: manifest=$manifest_id, run_id=$run_id, total_iter=$total_iter"
 
