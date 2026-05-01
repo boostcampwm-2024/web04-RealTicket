@@ -104,9 +104,21 @@
 #       한 iteration에 한 슬롯만 측정, 다른 슬롯은 idle.
 #       (단, reset 호출은 두 슬롯 병렬 허용 — D-03, Phase 1 D-03)
 #   각 항목:
-#     name      string  슬롯 식별자 (예: "baseline", "candidate")
-#     image     string  Docker 이미지 태그 (예: "nest:latest", "nest:sentinel")
-#     targetUrl string  nest 컨테이너 HTTP 기본 URL (예: "http://192.168.138.2:8080")
+#     name           string  슬롯 식별자 (예: "baseline", "candidate")
+#     image          string  Docker 이미지 태그 (예: "nest:latest", "nest:sentinel")
+#     targetUrl      string  nest 컨테이너 HTTP 기본 URL (예: "http://192.168.138.2:8080")
+#     scenario_mode  string  optional   D-14 (06-10, MAN-SLOT-SCENARIO)
+#       slot 단위 scenario_mode override. 미지정 시 manifest-level scenario_mode 사용.
+#       허용 enum: DYNAMIC | STATIC | PARALLEL | LOGIN_ONLY | SECTION_A | SECTION_B
+#       (Gatling Config.java의 ScenarioMode enum과 일치 — 1:1)
+#       우선순위 (run.sh가 적용):
+#         1. slots[].scenario_mode  (slot override)
+#         2. .scenario_mode          (manifest default)
+#         3. "DYNAMIC"               (built-in default)
+#       SECTION_A/B 분기 예시 (dual-stack 비교용, D-14 supersedes D-09):
+#         slots:
+#           - { name: baseline,  ..., scenario_mode: SECTION_B }   # PATCH+SSE유지
+#           - { name: candidate, ..., scenario_mode: SECTION_A }   # SSE close+재연결
 #
 # hypotheses    list[obj] optional   D-04 (ANL-04)
 #   가설 검증 목록. Phase 5 분석기가 자동 판정(검증/반증/판정 보류).

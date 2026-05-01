@@ -260,7 +260,8 @@ run_gatling() {
   slot_name=$(manifest_yq "$manifest" ".slots[$slot_idx].name")
   target_url=$(manifest_yq "$manifest" ".slots[$slot_idx].targetUrl")
   subscription_type=$(manifest_yq "$manifest" '.subscription_type // "SSE"')
-  scenario_mode=$(manifest_yq "$manifest" '.scenario_mode // "DYNAMIC"')
+  # 06-10 D-14: scenario_mode 우선순위 = slot override > manifest default > "DYNAMIC"
+  scenario_mode=$(manifest_yq "$manifest" ".slots[$slot_idx].scenario_mode // .scenario_mode // \"DYNAMIC\"")
 
   local plan_path target_event dynamic_user_count fixed_booking_amount max_retry
   plan_path=$(manifest_yq "$manifest" '.plan_path')
@@ -273,7 +274,7 @@ run_gatling() {
   local target_url_noscheme="${target_url#http://}"
   target_url_noscheme="${target_url_noscheme#https://}"
 
-  log INFO "Gatling 실행: slot=$slot_name, targetUrl=$target_url (Gatling에는 scheme 제외: $target_url_noscheme)"
+  log INFO "Gatling 실행: slot=$slot_name, scenario_mode=$scenario_mode, targetUrl=$target_url (Gatling에는 scheme 제외: $target_url_noscheme)"
 
   # Lock #3: 단일 슬롯만 실행 (concurrent 미지원)
   (
@@ -526,9 +527,11 @@ main() {
     for (( i=1; i<=total_iter && i<=10; i++ )); do
       local sidx
       sidx=$(get_slot_for_iter "$i" "$slots_count")
-      local sname
+      local sname smode
       sname=$(manifest_yq "$manifest" ".slots[$sidx].name")
-      echo "  iter $i → slot: $sname (idx $sidx)"
+      # D-14: slot 우선순위 scenario_mode (slot > manifest > DYNAMIC)
+      smode=$(manifest_yq "$manifest" ".slots[$sidx].scenario_mode // .scenario_mode // \"DYNAMIC\"")
+      echo "  iter $i → slot: $sname (idx $sidx) scenario_mode=$smode"
     done
     [[ $total_iter -gt 10 ]] && echo "  ... (이후 $((total_iter-10))개 iter 생략)"
     exit 0

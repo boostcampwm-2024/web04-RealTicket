@@ -35,7 +35,11 @@ reset_path: /booking/init/{eventId}
 event_ids:
   - 1
 
-# dic-section-review SSE vs PATCH 비교 설정 (D-09)
+# dic-section-review SSE vs PATCH 비교 설정
+# D-09: subscription_type=SSE (변경 없음, manifest 단위)
+# D-14 (D-09 supersede, 06-10): scenario_mode는 manifest-level default(DYNAMIC) +
+#   slot-level override (SECTION_B/A) 이중 구조. slot이 우선.
+#   manifest-level scenario_mode는 slot이 override 안 한 경우의 fallback.
 subscription_type: SSE
 scenario_mode: DYNAMIC
 
@@ -56,10 +60,15 @@ queries:
 # ⚠️  Lock #3: 두 슬롯 동시 부하 절대 금지 — alternating only
 #     (iter1→baseline, iter2→candidate, iter3→baseline)
 # ⚠️  D-10: baseline=B안(PATCH+SSE유지, 8080), candidate=A안(SSE재연결, 8081)
+# ⚠️  D-14 (06-10, D-09 정정): slot별 scenario_mode override로 A/B 분기 측정 가능화
+#     baseline=SECTION_B (PATCH /booking/seat/section + SSE 유지)
+#     candidate=SECTION_A (SSE close + 재연결)
 slots:
   - name: baseline
     image: nest:dic-baseline-patch
     targetUrl: http://192.168.138.2:8080
+    scenario_mode: SECTION_B
   - name: candidate
     image: nest:dic-reconnect
     targetUrl: http://192.168.138.2:8081
+    scenario_mode: SECTION_A
