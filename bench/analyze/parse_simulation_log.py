@@ -317,21 +317,27 @@ def _extract_html_request_details(
         # Response times from column chart (< 800ms bucket = first y: value)
         y_vals = _re.findall(r"\by:\s*(\d+)", text)
 
-        # p50/p99 from stats table cells  (col order: total ok ko ko% rps min p50 p75 p95 p99 max mean stddev)
-        td_vals = _re.findall(r"<td[^>]*>\s*(\d[\d\s]*)\s*</td>", text)
+        # p50/p99 from stats table: rows are 4-column (label | Total | OK | KO).
+        # Search all <tr> elements for '50th percentile' / '99th percentile' rows.
         p50, p99 = 0.0, 0.0
         try:
-            # First <tbody><tr> has the global stats
-            tbody_m = _re.search(r"<tbody>(.*?)</tbody>", text, _re.DOTALL)
-            if tbody_m:
-                row_m = _re.search(r"<tr[^>]*>(.*?)</tr>", tbody_m.group(1), _re.DOTALL)
-                if row_m:
-                    cells = _re.findall(
-                        r"<td[^>]*>\s*([^<\s][^<]*?)\s*</td>", row_m.group(1)
-                    )
-                    if len(cells) >= 13:
-                        p50 = float(cells[6])
-                        p99 = float(cells[9])
+            all_rows = _re.findall(r"<tr[^>]*>(.*?)</tr>", text, _re.DOTALL)
+            for row_html in all_rows:
+                cells = _re.findall(
+                    r"<t[dh][^>]*>\s*([^<]*?)\s*</t[dh]>", row_html
+                )
+                cells = [c.strip() for c in cells]
+                if len(cells) >= 3:
+                    if "50th percentile" in cells[0]:
+                        try:
+                            p50 = float(cells[2])  # OK column
+                        except ValueError:
+                            pass
+                    elif "99th percentile" in cells[0]:
+                        try:
+                            p99 = float(cells[2])  # OK column
+                        except ValueError:
+                            pass
         except (ValueError, IndexError):
             pass
 
