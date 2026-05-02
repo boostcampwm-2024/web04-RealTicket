@@ -12,7 +12,7 @@
     "start:dev:compiled": "cross-env NODE_ENV=development EXEC_MODE=dev node dist/main",
     "start:dev:debug": "cross-env NODE_ENV=development EXEC_MODE=dev nest start --debug 0.0.0.0:9229 --watch",
     "start:prod:watch": "cross-env NODE_ENV=production EXEC_MODE=dev nest start --watch",
-    "start:prod:compiled": "cross-env NODE_ENV=development EXEC_MODE=dev node dist/main",
+    "start:prod:compiled": "cross-env NODE_ENV=production EXEC_MODE=dev node dist/main",
     "start:prod:debug": "cross-env NODE_ENV=production EXEC_MODE=dev nest start --debug 0.0.0.0:9229 --watch",
     "test": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json",
     "test:unit": "cross-env NODE_ENV=test jest",
