@@ -109,7 +109,7 @@ services:
         com.docker.stack.namespace: monitoring
     volumes:
       - type: bind
-        source: ./prometheus/prometheus.yml
+        source: /home/kyu4583/web04-RealTicket/prometheus/prometheus.yml
         target: /etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     ports:
@@ -137,8 +137,8 @@ services:
       - "GF_SNAPSHOTS_EXTERNAL_ENABLED=true"
       - "GF_SNAPSHOTS_REMOVE_EXPIRED=false"
     volumes:
-      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - /home/kyu4583/web04-RealTicket/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - /home/kyu4583/web04-RealTicket/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - realticket_grafana_data_shared:/var/lib/grafana
     networks:
       - realticket
