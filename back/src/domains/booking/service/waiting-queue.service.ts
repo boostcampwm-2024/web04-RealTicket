@@ -131,7 +131,7 @@ export class WaitingQueueService implements OnModuleDestroy {
       queueSubscription.subject.complete();
       this.queueSubscriptionMap.delete(eventId);
     }
-    const keys = await this.redis.keys(`waiting-queue:${eventId}:*`);
+    const keys = [`waiting-queue:${eventId}`, ...(await this.redis.keys(`waiting-queue:${eventId}:*`))];
     if (keys.length > 0) {
       await this.redis.unlink(...keys);
     }
