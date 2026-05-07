@@ -491,6 +491,39 @@ describe('Booking (e2e)', () => {
       await openEventReservation(app, adminSid, eventId).expect(201);
     });
 
+    it('관리자 예약 초기화 → WAITING 큐 리스트와 순번 키까지 초기화', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      await withAuth(
+        supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
+        adminSid,
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
+
+      const user1Sid = await loginAsUser(app, 'initwait1', 'pass1234');
+      await requestPermission(app, user1Sid, eventId).expect(200);
+      await setBookingCount(app, user1Sid, 1).expect(201);
+      await transitionToSelectingSeat(app, user1Sid);
+
+      const user2Sid = await loginAsUser(app, 'initwait2', 'pass1234');
+      const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
+      expect(waitRes.body.data.waitingStatus).toBe(true);
+
+      const redis = redisService.getOrThrow();
+      expect(await redis.llen(`waiting-queue:${eventId}`)).toBe(1);
+      expect(await redis.get(`waiting-queue:${eventId}:order`)).toBe('1');
+
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      expect(await redis.llen(`waiting-queue:${eventId}`)).toBe(0);
+      expect(await redis.get(`waiting-queue:${eventId}:order`)).toBeNull();
+
+      const user2Session = await app.get(AuthService).getUserSession(user2Sid);
+      expect(user2Session.userStatus).toBe('LOGIN');
+      expect(user2Session.targetEvent).toBe(0);
+    });
+
     it('일반 유저 → 401', async () => {
       const userSid = await loginAsUser(app, 'inituser1', 'pass1234');
 
