@@ -1,8 +1,10 @@
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { GlobalExceptionFilter } from './common/exception/global-exception.filter';
 import { BenchmarkModule } from './benchmark/benchmark.module';
 import { getDatabaseModule, getRedisModule } from './config/moduleFactory';
 import { BookingModule } from './domains/booking/booking.module';
@@ -33,7 +35,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
     ...(process.env.BENCHMARK_MODE === 'true' ? [BenchmarkModule] : []),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_FILTER, useClass: GlobalExceptionFilter }],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

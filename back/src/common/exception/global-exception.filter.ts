@@ -1,10 +1,14 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Inject } from '@nestjs/common';
 import { Response } from 'express';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AppException } from './app.exception';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -25,8 +29,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = 500;
       code = 'COMMON_UNKNOWN_ERROR';
       message = '서버 오류가 발생했습니다.';
+      this.logger.error('[ERR] UNKNOWN_EXCEPTION', {
+        stack: (exception as any)?.stack,
+      });
     }
 
+    response.locals.errorCode = code;
+    response.locals.errorMessage = message;
     response.status(status).json({
       success: false,
       error: { code, message },

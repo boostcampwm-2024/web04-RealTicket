@@ -34,6 +34,8 @@ export interface DetailedLogData {
   responseTime?: number;
   statusCode?: number;
   errorStack?: string;
+  errorCode?: string;
+  errorMessage?: string;
   sessionId?: string;
   requestHeaders?: Record<string, any>;
 }
