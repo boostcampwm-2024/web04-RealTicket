@@ -17,6 +17,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { LoggingModule } from './util/logger/logging.module';
 import { UserDecoratorMiddleware } from './util/user-injection/user.decorator.middleware';
 import { UserDecoratorModule } from './util/user-injection/user.decorator.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { UserDecoratorModule } from './util/user-injection/user.decorator.module
     EventModule,
     UserDecoratorModule,
     ...(process.env.BENCHMARK_MODE === 'true' ? [BenchmarkModule] : []),
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_FILTER, useClass: GlobalExceptionFilter }],
