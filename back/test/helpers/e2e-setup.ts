@@ -7,7 +7,6 @@ import { Repository } from 'typeorm';
 import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
 import { AppException } from 'src/common/exception/app.exception';
-import { GlobalExceptionFilter } from 'src/common/exception/global-exception.filter';
 import { ResponseWrapperInterceptor } from 'src/common/interceptor/response-wrapper.interceptor';
 import { BookingService } from 'src/domains/booking/service/booking.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
@@ -35,7 +34,6 @@ export async function createTestApp(): Promise<INestApplication> {
       exceptionFactory: () => new AppException(CommonErrorCode.VALIDATION_ERROR),
     }),
   );
-  app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalInterceptors(new ResponseWrapperInterceptor());
   app.use(cookieParser());
   await app.init();

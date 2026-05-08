@@ -1,10 +1,11 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 import { Request, Response } from 'express';
 import Redis from 'ioredis';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger as WinstonLogger } from 'winston';
 
+import { AppException } from '../../../common/exception/app.exception';
 import {
   LoggingDetailType,
   LoggingOptions,
@@ -57,7 +58,28 @@ export class RequestLoggingService {
   ): Promise<void> {
     const logData = await this.collectLogData(req, res, null, options);
     logData.responseTime = responseTime;
-    logData.errorStack = error.stack;
+    logData.errorStack = error instanceof Error ? error.stack : String(error);
+
+    if (error instanceof AppException) {
+      logData.errorCode = error.getCode();
+      logData.errorMessage = error.message;
+    } else if (error instanceof Error) {
+      logData.errorMessage = error.message;
+    }
+
+    if (!logData.errorCode && res?.locals?.errorCode) {
+      logData.errorCode = res.locals.errorCode;
+      if (!logData.errorMessage) logData.errorMessage = res.locals.errorMessage;
+    }
+
+    if (!logData.statusCode) {
+      if (error instanceof AppException || error instanceof HttpException) {
+        logData.statusCode = (error as HttpException).getStatus();
+      } else {
+        logData.statusCode = 500;
+      }
+    }
+
     this.logFormattedMessage('ERR', logData, error);
   }
 
@@ -153,7 +175,7 @@ export class RequestLoggingService {
       }
     } catch (error) {
       this.logger.warn(
-        `Failed to get user info for SID: ${sid} - ${error.message}`,
+        `Failed to get user info for SID: ${sid} - ${error instanceof Error ? error.message : String(error)}`,
         'DetailedRequestLogging',
       );
     }
@@ -225,7 +247,17 @@ export class RequestLoggingService {
     const message = parts.join(' | ');
 
     if (type === 'ERR') {
-      this.logger.error(message, error?.stack || logData.errorStack, logData.loggerName);
+      const statusCode = logData.statusCode ?? 500;
+      const meta: Record<string, any> = {
+        errorCode: logData.errorCode,
+        errorMessage: logData.errorMessage,
+      };
+      if (statusCode >= 500) {
+        meta.stack = error?.stack || logData.errorStack;
+        this.logger.error(message, meta);
+      } else {
+        this.logger.warn(message, meta);
+      }
     } else {
       this.logger.http(message, logData.loggerName);
     }

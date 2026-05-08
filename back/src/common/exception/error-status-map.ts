@@ -17,6 +17,7 @@ export const ERROR_STATUS_MAP: Record<string, number> = {
   [AuthErrorCode.USER_INFO_FETCH_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
   [AuthErrorCode.LOGOUT_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
   [AuthErrorCode.GUEST_CREATE_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
+  [AuthErrorCode.LOGIN_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
 
   // BOOKING
   [BookingErrorCode.NOT_OPEN]: HttpStatus.BAD_REQUEST,
@@ -29,9 +30,7 @@ export const ERROR_STATUS_MAP: Record<string, number> = {
   [BookingErrorCode.SEAT_QUOTA_EXCEEDED]: HttpStatus.BAD_REQUEST,
   [BookingErrorCode.SEAT_CANCEL_EMPTY]: HttpStatus.BAD_REQUEST,
   [BookingErrorCode.SEAT_NOT_BOOKED]: HttpStatus.BAD_REQUEST,
-  [BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS]: HttpStatus.INTERNAL_SERVER_ERROR,
   [BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND]: HttpStatus.INTERNAL_SERVER_ERROR,
-  [BookingErrorCode.SEAT_FETCH_FAILED]: HttpStatus.INTERNAL_SERVER_ERROR,
   [BookingErrorCode.SEAT_UNAUTHORIZED_SECTION]: HttpStatus.FORBIDDEN,
 
   // EVENT
@@ -77,6 +76,7 @@ export const DEFAULT_MESSAGE_MAP: Record<string, string> = {
   [AuthErrorCode.USER_INFO_FETCH_FAILED]: '사용자 정보를 불러오는데 실패했습니다.',
   [AuthErrorCode.LOGOUT_FAILED]: '로그아웃에 실패했습니다.',
   [AuthErrorCode.GUEST_CREATE_FAILED]: '게스트 사용자 생성에 실패했습니다.',
+  [AuthErrorCode.LOGIN_FAILED]: '로그인 처리 중 서버 오류가 발생했습니다.',
 
   // BOOKING
   [BookingErrorCode.NOT_OPEN]: '예약이 오픈되지 않았습니다.',
@@ -89,9 +89,7 @@ export const DEFAULT_MESSAGE_MAP: Record<string, string> = {
   [BookingErrorCode.SEAT_QUOTA_EXCEEDED]: '예약 가능한 좌석 수를 초과했습니다.',
   [BookingErrorCode.SEAT_CANCEL_EMPTY]: '취소할 수 있는 좌석이 없습니다.',
   [BookingErrorCode.SEAT_NOT_BOOKED]: '예약하지 않은 좌석입니다.',
-  [BookingErrorCode.SEAT_SUBSCRIPTION_EXISTS]: '이미 해당 이벤트의 좌석 구독이 존재합니다.',
   [BookingErrorCode.SEAT_SUBSCRIPTION_NOT_FOUND]: '해당 이벤트의 좌석 구독이 존재하지 않습니다.',
-  [BookingErrorCode.SEAT_FETCH_FAILED]: '좌석 정보를 가져오는데 실패했습니다.',
   [BookingErrorCode.SEAT_UNAUTHORIZED_SECTION]: '구독 중인 섹션과 다른 섹션의 좌석 요청입니다.',
 
   // EVENT

@@ -56,22 +56,28 @@ export const winstonConfig = {
   ),
 
   transports: [
-    new winston.transports.Console({
-      level: process.env.LOGGING_MODE === 'prod' ? 'warn' : 'debug',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.ms(),
-        nestWinstonModuleUtilities.format.nestLike('RealTicket', {
-          colors: true,
-          prettyPrint: true,
-          processId: true,
-          appName: true,
-        }),
-      ),
-    }),
+    Object.assign(
+      new winston.transports.Console({
+        level: process.env.LOGGING_MODE === 'prod' ? 'warn' : 'debug',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.ms(),
+          nestWinstonModuleUtilities.format.nestLike('RealTicket', {
+            colors: true,
+            prettyPrint: true,
+            processId: true,
+            appName: true,
+          }),
+        ),
+      }),
+      { transportName: 'console' },
+    ),
 
     ...(process.env.LOG_SAVE_MODE
-      ? [new winstonDaily(dailyOptions('critical', 'warn')), new winstonDaily(dailyOptions('all'))]
+      ? [
+          Object.assign(new winstonDaily(dailyOptions('critical', 'warn')), { transportName: 'criticalFile' }),
+          Object.assign(new winstonDaily(dailyOptions('all')), { transportName: 'allFile' }),
+        ]
       : []),
   ],
 };
