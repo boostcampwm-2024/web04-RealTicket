@@ -1,11 +1,12 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { AppException } from '../../../common/exception/app.exception';
-import { CommonErrorCode } from '../../user/exception/user-error-code';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
@@ -18,7 +19,6 @@ import { WaitingQueueService } from './waiting-queue.service';
 
 @Injectable()
 export class BookingService implements OnModuleInit, OnModuleDestroy {
-  private logger = new Logger(BookingService.name);
   private readonly pubsubClient: Redis;
   private static readonly BOOKING_EVENTS_CHANNEL = 'booking:events';
 
@@ -30,6 +30,7 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     private readonly waitingQueueService: WaitingQueueService,
     private readonly enterBookingService: EnterBookingService,
     private readonly redisService: RedisService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.pubsubClient = this.redisService.getOrThrow('pubsub');
   }
@@ -206,13 +207,6 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
-    try {
-      return {
-        now: Date.now(),
-      };
-    } catch (err) {
-      this.logger.error(err);
-      throw new AppException(CommonErrorCode.INTERNAL_SERVER_ERROR);
-    }
+    return { now: Date.now() };
   }
 }

@@ -1,29 +1,30 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AppException } from '../../common/exception/app.exception';
 import { USER_ROLE } from '../../domains/user/const/userRole';
 import { UserInfoDto } from '../../domains/user/dto/userInfo.dto';
 import { User } from '../../domains/user/entity/user.entity';
-import { CommonErrorCode } from '../../domains/user/exception/user-error-code';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_STATUS } from '../const/userStatus.const';
 import { AuthErrorCode } from '../exception/auth-error-code';
 
 @Injectable()
 export class AuthService {
-  private readonly redis: Redis | null;
-  private readonly logger = new Logger(AuthService.name);
+  private readonly redis: Redis;
 
   constructor(
     private redisService: RedisService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
     @Optional() @Inject() private readonly eventEmitter?: EventEmitter2,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -60,7 +61,11 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }), 'KEEPTTL');
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }),
+      'KEEPTTL',
+    );
   }
 
   async setUserStatusWaiting(sid: string) {
@@ -68,7 +73,11 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }), 'KEEPTTL');
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }),
+      'KEEPTTL',
+    );
   }
 
   async setUserStatusEntering(sid: string) {
@@ -76,7 +85,11 @@ export class AuthService {
     if (!session) return;
     if (session.userStatus === USER_STATUS.ADMIN) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }), 'KEEPTTL');
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }),
+      'KEEPTTL',
+    );
   }
 
   async setUserStatusSelectingSeat(sid: string) {
@@ -107,12 +120,16 @@ export class AuthService {
     const session = await this.getParsedSession(sid);
     if (!session) return;
 
-    await this.redis.set(`user:${sid}`, JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }), 'KEEPTTL');
+    await this.redis.set(
+      `user:${sid}`,
+      JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }),
+      'KEEPTTL',
+    );
   }
 
   async removeSession(sid: string, loginId: string) {
-    this.redis.unlink(`user-id:${loginId}`);
-    this.redis.zrem('sessions:active', loginId);
+    await this.redis.unlink(`user-id:${loginId}`);
+    await this.redis.zrem('sessions:active', loginId);
     return this.redis.unlink(`user:${sid}`);
   }
 
@@ -152,10 +169,9 @@ export class AuthService {
 
       return { sessionId: sessionId, userInfo: userInfoDto };
     } catch (err) {
-      if (err instanceof AppException) {
-        throw err;
-      }
-      throw new AppException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+      if (err instanceof AppException) throw err;
+      this.logger.error(err);
+      throw new AppException(AuthErrorCode.LOGIN_FAILED);
     }
   }
 
@@ -166,6 +182,7 @@ export class AuthService {
       userInfoDto.loginId = userInfo.loginId;
       return userInfoDto;
     } catch (err) {
+      if (err instanceof AppException) throw err;
       this.logger.error(err);
       throw new AppException(AuthErrorCode.USER_INFO_FETCH_FAILED);
     }

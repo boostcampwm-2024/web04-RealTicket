@@ -1,5 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { DataSource, In, QueryRunner } from 'typeorm';
+import { Logger as WinstonLogger } from 'winston';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
@@ -22,14 +24,13 @@ import { ReservationRepository } from '../repository/reservation.repository';
 
 @Injectable()
 export class ReservationService {
-  private logger: Logger = new Logger(ReservationService.name);
-
   constructor(
     @Inject() private readonly reservationRepository: ReservationRepository,
     @Inject() private readonly dataSource: DataSource,
     @Inject() private readonly authService: AuthService,
     @Inject() private readonly bookingService: BookingService,
     @Inject() private readonly inBookingService: InBookingService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {}
 
   async findUserReservation({ id }: UserParamDto) {
@@ -103,6 +104,9 @@ export class ReservationService {
     await queryRunner.startTransaction();
     try {
       const session = await this.authService.getUserSession(sid);
+      if (!session) {
+        throw new AppException(ReservationErrorCode.SESSION_EVENT_NOT_FOUND);
+      }
       const userId = session.id;
       const eventId = await this.authService.getUserEventTarget(sid);
 
@@ -162,7 +166,8 @@ export class ReservationService {
       if (err instanceof AppException) {
         throw err;
       }
-      this.logger.error(err.name, err.stack);
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error(error.name, error.stack);
       throw new AppException(ReservationErrorCode.CREATE_FAILED);
     } finally {
       await queryRunner.release();
@@ -174,6 +179,9 @@ export class ReservationService {
       where: { id: eventId },
       relations: ['place', 'program'],
     });
+    if (event.length === 0) {
+      throw new AppException(ReservationErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
     const program = await event[0].program;
     const place = await program.place;
 

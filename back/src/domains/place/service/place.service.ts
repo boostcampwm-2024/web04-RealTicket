@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { AppException } from '../../../common/exception/app.exception';
@@ -13,8 +13,6 @@ import { SectionRepository } from '../repository/section.repository';
 
 @Injectable()
 export class PlaceService {
-  private readonly logger = new Logger(PlaceService.name);
-
   constructor(
     private readonly placeRepository: PlaceRepository,
     private readonly sectionRepository: SectionRepository,

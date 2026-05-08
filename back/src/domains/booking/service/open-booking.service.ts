@@ -1,8 +1,10 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
 import { Event } from '../../event/entity/event.entity';
@@ -19,8 +21,7 @@ import { WaitingQueueService } from './waiting-queue.service';
 
 @Injectable()
 export class OpenBookingService implements OnApplicationBootstrap {
-  private readonly redis: Redis | null;
-  private readonly logger = new Logger(OpenBookingService.name);
+  private readonly redis: Redis;
 
   constructor(
     private redisService: RedisService,
@@ -33,6 +34,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
     private enterBookingService: EnterBookingService,
     private schedulerRegistry: SchedulerRegistry,
     private reservedSeatRepository: ReservedSeatRepository,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
     this.redis = this.redisService.getOrThrow();
   }
@@ -140,7 +142,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
   }
 
   private async openReservation(event: Event) {
-    this.validateOpeningEvent(event);
+    if (!this.validateOpeningEvent(event)) return;
 
     const eventId = event.id;
     const place = await event.place;
@@ -198,7 +200,7 @@ export class OpenBookingService implements OnApplicationBootstrap {
   }
 
   async closeReservation(eventId: number) {
-    await this.validateClosingEvent(eventId);
+    if (!(await this.validateClosingEvent(eventId))) return;
     await this.unlinkOpenedEvent(eventId);
     await this.clearWaitingService(eventId);
     await this.clearEnteringService(eventId);
