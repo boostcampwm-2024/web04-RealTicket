@@ -7,7 +7,6 @@ import { toast } from '@/components/Toast/index.ts';
 
 import type { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat.tsx';
 
-import { API } from '@/constants/index.ts';
 import type { Section } from '@/type/index.ts';
 import { useMutation, useMutationState } from '@tanstack/react-query';
 
