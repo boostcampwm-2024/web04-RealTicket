@@ -1,12 +1,10 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 1s
   evaluation_interval: 15s
-
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-
   - job_name: 'cadvisor'
     dns_sd_configs:
       - names:
@@ -18,16 +16,13 @@ scrape_configs:
         target_label: instance
         regex: '(.*):8080'
         replacement: '${1}'
-
   - job_name: 'node-exporter'
     dns_sd_configs:
       - names:
           - 'tasks.node-exporter'
         type: 'A'
         port: 9100
-
   - job_name: 'nest-app'
-    scrape_interval: 3s
     dns_sd_configs:
       - names:
           - 'tasks.nest'
@@ -38,9 +33,7 @@ scrape_configs:
         target_label: instance
         regex: '(.*):8080'
         replacement: '${1}'
-
   - job_name: 'nest-baseline'
-    scrape_interval: 3s
     dns_sd_configs:
       - names:
           - 'tasks.nest-baseline'
@@ -51,9 +44,7 @@ scrape_configs:
         target_label: instance
         regex: '(.*):8080'
         replacement: '${1}'
-
   - job_name: 'nest-candidate'
-    scrape_interval: 3s
     dns_sd_configs:
       - names:
           - 'tasks.nest-candidate'
