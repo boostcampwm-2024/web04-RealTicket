@@ -209,6 +209,10 @@ services:
       APP_VERSION: "candidate"
     deploy:
       replicas: 1
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
       labels:
         com.docker.stack.namespace: app
         version: "candidate"
