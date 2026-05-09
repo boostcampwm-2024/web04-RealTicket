@@ -16,6 +16,7 @@ export interface LoggingOptions {
   includeDetails?: LoggingDetailType[];
   excludeDetails?: LoggingDetailType[];
   loggerName?: string;
+  excludeUrls?: string[];
 }
 
 export interface DetailedLogData {

@@ -10,6 +10,7 @@ import { winstonConfig } from './winston.config';
 const DefaultRequestLoggingMiddleware = RequestLoggingMiddleware.instantiate({
   includeDetails: [LoggingDetailType.RESPONSE_TIME, LoggingDetailType.STATUS_CODE],
   loggerName: 'Default-API',
+  excludeUrls: ['/metrics'],
 });
 
 export const FullRequestLoggingInterceptor = RequestLoggingInterceptor.instantiate({
