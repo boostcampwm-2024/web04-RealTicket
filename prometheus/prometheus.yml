@@ -25,7 +25,8 @@ scrape_configs:
   - job_name: 'nest-app'
     dns_sd_configs:
       - names:
-          - 'tasks.nest'
+          - tasks.nest-baseline
+          - tasks.nest-candidate
         type: 'A'
         port: 8080
     relabel_configs:
