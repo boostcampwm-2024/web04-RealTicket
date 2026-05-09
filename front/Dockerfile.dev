@@ -20,9 +20,11 @@ COPY --from=build /app/dist/ .
 
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx/nginx.conf /etc/nginx/conf.d/
+
 ARG API_SERVER_URL
-# proxy_pass 주입
-RUN sed -i 's|proxy_pass .*|proxy_pass '"${API_SERVER_URL}"';|g' /etc/nginx/conf.d/nginx.conf
+
+RUN sed -i 's|resolver 169.254.169.253|resolver 127.0.0.11|g' /etc/nginx/conf.d/nginx.conf && \
+    sed -i 's|set \$backend .*;|set \$backend '"${API_SERVER_URL}"';|g' /etc/nginx/conf.d/nginx.conf
 
 EXPOSE 80
 
