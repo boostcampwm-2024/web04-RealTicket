@@ -24,6 +24,11 @@ export class RequestLoggingMiddleware implements NestMiddleware {
   }
 
   async use(req: Request, res: Response, next: NextFunction) {
+    const { excludeUrls } = this.loggingOptions;
+    if (excludeUrls?.some((url) => req.path === url)) {
+      return next();
+    }
+
     const startTime = Date.now();
 
     try {
