@@ -142,6 +142,10 @@ export class InBookingService {
   }
 
   async getInBookingSessionsMaxSize(eventId: number) {
+    if (process.env.BENCHMARK_WAITING_QUEUE_MODE !== 'false') {
+      return 0;
+    }
+
     const raw = await this.redis.get(`in-booking:${eventId}:max-size`);
     if (!raw) return await this.getInBookingSessionsDefaultMaxSize();
     return parseInt(raw);
