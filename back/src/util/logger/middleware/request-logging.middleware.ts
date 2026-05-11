@@ -24,8 +24,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
   }
 
   async use(req: Request, res: Response, next: NextFunction) {
-    const { excludeUrls } = this.loggingOptions;
-    if (excludeUrls?.some((url) => req.path === url)) {
+    if (this.isExcludedRequest(req)) {
       return next();
     }
 
@@ -72,5 +71,20 @@ export class RequestLoggingMiddleware implements NestMiddleware {
 
       next(error);
     }
+  }
+
+  private isExcludedRequest(req: Request): boolean {
+    const { excludeUrls } = this.loggingOptions;
+    if (!excludeUrls?.length) {
+      return false;
+    }
+
+    const requestPath = this.normalizePath(req.originalUrl || req.url || req.path);
+    return excludeUrls.some((url) => this.normalizePath(url) === requestPath);
+  }
+
+  private normalizePath(url: string): string {
+    const path = url.split('?')[0];
+    return path || '/';
   }
 }
