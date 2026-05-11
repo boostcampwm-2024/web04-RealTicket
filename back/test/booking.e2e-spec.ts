@@ -5,6 +5,7 @@ import supertest from 'supertest';
 
 import { AuthService } from 'src/auth/service/auth.service';
 import { SEATS_BROADCAST_INTERVAL } from 'src/domains/booking/const/seatsBroadcastInterval.const';
+import { DEFAULT_WAITING_THROUGHPUT_RATE } from 'src/domains/booking/const/watingThroughputRate.const';
 import { BookingSeatsService } from 'src/domains/booking/service/booking-seats.service';
 import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
@@ -140,6 +141,102 @@ describe('Booking (e2e)', () => {
 
     it('미인증 → 403', async () => {
       await supertest(app.getHttpServer()).get(`/booking/permission/${eventId}`).expect(403);
+    });
+  });
+
+  describe('GET /booking/re-permission/:eventId', () => {
+    it('대기 SSE는 클라이언트별 userOrder/restMilisecond/enteringStatus를 계산해 전송한다', async () => {
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      await withAuth(
+        supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
+        adminSid,
+      )
+        .send({ maxSize: 1 })
+        .expect(201);
+
+      const selectingSid = await loginAsUser(app, 'perwait1', 'pass1234');
+      await requestPermission(app, selectingSid, eventId).expect(200);
+      await setBookingCount(app, selectingSid, 1).expect(201);
+      await transitionToSelectingSeat(app, selectingSid);
+
+      const waitingSid1 = await loginAsUser(app, 'perwait2', 'pass1234');
+      await requestPermission(app, waitingSid1, eventId).expect(200);
+      const waitingSid2 = await loginAsUser(app, 'perwait3', 'pass1234');
+      await requestPermission(app, waitingSid2, eventId).expect(200);
+
+      const server = app.getHttpServer();
+      if (!server.listening) {
+        await new Promise<void>((res) => server.listen(0, res));
+      }
+      const port = server.address().port;
+
+      const readFirstWaitingMessage = (sid: string) =>
+        new Promise<Record<string, unknown>>((resolve, reject) => {
+          let buffer = '';
+          let settled = false;
+
+          const req = http.get(
+            `http://127.0.0.1:${port}/booking/re-permission/${eventId}`,
+            { headers: { Cookie: `SID=${sid}` } },
+            (sseStream) => {
+              sseStream.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString();
+                const events = buffer.split('\n\n');
+                buffer = events.pop() || '';
+
+                for (const event of events) {
+                  const dataLine = event.split('\n').find((line) => line.startsWith('data: '));
+                  if (!dataLine) continue;
+
+                  settled = true;
+                  req.destroy();
+                  resolve(JSON.parse(dataLine.slice('data: '.length)));
+                  return;
+                }
+              });
+            },
+          );
+
+          req.setTimeout(1000, () => {
+            if (settled) return;
+
+            settled = true;
+            req.destroy();
+            reject(new Error('waiting SSE first message timeout'));
+          });
+
+          req.on('error', (err) => {
+            if (!settled && err.message !== 'socket hang up') {
+              settled = true;
+              reject(err);
+            }
+          });
+        });
+
+      const [first, second] = await Promise.all([
+        readFirstWaitingMessage(waitingSid1),
+        readFirstWaitingMessage(waitingSid2),
+      ]);
+
+      expect(first).toEqual(
+        expect.objectContaining({
+          userOrder: 1,
+          totalWaiting: 2,
+          restMilisecond: DEFAULT_WAITING_THROUGHPUT_RATE,
+          enteringStatus: false,
+        }),
+      );
+      expect(first).not.toHaveProperty('headOrder');
+      expect(first).not.toHaveProperty('throughputRate');
+
+      expect(second).toEqual(
+        expect.objectContaining({
+          userOrder: 2,
+          totalWaiting: 2,
+          restMilisecond: DEFAULT_WAITING_THROUGHPUT_RATE * 2,
+          enteringStatus: false,
+        }),
+      );
     });
   });
 

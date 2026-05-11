@@ -5,7 +5,8 @@ export interface PermissionResult {
 }
 
 export interface RePermissionResult {
-  headOrder: number;
+  userOrder: number;
   totalWaiting: number;
-  throughputRate: number;
+  restMilisecond: number;
+  enteringStatus: boolean;
 }

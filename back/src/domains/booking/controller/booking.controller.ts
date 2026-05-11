@@ -86,11 +86,11 @@ export class BookingController {
     @Res() res: Response,
   ) {
     const sid = req.cookies['SID'];
-    await this.waitingQueueService.addSseClient(eventId, res, sid);
-
     req.on('close', () => {
       this.waitingQueueService.removeSseClient(eventId, res);
     });
+
+    await this.waitingQueueService.addSseClient(eventId, res, sid);
   }
 
   @Post('count')

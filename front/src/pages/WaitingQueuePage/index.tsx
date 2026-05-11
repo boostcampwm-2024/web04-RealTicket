@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { BASE_URL } from '@/api/axios.ts';
 import { getEventDetail } from '@/api/event.ts';
@@ -32,10 +32,7 @@ TODO sse 커스텀 훅으로 변경
 */
 export default function WaitingQueuePage() {
   const { eventId } = useParams();
-  const { state } = useLocation();
   const navigate = useNavigate();
-  const { userOrder } = state;
-  const myOrder = userOrder;
   const firstWaitingTime = useRef<number | null>(null);
   const { data: event } = useSuspenseQuery<EventDetail>({
     queryKey: ['event', eventId],
@@ -49,25 +46,29 @@ export default function WaitingQueuePage() {
   });
 
   const totalWaiting = data?.totalWaiting;
-  const throughputRate = data?.throughputRate;
-  const headOrder = data?.headOrder;
-  const restCount = headOrder ? myOrder - headOrder + 1 : null;
-  const waitingTime = headOrder ? Math.floor(restCount! / (throughputRate! / 1000)) : null;
+  const userOrder = data?.userOrder;
+  const waitingTime = data ? Math.floor(data.restMilisecond / 1000) : null;
 
   const restTimeText = waitingTime == null || waitingTime < 100 ? `1분 이내` : `${waitingTime} 초`;
 
   useEffect(() => {
-    if (!myOrder || !eventId) {
+    if (!eventId) {
       //TODO toast
       navigate('/', { replace: true });
     }
-  }, [myOrder, eventId, navigate]);
+  }, [eventId, navigate]);
 
   useEffect(() => {
-    if (firstWaitingTime.current == null && data) {
+    if (firstWaitingTime.current == null && data && waitingTime !== null) {
       firstWaitingTime.current = waitingTime;
     }
   }, [data, waitingTime]);
+
+  useEffect(() => {
+    if (data?.enteringStatus && eventId) {
+      navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)), { replace: true });
+    }
+  }, [data?.enteringStatus, eventId, navigate]);
 
   if (!data) return <LoadingPage />;
 
@@ -87,7 +88,7 @@ export default function WaitingQueuePage() {
       title: '내 순서',
       content: (
         <span className="text-heading3 text-typo">
-          <span className="text-primary">{restCount}</span> 번
+          <span className="text-primary">{userOrder}</span> 번
         </span>
       ),
     },
@@ -108,17 +109,9 @@ export default function WaitingQueuePage() {
   ];
 
   const progressValue =
-    firstWaitingTime.current == null
+    firstWaitingTime.current == null || waitingTime == null || firstWaitingTime.current <= 0
       ? 0
       : ((firstWaitingTime.current - waitingTime!) / firstWaitingTime.current!) * 100;
-
-  const canGo = restCount !== null && restCount <= 0;
-
-  if (canGo) {
-    if (eventId) {
-      navigate(ROUTE_URL.EVENT.DETAIL(Number(eventId)), { replace: true });
-    }
-  }
 
   return (
     <Card>
