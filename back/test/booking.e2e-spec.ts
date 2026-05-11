@@ -40,6 +40,8 @@ describe('Booking (e2e)', () => {
   let eventId: number;
 
   beforeAll(async () => {
+    process.env.BENCHMARK_WAITING_QUEUE_MODE = 'false';
+
     app = await createTestApp();
     redisService = getRedisService(app);
 
@@ -137,6 +139,31 @@ describe('Booking (e2e)', () => {
 
       expect(res.body.data.waitingStatus).toBe(true);
       expect(res.body.data.userOrder).toBeDefined();
+    });
+
+    it('벤치 대기열 모드 → 첫 입장 권한 확인부터 대기열로 진입', async () => {
+      const originalMode = process.env.BENCHMARK_WAITING_QUEUE_MODE;
+      process.env.BENCHMARK_WAITING_QUEUE_MODE = 'true';
+
+      try {
+        await openEventReservation(app, adminSid, eventId).expect(201);
+        const userSid = await loginAsUser(app, 'permwait1', 'pass1234');
+
+        const res = await requestPermission(app, userSid, eventId).expect(200);
+
+        expect(res.body.data).toEqual(
+          expect.objectContaining({
+            enteringStatus: false,
+            waitingStatus: true,
+            userOrder: 1,
+          }),
+        );
+
+        const redis = redisService.getOrThrow();
+        expect(await redis.llen(`waiting-queue:${eventId}`)).toBe(1);
+      } finally {
+        process.env.BENCHMARK_WAITING_QUEUE_MODE = originalMode;
+      }
     });
 
     it('미인증 → 403', async () => {
