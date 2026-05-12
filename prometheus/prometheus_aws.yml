@@ -35,3 +35,17 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__meta_ec2_private_ip]
         target_label: instance
+
+  - job_name: 'cadvisor'
+    scrape_interval: 5s
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 8081
+        filters:
+          - name: tag:aws:autoscaling:groupName
+            values: [realticket-nest-asg]
+          - name: instance-state-name
+            values: [running]
+    relabel_configs:
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: instance
