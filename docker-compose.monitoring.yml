@@ -1,6 +1,10 @@
 services:
   prometheus:
     image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-6h}
     environment:
       - AWS_REGION=${AWS_REGION:-ap-northeast-2}
       - AWS_ACCESS_KEY_ID
@@ -8,6 +12,7 @@ services:
       - AWS_SESSION_TOKEN
     volumes:
       - ./prometheus/prometheus_aws.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     restart: unless-stopped
@@ -54,4 +59,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  prometheus-data:
   grafana-data:

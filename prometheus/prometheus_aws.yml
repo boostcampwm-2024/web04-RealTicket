@@ -1,5 +1,5 @@
 global:
-  scrape_interval: 1s
+  scrape_interval: 15s
   evaluation_interval: 15s
 
 scrape_configs:
@@ -8,7 +8,7 @@ scrape_configs:
       - targets: ['localhost:9090']
 
   - job_name: 'nest-app'
-    scrape_interval: 3s
+    scrape_interval: 5s
     ec2_sd_configs:
       - region: ap-northeast-2
         port: 8080
@@ -23,7 +23,7 @@ scrape_configs:
         target_label: instance
 
   - job_name: 'node-exporter'
-    scrape_interval: 5s
+    scrape_interval: 10s
     ec2_sd_configs:
       - region: ap-northeast-2
         port: 9100
@@ -37,7 +37,7 @@ scrape_configs:
         target_label: instance
 
   - job_name: 'cadvisor'
-    scrape_interval: 5s
+    scrape_interval: 10s
     ec2_sd_configs:
       - region: ap-northeast-2
         port: 8081
