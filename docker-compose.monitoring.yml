@@ -1,0 +1,57 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    environment:
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+    volumes:
+      - ./prometheus/prometheus_aws.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  autoscaler:
+    build: ./autoscaler
+    environment:
+      - AUTOSCALER_BACKEND=aws
+      - PROMETHEUS_URL=http://prometheus:9090
+      - ASG_NAME=${ASG_NAME:-realticket-nest-asg}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - REDIS_HOST=${REDIS_HOST:?REDIS_HOST is required}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - DB_HOST=${DB_HOST:?DB_HOST is required}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:?DB_USER is required}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_NAME=${DB_NAME:-real_ticket}
+      - DRY_RUN=${DRY_RUN:-true}
+      - MIN_REPLICAS=${MIN_REPLICAS:-1}
+      - MAX_REPLICAS=${MAX_REPLICAS:-4}
+      - POLL_INTERVAL=${POLL_INTERVAL:-5}
+      - METRICS_LOG=${METRICS_LOG:-false}
+      - SCALE_UP_THRESHOLD=${SCALE_UP_THRESHOLD:-50}
+      - SCALE_DOWN_THRESHOLD=${SCALE_DOWN_THRESHOLD:-30}
+      - COOLDOWN_UP=${COOLDOWN_UP:-120}
+      - COOLDOWN_DOWN=${COOLDOWN_DOWN:-300}
+      - COOLDOWN_DOWN_AFTER_UP=${COOLDOWN_DOWN_AFTER_UP:-300}
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana-data:

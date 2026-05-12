@@ -1,11 +1,8 @@
-import docker
-import http.client
 import json as _json
 import logging
 import math
 import os
 import redis
-import socket
 import time
 import pymysql
 from prometheus_api_client import PrometheusConnect
@@ -16,6 +13,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── 백엔드 선택 ────────────────────────────────────────────────────────────────
+# AUTOSCALER_BACKEND=docker  → VM/Docker Swarm (기본값)
+# AUTOSCALER_BACKEND=aws     → AWS Auto Scaling Group
+BACKEND = os.getenv("AUTOSCALER_BACKEND", "docker")
+
+if BACKEND == "aws":
+    import boto3
+else:
+    import docker
+    import http.client
+    import socket
+
+# ── 공통 환경변수 ───────────────────────────────────────────────────────────────
 PROMETHEUS_URL       = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 POLL_INTERVAL        = int(os.getenv("POLL_INTERVAL", "5"))
 SCALE_UP_THRESHOLD   = float(os.getenv("SCALE_UP_THRESHOLD", "50"))
@@ -25,7 +35,6 @@ COOLDOWN_DOWN        = int(os.getenv("COOLDOWN_DOWN", "300"))
 COOLDOWN_DOWN_AFTER_UP = int(os.getenv("COOLDOWN_DOWN_AFTER_UP", "300"))
 MIN_REPLICAS         = int(os.getenv("MIN_REPLICAS", "1"))
 MAX_REPLICAS         = int(os.getenv("MAX_REPLICAS", "4"))
-TARGET_SERVICE       = os.getenv("TARGET_SERVICE", "realticket_nest")
 DRY_RUN              = os.getenv("DRY_RUN", "true").lower() == "true"
 SCALE_UP_STEP        = int(os.getenv("SCALE_UP_STEP", "2"))
 SCALE_DOWN_STEP      = int(os.getenv("SCALE_DOWN_STEP", "1"))
@@ -40,7 +49,7 @@ DB_POLL_INTERVAL     = int(os.getenv("DB_POLL_INTERVAL", "3600"))
 PRE_SCALE_UP_WINDOW  = int(os.getenv("PRE_SCALE_UP_WINDOW", "600"))
 SCALE_DOWN_SUPPRESS  = int(os.getenv("SCALE_DOWN_SUPPRESS", "300"))
 
-# Phase 05: 축 1 — 트래픽 기반 선행 감지 임계값 (지표별 별도 설정)
+# Phase 05: 축 1 — 트래픽 기반 선행 감지 임계값
 TRAFFIC_TOTAL_RATE_MULTIPLIER       = float(os.getenv("TRAFFIC_TOTAL_RATE_MULTIPLIER", "3.0"))
 TRAFFIC_TOTAL_MIN_RPS               = float(os.getenv("TRAFFIC_TOTAL_MIN_RPS", "6.0"))
 TRAFFIC_SERVER_TIME_RATE_MULTIPLIER = float(os.getenv("TRAFFIC_SERVER_TIME_RATE_MULTIPLIER", "2.0"))
@@ -55,58 +64,125 @@ POOL_PER_REPLICA         = int(os.getenv("POOL_PER_REPLICA", "100"))
 # Phase 05: 축 3 — 단계화 사전 스케일업 기준값
 BASE_POOL_SIZE           = int(os.getenv("BASE_POOL_SIZE", "100"))
 
+# 판단 지표 로그 on/off
+METRICS_LOG              = os.getenv("METRICS_LOG", "false").lower() == "true"
+
 # Redis 연결 (sessions:active 조회용)
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 
+# ── 백엔드별 초기화 ─────────────────────────────────────────────────────────────
+if BACKEND == "aws":
+    ASG_NAME   = os.getenv("ASG_NAME", "realticket-nest-asg")
+    AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+    asg_client = boto3.client('autoscaling', region_name=AWS_REGION)
+    QUERY = '1 - avg(rate(node_cpu_seconds_total{mode="idle", job="node-exporter"}[1m]))'
+    _backend_name = ASG_NAME
+else:
+    TARGET_SERVICE = os.getenv("TARGET_SERVICE", "realticket_nest")
+    DOCKER_SOCK    = '/var/run/docker.sock'
+    docker_client  = docker.from_env()
+    QUERY = (
+        f'avg(rate(container_cpu_usage_seconds_total'
+        f'{{container_label_com_docker_swarm_service_name="{TARGET_SERVICE}"}}[1m]))'
+    )
+    _backend_name = TARGET_SERVICE
+
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-
-QUERY = (
-    f'avg(rate(container_cpu_usage_seconds_total'
-    f'{{container_label_com_docker_swarm_service_name="{TARGET_SERVICE}"}}[1m]))'
-)
-
-DOCKER_SOCK = '/var/run/docker.sock'
-
 prom = PrometheusConnect(url=PROMETHEUS_URL, disable_ssl=True)
-docker_client = docker.from_env()
 
+# ── Docker raw HTTP (docker 백엔드 전용) ────────────────────────────────────────
+if BACKEND != "aws":
+    def _docker_raw(method: str, path: str, body: dict | None = None) -> dict:
+        """Docker Unix socket 직접 호출 — SDK 직렬화 우회.
 
-def _docker_raw(method: str, path: str, body: dict | None = None) -> dict:
-    """Docker Unix socket 직접 호출 — SDK 직렬화 우회.
+        SDK의 update_service()는 내부적으로 스펙을 Python 객체로 변환하며
+        insert_defaults=True로 inspect해 기존 태스크에 없던 필드를 삽입한다.
+        Docker가 이를 스펙 변경으로 감지해 기존 태스크를 rolling update로 교체하므로,
+        raw HTTP로 스펙을 있는 그대로 replica count만 패치해서 돌려보낸다.
+        """
+        class _Conn(http.client.HTTPConnection):
+            def connect(self):
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.connect(DOCKER_SOCK)
 
-    SDK의 update_service()는 내부적으로 스펙을 Python 객체로 변환하며
-    insert_defaults=True로 inspect해 기존 태스크에 없던 필드를 삽입한다.
-    Docker가 이를 스펙 변경으로 감지해 기존 태스크를 rolling update로 교체하므로,
-    raw HTTP로 스펙을 있는 그대로 replica count만 패치해서 돌려보낸다.
-    """
-    class _Conn(http.client.HTTPConnection):
-        def connect(self):
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.sock.connect(DOCKER_SOCK)
+        conn = _Conn('localhost')
+        payload = None
+        headers = {}
+        if body is not None:
+            payload = _json.dumps(body).encode()
+            headers['Content-Type'] = 'application/json'
+        conn.request(method, path, body=payload, headers=headers)
+        resp = conn.getresponse()
+        data = _json.loads(resp.read() or b'{}')
+        conn.close()
+        if resp.status not in (200, 201, 202):
+            raise RuntimeError(f"Docker {method} {path} → {resp.status}: {data}")
+        return data
 
-    conn = _Conn('localhost')
-    payload = None
-    headers = {}
-    if body is not None:
-        payload = _json.dumps(body).encode()
-        headers['Content-Type'] = 'application/json'
-    conn.request(method, path, body=payload, headers=headers)
-    resp = conn.getresponse()
-    data = _json.loads(resp.read() or b'{}')
-    conn.close()
-    if resp.status not in (200, 201, 202):
-        raise RuntimeError(f"Docker {method} {path} → {resp.status}: {data}")
-    return data
-
+# ── 상태 변수 ───────────────────────────────────────────────────────────────────
 last_scale_up   = 0.0
 last_scale_down = 0.0
-last_db_poll            = time.time()  # 시작 시 즉시 폴링 방지 — DB_POLL_INTERVAL 후 첫 조회
+last_db_poll            = time.time()
 suppress_scaledown_until = 0.0
-suppress_traffic_until   = 0.0          # Phase 05: 트래픽 기반 스케일업 후 suppress (D-12)
-consecutive_traffic_alerts = 0          # Phase 05: 연속 트래픽 경보 카운터 (D-06)
+suppress_traffic_until   = 0.0
+consecutive_traffic_alerts = 0
+
+# METRICS_LOG 스냅샷 — 폴링 루프마다 각 축에서 갱신
+_snap_cpu:        float | None = None
+_snap_replicas:   int   | None = None
+_snap_total_rps:  float | None = None
+_snap_total_base: float | None = None
+_snap_st_rps:     float | None = None
+_snap_st_base:    float | None = None
+_snap_ready:      int   | None = None
+_snap_pool:       int   | None = None
+_snap_sessions:   int   | None = None
 
 
+# ── 백엔드 추상화 함수 ──────────────────────────────────────────────────────────
+def get_current_replicas() -> int:
+    """현재 목표 레플리카 수 반환 (백엔드 투명)."""
+    if BACKEND == "aws":
+        response = asg_client.describe_auto_scaling_groups(
+            AutoScalingGroupNames=[ASG_NAME]
+        )
+        groups = response['AutoScalingGroups']
+        if not groups:
+            raise RuntimeError(f"ASG '{ASG_NAME}' 를 찾을 수 없음")
+        return groups[0]['DesiredCapacity']
+    else:
+        service = docker_client.services.get(TARGET_SERVICE)
+        service.reload()
+        return service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"]
+
+
+def scale_service(target: int, current: int, direction: str, reason: str = ""):
+    """레플리카 수 조정 (백엔드 투명)."""
+    global last_scale_up, last_scale_down
+    tag = f" [{reason}]" if reason else ""
+    if DRY_RUN:
+        logger.info(f"[DRY_RUN] would scale {_backend_name}: {current} -> {target}{tag}")
+        return
+    if BACKEND == "aws":
+        asg_client.set_desired_capacity(
+            AutoScalingGroupName=ASG_NAME,
+            DesiredCapacity=target,
+            HonorCooldown=False
+        )
+    else:
+        svc = _docker_raw('GET', f'/v1.41/services/{TARGET_SERVICE}')
+        spec = svc['Spec']
+        spec['Mode']['Replicated']['Replicas'] = target
+        _docker_raw('POST', f'/v1.41/services/{svc["ID"]}/update?version={svc["Version"]["Index"]}', spec)
+    if direction == "up":
+        last_scale_up = time.time()
+    else:
+        last_scale_down = time.time()
+    logger.info(f"Scaled {_backend_name}: {current} -> {target}{tag}")
+
+
+# ── 공통 비즈니스 로직 ──────────────────────────────────────────────────────────
 def get_cpu_percent() -> float | None:
     """Prometheus에서 CPU 사용률(%) 반환. 실패 시 None."""
     try:
@@ -145,6 +221,70 @@ def get_active_session_count() -> int | None:
         return None
 
 
+def get_ready_replicas() -> int | None:
+    """Prometheus up{job="nest-app"}==1 기반 ready 레플리카 수 반환. 실패 시 None."""
+    try:
+        result = prom.custom_query(query='count(up{job="nest-app"}==1)')
+        if not result:
+            logger.warning("get_ready_replicas: 결과 없음 — skip")
+            return None
+        val = float(result[0]["value"][1])
+        return None if math.isnan(val) else int(val)
+    except Exception as e:
+        logger.error(f"get_ready_replicas 쿼리 실패: {e}")
+        return None
+
+
+def update_in_booking_pool_size(new_size: int) -> None:
+    """Redis in-booking:default-max-size SET + booking:events PUBLISH."""
+    redis_client.set('in-booking:default-max-size', str(new_size))
+    redis_client.publish('booking:events', '{"type":"all-in-booking-max-size-changed"}')
+    logger.info(f"in-booking 풀 사이즈 업데이트: {new_size} (SET + PUBLISH)")
+
+
+def check_and_scale():
+    """축 0: CPU 사용률 기반 반응형 스케일링."""
+    global _snap_cpu, _snap_replicas
+
+    cpu = get_cpu_percent()
+    if cpu is None:
+        return
+    _snap_cpu = cpu
+
+    current = get_current_replicas()
+    _snap_replicas = current
+    logger.info(f"CPU={cpu:.1f}%, replicas={current}")
+
+    now = time.time()
+
+    if cpu >= SCALE_UP_THRESHOLD:
+        if now - last_scale_up < COOLDOWN_UP:
+            logger.debug(f"스케일업 쿨다운 중 ({now - last_scale_up:.0f}s / {COOLDOWN_UP}s)")
+            return
+        target = min(current + SCALE_UP_STEP, MAX_REPLICAS)
+        if target > current:
+            scale_service(target, current, "up", f"CPU={cpu:.1f}% > {SCALE_UP_THRESHOLD}%")
+
+    elif cpu <= SCALE_DOWN_THRESHOLD:
+        if now < suppress_scaledown_until or now < suppress_traffic_until:
+            active = max(suppress_scaledown_until, suppress_traffic_until)
+            logger.info(
+                f"스케일다운 억제 중 (suppress까지 {active - now:.0f}s 남음, "
+                f"scaledown={suppress_scaledown_until - now:.0f}s, "
+                f"traffic={suppress_traffic_until - now:.0f}s)"
+            )
+            return
+        if now - last_scale_up < COOLDOWN_DOWN_AFTER_UP:
+            logger.debug(f"스케일업 후 스케일다운 억제 중 ({now - last_scale_up:.0f}s / {COOLDOWN_DOWN_AFTER_UP}s)")
+            return
+        if now - last_scale_down < COOLDOWN_DOWN:
+            logger.debug(f"스케일다운 쿨다운 중 ({now - last_scale_down:.0f}s / {COOLDOWN_DOWN}s)")
+            return
+        target = max(current - SCALE_DOWN_STEP, MIN_REPLICAS)
+        if target < current:
+            scale_service(target, current, "down", f"CPU={cpu:.1f}% < {SCALE_DOWN_THRESHOLD}%")
+
+
 def check_traffic_preemptive():
     """축 1: HTTP RPS 증가율 기반 선행 감지 스케일업.
 
@@ -153,6 +293,7 @@ def check_traffic_preemptive():
     TRAFFIC_CONSECUTIVE 회 연속 초과 시 current + SCALE_UP_STEP으로 스케일업.
     """
     global suppress_traffic_until, consecutive_traffic_alerts
+    global _snap_total_rps, _snap_total_base, _snap_st_rps, _snap_st_base
 
     now = time.time()
     if now < suppress_traffic_until:
@@ -184,6 +325,11 @@ def check_traffic_preemptive():
     st_now     = query_scalar(q_server_time_now)
     st_base    = query_scalar(q_server_time_base)
 
+    _snap_total_rps  = total_now
+    _snap_total_base = total_base
+    _snap_st_rps     = st_now
+    _snap_st_base    = st_base
+
     def exceeds(cur: float | None, base: float | None, mult: float, min_rps: float) -> bool:
         if cur is None or base is None or cur < min_rps:
             return False
@@ -204,13 +350,11 @@ def check_traffic_preemptive():
         if consecutive_traffic_alerts >= TRAFFIC_CONSECUTIVE:
             consecutive_traffic_alerts = 0
             try:
-                service = docker_client.services.get(TARGET_SERVICE)
-                service.reload()
-                current = get_current_replicas(service)
+                current = get_current_replicas()
                 target = min(current + SCALE_UP_STEP, MAX_REPLICAS)
                 new_suppress = now + TRAFFIC_SUPPRESS
                 if target > current:
-                    scale_service(target, current, "up")
+                    scale_service(target, current, "up", "축1 트래픽 선행 감지")
                     suppress_traffic_until = max(suppress_traffic_until, new_suppress)
                     logger.info(f"트래픽 기반 스케일업: {current} -> {target}, suppress {TRAFFIC_SUPPRESS}s")
                 else:
@@ -224,43 +368,18 @@ def check_traffic_preemptive():
         consecutive_traffic_alerts = 0
 
 
-def get_current_replicas(service) -> int:
-    """현재 레플리카 수 반환."""
-    return service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"]
-
-
-def get_ready_replicas() -> int | None:
-    """Prometheus up{job="nest-app"}==1 기반 ready 레플리카 수 반환. 실패 시 None."""
-    try:
-        result = prom.custom_query(query='count(up{job="nest-app"}==1)')
-        if not result:
-            logger.warning("get_ready_replicas: 결과 없음 — skip")
-            return None
-        val = float(result[0]["value"][1])
-        return None if math.isnan(val) else int(val)
-    except Exception as e:
-        logger.error(f"get_ready_replicas 쿼리 실패: {e}")
-        return None
-
-
-def update_in_booking_pool_size(new_size: int) -> None:
-    """Redis in-booking:default-max-size SET + booking:events PUBLISH."""
-    redis_client.set('in-booking:default-max-size', str(new_size))
-    redis_client.publish('booking:events', '{"type":"all-in-booking-max-size-changed"}')
-    logger.info(f"in-booking 풀 사이즈 업데이트: {new_size} (SET + PUBLISH)")
-
-
 def check_and_adjust_pool():
-    """축 2: min(docker desired, prometheus ready) × POOL_PER_REPLICA로 풀 동적 조정."""
+    """축 2: min(desired, prometheus ready) × POOL_PER_REPLICA로 풀 동적 조정."""
+    global _snap_ready, _snap_pool
+
     try:
-        service = docker_client.services.get(TARGET_SERVICE)
-        service.reload()
-        desired = get_current_replicas(service)
+        desired = get_current_replicas()
     except Exception as e:
-        logger.error(f"check_and_adjust_pool: Docker desired 조회 실패 — skip: {e}")
+        logger.error(f"check_and_adjust_pool: desired 조회 실패 — skip: {e}")
         return
 
     ready = get_ready_replicas()
+    _snap_ready = ready
     if ready is None:
         logger.debug("check_and_adjust_pool: ready=None — skip")
         return
@@ -269,6 +388,7 @@ def check_and_adjust_pool():
         return
 
     new_pool = min(desired, ready) * POOL_PER_REPLICA
+    _snap_pool = new_pool
 
     try:
         current_val = redis_client.get('in-booking:default-max-size')
@@ -319,23 +439,13 @@ def determine_pre_scale_tier(session_count: int, max_replicas: int) -> int:
 
 
 def fetch_upcoming_reservation_opens() -> list[float]:
-    """
-    MySQL Event 테이블에서 현재 UTC 시각부터 PRE_SCALE_UP_WINDOW 초 이내에
-    오픈 예정인 미래 예매의 POSIX timestamp 리스트를 반환한다.
-
-    - 이미 지난 예매는 제외 (AUTOSCALER-09: '미래 예매만')
-    - 실패 시 빈 리스트 반환 + 에러 로그
-    """
+    """MySQL Event 테이블에서 PRE_SCALE_UP_WINDOW 이내 오픈 예정 예매 timestamp 목록 반환."""
     conn = None
     try:
         conn = pymysql.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            connect_timeout=5,
-            charset="utf8mb4",
+            host=DB_HOST, port=DB_PORT, user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME,
+            connect_timeout=5, charset="utf8mb4",
         )
         with conn.cursor() as cur:
             cur.execute(
@@ -391,82 +501,105 @@ def check_upcoming_reservations():
         logger.info(f"스케일다운 억제 갱신: {suppress_scaledown_until - time.time():.0f}s 후까지")
 
     try:
-        service = docker_client.services.get(TARGET_SERVICE)
-        service.reload()
-        current = get_current_replicas(service)
+        current = get_current_replicas()
     except Exception as e:
         logger.error(f"사전 스케일업: 현재 레플리카 조회 실패: {e}")
         return
 
     if current < target:
-        scale_service(target, current, "up")
+        scale_service(target, current, "up", "축3 사전 스케일업")
         logger.info(f"단계화 사전 스케일업 완료: {current} -> {target}")
     else:
         logger.info(f"단계화 사전 스케일업 skip (current={current} >= target={target}) — suppress만 갱신")
 
 
-def scale_service(target: int, current: int, direction: str):
-    global last_scale_up, last_scale_down
-    if DRY_RUN:
-        logger.info(f"[DRY_RUN] would scale {TARGET_SERVICE}: {current} -> {target}")
+def log_metrics_snapshot():
+    """METRICS_LOG=true 시 폴링 루프 말미에 핵심 판단 지표를 한 번에 출력한다."""
+    if not METRICS_LOG:
         return
-    svc = _docker_raw('GET', f'/v1.41/services/{TARGET_SERVICE}')
-    spec = svc['Spec']
-    spec['Mode']['Replicated']['Replicas'] = target
-    _docker_raw('POST', f'/v1.41/services/{svc["ID"]}/update?version={svc["Version"]["Index"]}', spec)
-    if direction == "up":
-        last_scale_up = time.time()
-    else:
-        last_scale_down = time.time()
-    logger.info(f"Scaled {TARGET_SERVICE}: {current} -> {target}")
-
-
-def check_and_scale():
-    cpu = get_cpu_percent()
-    if cpu is None:
-        return
-
-    service = docker_client.services.get(TARGET_SERVICE)
-    service.reload()
-    current = get_current_replicas(service)
-    logger.info(f"CPU={cpu:.1f}%, replicas={current}")
 
     now = time.time()
+    sep = "─" * 60
 
-    if cpu >= SCALE_UP_THRESHOLD:
-        if now - last_scale_up < COOLDOWN_UP:
-            logger.debug(f"스케일업 쿨다운 중 ({now - last_scale_up:.0f}s / {COOLDOWN_UP}s)")
-            return
-        target = min(current + SCALE_UP_STEP, MAX_REPLICAS)
-        if target > current:
-            scale_service(target, current, "up")
+    cpu_str = f"{_snap_cpu:.1f}%" if _snap_cpu is not None else "N/A"
+    rep_str = str(_snap_replicas) if _snap_replicas is not None else "N/A"
+    cool_up_remain   = max(0.0, COOLDOWN_UP         - (now - last_scale_up))
+    cool_down_remain = max(0.0, COOLDOWN_DOWN        - (now - last_scale_down))
+    cool_dup_remain  = max(0.0, COOLDOWN_DOWN_AFTER_UP - (now - last_scale_up))
 
-    elif cpu <= SCALE_DOWN_THRESHOLD:
-        if now < suppress_scaledown_until or now < suppress_traffic_until:
-            active = max(suppress_scaledown_until, suppress_traffic_until)
-            logger.info(
-                f"스케일다운 억제 중 (suppress까지 {active - now:.0f}s 남음, "
-                f"scaledown={suppress_scaledown_until - now:.0f}s, "
-                f"traffic={suppress_traffic_until - now:.0f}s)"
-            )
-            return
-        if now - last_scale_up < COOLDOWN_DOWN_AFTER_UP:
-            logger.debug(f"스케일업 후 스케일다운 억제 중 ({now - last_scale_up:.0f}s / {COOLDOWN_DOWN_AFTER_UP}s)")
-            return
-        if now - last_scale_down < COOLDOWN_DOWN:
-            logger.debug(f"스케일다운 쿨다운 중 ({now - last_scale_down:.0f}s / {COOLDOWN_DOWN}s)")
-            return
-        target = max(current - SCALE_DOWN_STEP, MIN_REPLICAS)
-        if target < current:
-            scale_service(target, current, "down")
+    def _rps_line(cur, base, mult, min_rps, label):
+        if cur is None:
+            return f"{label}=N/A"
+        base_str = f"{base:.2f}" if base is not None else "N/A"
+        rate_thresh = (base * mult) if (base is not None and base >= 0.1) else None
+        thresh_str = (
+            f"rate≥{rate_thresh:.2f}(×{mult}) AND abs≥{min_rps}"
+            if rate_thresh is not None
+            else f"abs≥{min_rps}(base<0.1)"
+        )
+        triggered = (
+            cur >= min_rps and (rate_thresh is None or cur >= rate_thresh)
+        ) if base is not None else False
+        flag = " ★" if triggered else ""
+        return f"{label}={cur:.2f} req/s (base={base_str}, need {thresh_str}){flag}"
+
+    total_line = _rps_line(
+        _snap_total_rps, _snap_total_base,
+        TRAFFIC_TOTAL_RATE_MULTIPLIER, TRAFFIC_TOTAL_MIN_RPS, "total"
+    )
+    st_line = _rps_line(
+        _snap_st_rps, _snap_st_base,
+        TRAFFIC_SERVER_TIME_RATE_MULTIPLIER, TRAFFIC_SERVER_TIME_MIN_RPS, "server-time"
+    )
+    supp_traffic_remain = max(0.0, suppress_traffic_until - now)
+
+    ready_str = str(_snap_ready) if _snap_ready is not None else "N/A"
+    pool_str  = str(_snap_pool)  if _snap_pool  is not None else "N/A"
+
+    if _snap_sessions is not None and BASE_POOL_SIZE > 0:
+        ratio = _snap_sessions / BASE_POOL_SIZE
+        if ratio < 0.15:
+            tier = "SKIP"
+        elif ratio < 0.40:
+            tier = f"LOW(→{math.ceil(MAX_REPLICAS * 0.5)})"
+        elif ratio < 0.80:
+            tier = f"MID(→{math.ceil(MAX_REPLICAS * 0.75)})"
+        else:
+            tier = f"HIGH(→{MAX_REPLICAS})"
+        session_str = f"{_snap_sessions} (ratio={ratio:.3f}/{BASE_POOL_SIZE} → {tier})"
+    else:
+        session_str = "N/A"
+
+    supp_down_remain = max(0.0, suppress_scaledown_until - now)
+
+    logger.info(sep)
+    logger.info(
+        f"[METRICS] CPU={cpu_str} (up≥{SCALE_UP_THRESHOLD}%, down≤{SCALE_DOWN_THRESHOLD}%) | "
+        f"replicas={rep_str}/{MAX_REPLICAS}"
+    )
+    logger.info(f"[METRICS] 축1 트래픽: {total_line}")
+    logger.info(
+        f"[METRICS] 축1 트래픽: {st_line} | consecutive={consecutive_traffic_alerts}/{TRAFFIC_CONSECUTIVE}, "
+        f"suppress={supp_traffic_remain:.0f}s"
+    )
+    logger.info(f"[METRICS] 축2 풀: ready={ready_str}, pool={pool_str} (per_replica={POOL_PER_REPLICA})")
+    logger.info(f"[METRICS] 축3 세션: active={session_str}")
+    logger.info(
+        f"[METRICS] 타이머: suppress_down={supp_down_remain:.0f}s, suppress_traffic={supp_traffic_remain:.0f}s | "
+        f"cooldown_up={cool_up_remain:.0f}s/{COOLDOWN_UP}s, "
+        f"cooldown_down={cool_down_remain:.0f}s/{COOLDOWN_DOWN}s, "
+        f"cooldown_dup={cool_dup_remain:.0f}s/{COOLDOWN_DOWN_AFTER_UP}s"
+    )
+    logger.info(sep)
 
 
 if __name__ == "__main__":
     logger.info(
-        f"오토스케일러 시작 (DRY_RUN={DRY_RUN}, "
+        f"오토스케일러 시작 (BACKEND={BACKEND}, DRY_RUN={DRY_RUN}, "
         f"DB_POLL_INTERVAL={DB_POLL_INTERVAL}s, "
         f"PRE_SCALE_UP_WINDOW={PRE_SCALE_UP_WINDOW}s, "
-        f"SCALE_DOWN_SUPPRESS={SCALE_DOWN_SUPPRESS}s)"
+        f"SCALE_DOWN_SUPPRESS={SCALE_DOWN_SUPPRESS}s, "
+        f"METRICS_LOG={METRICS_LOG})"
     )
     while True:
         try:
@@ -487,6 +620,7 @@ if __name__ == "__main__":
         try:
             active_sessions = get_active_session_count()
             if active_sessions is not None:
+                _snap_sessions = active_sessions
                 logger.info(f"active_session_count={active_sessions}")
         except Exception as e:
             logger.error(f"폴링 루프 오류 (get_active_session_count): {e}")
@@ -498,5 +632,7 @@ if __name__ == "__main__":
                 check_upcoming_reservations()
         except Exception as e:
             logger.error(f"폴링 루프 오류 (check_upcoming_reservations): {e}")
+
+        log_metrics_snapshot()
 
         time.sleep(POLL_INTERVAL)
