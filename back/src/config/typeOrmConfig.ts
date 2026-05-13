@@ -1,7 +1,7 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 
 const ormConfig: TypeOrmModuleOptions = {
-  type: process.env.DATABASE_TYPE as 'mysql',
+  type: process.env.DATABASE_TYPE as any,
   host: process.env.DATABASE_HOST,
   port: parseInt(process.env.DATABASE_PORT, 10),
   username: process.env.DATABASE_USERNAME,
@@ -11,6 +11,11 @@ const ormConfig: TypeOrmModuleOptions = {
   synchronize: process.env.DATABASE_SYNCHRONIZE === 'true',
   charset: 'utf8mb4',
   timezone: '+09:00',
+
+  connectTimeout: 60000,
+  poolSize: 4,
+  retryAttempts: 20,
+  retryDelay: 3000,
 };
 
 export default ormConfig;

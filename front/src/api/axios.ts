@@ -6,14 +6,18 @@ import router from '@/routes/index.tsx';
 import axios, { AxiosError, isAxiosError } from 'axios';
 
 //TODO 타입 정의
-const isDevelopEnvironment = import.meta.env.VITE_ENVIRONMENT === 'dev';
-// const isDevelopEnvironment = true;
+const isApiProxying = !!import.meta.env.VITE_API_PROXYING;
+const proxyingUrl = window.location.origin + '/api';
+const apiServerUrl = import.meta.env.VITE_BE_URL ? import.meta.env.VITE_BE_URL : 'http://localhost:8080';
 
-export const BASE_URL = import.meta.env.VITE_API_URL + (isDevelopEnvironment ? '' : '/api');
+export const BASE_URL = isApiProxying ? proxyingUrl : apiServerUrl;
+
 type ErrorData = {
-  error: string;
-  message: string;
-  statusCode: number;
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
 };
 
 export type CustomError = AxiosError<ErrorData>;
@@ -56,11 +60,16 @@ const isServerError = (error: AxiosError) => {
   return false;
 };
 
-const isError = (error: unknown) => error && isAxiosError<CustomError>(error);
+const isError = (error: unknown) => error && isAxiosError<ErrorData>(error);
 //TODO 500 에러 처리 필요
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data?.success === true) {
+      response.data = response.data.data ?? null;
+    }
+    return response;
+  },
   (error) => {
     if (isError(error)) {
       if (isAuthenticateError(error)) {
@@ -73,7 +82,7 @@ apiClient.interceptors.response.use(
       } else if (isServerError(error)) {
         toast.error('서버에 문제가 있습니다.\n잠시 후 다시 시도해주세요.');
       }
-      throw error;
     }
+    throw error;
   },
 );

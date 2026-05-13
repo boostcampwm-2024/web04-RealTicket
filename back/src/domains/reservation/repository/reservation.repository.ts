@@ -33,6 +33,12 @@ export class ReservationRepository {
     });
   }
 
+  async findReservationById(reservationId: number) {
+    return await this.ReservationRepository.findOne({
+      where: { id: reservationId },
+    });
+  }
+
   async deleteReservationByIdMatchedUserId(userId: number, reservationId: number) {
     await this.dataSource.transaction(async () => {
       await this.reservedSeatRepository.deleteReservedSeatByReservation(reservationId);

@@ -18,7 +18,11 @@ export class ReservedSeat {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @DeleteDateColumn({ type: 'timestamp', name: 'deleted_at', nullable: true })
+  @DeleteDateColumn({
+    type: process.env.DATABASE_TYPE === 'better-sqlite3' ? 'datetime' : 'timestamp',
+    name: 'deleted_at',
+    nullable: true,
+  })
   deletedAt: Date;
 
   @Column({ type: 'varchar', length: 255, name: 'section_name' })

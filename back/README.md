@@ -1,99 +1,133 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
-
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
 ## Project setup
 
 ```bash
 $ npm install
 ```
 
+### 환경 변수 설명
+- `NODE_ENV`:
+    - 장소적 환경을 구분함 (DB 연결 정보, 로그 저장 설정 등)
+    - (development/production)
+- `EXEC_MODE`:
+    - 실행 모드를 구분함 (개발용/배포용 동작 설정)
+    - (dev/release)
+
+### 환경 변수 설정
+다음과 같이 환경 변수 파일들을 **"새로"** 생성하세요:
+
+```text
+./
+└── back/
+    └── src/
+        └── config/
+            └── .env.development
+            └── .env.production
+            └── .env.sample - (생성되어 있음)(참고용)
+```
+
+#### 기본 환경 변수 파일(NODE_ENV)
+각 환경에 맞는 `.env` 파일을 생성하고, 필요한 환경 변수를 설정하세요.
+이 파일들은 데이터베이스 연결 정보, Redis 설정, 프론트엔드 URL 등을 포함합니다.
+
+경로에 있는 `.env.sample` 파일(참고용)을 참고하여 작성할 수 있습니다.
+
+예시: `.env.development`:
+```env
+# 표준 시간 설정
+TZ=Asia/Seoul
+
+# 데이터베이스 설정
+DATABASE_HOST=localhost
+DATABASE_PASSWORD=0000
+DATABASE_PORT=3306
+DATABASE_SCHEMA=real_ticket
+DATABASE_SYNCHRONIZE=false
+DATABASE_TYPE=mysql
+DATABASE_USERNAME=user
+
+# Redis 설정
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# 프론트엔드 URL
+FRONT_URL=http://localhost:30000
+
+# 로그 저장 설정
+LOG_MAX_SIZE=20m
+LOG_MAX_LIFE=30d
+LOG_ZIP=true
+```
+
+#### 실행 모드별 환경 변수 파일(EXEC_MODE)
+장소적 환경과 별개로, 동작 모드를 설정하는 환경 변수가 `.env.execMode.(모드)`에 **"이미"** 정의되어 있습니다.
+
+`.env.execMode.release`는 실제 서비스에 사용되는 설정으로, 임의로 변경하지 않는 것을 권장합니다.
+
+`.env.execMode.dev`는 개발 환경에서 사용되는 설정으로, 개발 중에 필요한 기능을 활성화하거나 비활성화할 수 있습니다.
+
+
+**`.env.execMode.dev` (개발용)**:
+```env
+# 로깅 모드
+LOGGING_MODE=dev
+
+# 로그 저장 모드
+LOG_SAVE_MODE=dev
+
+# 벤치마크 모드
+BENCHMARK_MODE=true
+
+# 예매 시퀀스 상태 관리 모드
+ENTERING_SESSION_EXPIRE_MODE=prod
+DEVELOPING_WAITING_QUEUE_MODE=false
+```
+
 ## Compile and run the project
 
+### 개발 환경
 ```bash
-# development
-$ npm run start
+# 개발 환경 (watch 모드) - 파일 변경 시 자동 재시작
+$ npm run start:dev:watch
 
-# watch mode
-$ npm run start:dev
+# 개발 환경 (컴파일된 파일 실행)
+$ npm run build
+$ npm run start:dev:compiled
 
-# production mode
-$ npm run start:prod
+# 개발 환경 (디버그 모드) - 9229 포트에서 디버깅 가능
+$ npm run start:dev:debug
 ```
 
-## Run tests
-
+### 프로덕션 환경 (개발 모드)
 ```bash
-# unit tests
-$ npm run test
+# 프로덕션 환경설정 + 개발 실행모드 (watch 모드)
+$ npm run start:prod:watch
 
-# e2e tests
-$ npm run test:e2e
+# 프로덕션 환경설정 + 개발 실행모드 (컴파일된 파일 실행)
+$ npm run build
+$ npm run start:prod:compiled
 
-# test coverage
-$ npm run test:cov
+# 프로덕션 환경설정 + 개발 실행모드 (디버그 모드)
+$ npm run start:prod:debug
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### 배포 환경
 ```bash
-$ npm install -g mau
-$ mau deploy
+# 실제 서비스용 (릴리스 모드)
+$ npm run build
+$ npm run start:release
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Docker 환경에서 실행
+Docker 컨테이너에서는 watch 모드 대신 컴파일된 파일을 직접 실행하는 것을 권장합니다:
+```bash
+# 개발용 컨테이너
+$ npm run build
+$ npm run start:dev:compiled
 
-## Resources
+# 디버깅이 필요한 경우 (9229 포트 노출 필요)
+$ npm run start:dev:debug
 
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# 배포용 컨테이너
+$ npm run build
+$ npm run start:release
+```

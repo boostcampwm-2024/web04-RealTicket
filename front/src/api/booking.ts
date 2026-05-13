@@ -14,3 +14,18 @@ export interface PostSeatData {
   seatIndex: number;
   expectedStatus: 'deleted' | 'reserved';
 }
+
+export interface PatchSectionData {
+  sectionIndex: number;
+}
+
+export interface PatchSectionResponse {
+  sectionIndex: number;
+  seatStatus: number[];
+}
+
+// per D-01, D-03, D-05
+// axios interceptor가 response.data = response.data.data 언래핑을 처리하므로
+// .then((res) => res.data) 만 사용 (NOT .then((res) => res.data.data))
+export const patchSection = (data: PatchSectionData): Promise<PatchSectionResponse> =>
+  apiClient.patch(API.BOOKING.PATCH_SECTION, data).then((res) => res.data);

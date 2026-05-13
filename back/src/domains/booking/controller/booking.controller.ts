@@ -5,37 +5,45 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
-  Sse,
+  Res,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
+  ApiExtraModels,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 import { USER_STATUS } from '../../../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../../../auth/guard/session.guard';
+import { AuthService } from '../../../auth/service/auth.service';
+import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
+import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
+import { AppException } from '../../../common/exception/app.exception';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
-import { BookReqDto } from '../dto/bookReq.dto';
-import { BookResDto } from '../dto/bookRes.dto';
+import { BookingReqDto } from '../dto/bookingReq.dto';
+import { BookingResDto } from '../dto/bookingRes.dto';
 import { InBookingSizeReqDto } from '../dto/inBookingSizeReq.dto';
 import { InBookingSizeResDto } from '../dto/inBookingSizeRes.dto';
 import { SeatsSseDto } from '../dto/seatsSse.dto';
+import { SectionSwitchReqDto } from '../dto/sectionSwitchReq.dto';
+import { SectionSwitchResDto } from '../dto/sectionSwitchRes.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { WaitingSseDto } from '../dto/waitingSse.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 import { BookingSeatsService } from '../service/booking-seats.service';
 import { BookingService } from '../service/booking.service';
 import { InBookingService } from '../service/in-booking.service';
@@ -46,6 +54,7 @@ import { WaitingQueueService } from '../service/waiting-queue.service';
 export class BookingController {
   constructor(
     private readonly eventEmitter: EventEmitter2,
+    private readonly authService: AuthService,
     private readonly bookingService: BookingService,
     private readonly inBookingService: InBookingService,
     private readonly bookingSeatsService: BookingSeatsService,
@@ -63,7 +72,7 @@ export class BookingController {
     return await this.bookingService.isAdmission(eventId, sid);
   }
 
-  @Sse('re-permission/:eventId')
+  @Get('re-permission/:eventId')
   @UseGuards(SessionAuthGuard(USER_STATUS.WAITING))
   @ApiOperation({
     summary: '대기큐 현황 SSE',
@@ -71,43 +80,129 @@ export class BookingController {
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: WaitingSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async subscribeWaitingQueue(@Param('eventId') eventId: number) {
-    return this.waitingQueueService.subscribeQueue(eventId);
+  async subscribeWaitingQueue(
+    @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const sid = req.cookies['SID'];
+    await this.waitingQueueService.addSseClient(eventId, res, sid);
+
+    req.on('close', () => {
+      this.waitingQueueService.removeSseClient(eventId, res);
+    });
   }
 
   @Post('count')
   @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({ summary: '예매 인원 설정', description: '예매할 인원 수를 설정한다.' })
   @ApiBody({ type: BookingAmountReqDto })
-  @ApiOkResponse({ description: '인원 설정 성공', type: BookingAmountReqDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiBadRequestResponse({ description: '잘못된 요청' })
+  @ApiExtraModels(SuccessResponseDto, BookingAmountResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(BookingAmountResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
   async setBookingAmount(@Req() req: Request, @Body() dto: BookingAmountReqDto) {
     const sid = req.cookies['SID'];
     const result = await this.bookingService.setBookingAmount(sid, dto.bookingAmount);
     return new BookingAmountResDto(result);
   }
 
-  @Sse('seat/:eventId')
-  @UseGuards(SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT]))
+  @Get('seat/:eventId')
+  @UseGuards(
+    SessionAuthGuard([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT, USER_STATUS.RECONNECTING_SELECTING]),
+  )
   @ApiOperation({
     summary: '실시간 좌석 예약 현황 SSE',
     description: '실시간으로 좌석 예약 현황을 조회한다.',
   })
   @ApiOkResponse({ description: 'SSE 연결 성공', type: SeatsSseDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  async getReservationStatusByEventId(@Param('eventId') eventId: number, @Req() req: Request) {
+  async getReservationStatusByEventId(
+    @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) eventId: number,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const sid = req.cookies['SID'];
-    await this.bookingService.setInBookingFromEntering(sid);
 
-    const observable = this.bookingSeatsService.subscribeSeats(eventId);
+    const session = await this.authService.getUserSession(sid);
 
-    req.on('close', () => {
-      this.eventEmitter.emit('seats-sse-close', { sid });
+    if (session.userStatus === USER_STATUS.ENTERING) {
+      await this.bookingService.setInBookingFromEntering(sid);
+      // ENTERING: init 풀에 등록 (SSE-02)
+      await this.bookingSeatsService.addSseClient(eventId, res, sid);
+    } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
+      await this.inBookingService.removeReconnectingSession(eventId, sid);
+      await this.authService.setUserStatusSelectingSeat(sid);
+
+      // 재연결 복원: 저장된 섹션으로 자동 복원 (SSE-07)
+      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+      if ((inBookingSession?.subscribedSection ?? null) !== null) {
+        await this.bookingSeatsService.addSseClientToSection(
+          eventId,
+          inBookingSession.subscribedSection,
+          res,
+          sid,
+        );
+      } else {
+        // 섹션 미선택 상태였으면 init 풀에 등록 (SSE-02)
+        await this.bookingSeatsService.addSseClient(eventId, res, sid);
+      }
+    } else {
+      // SELECTING_SEAT (정상 진입): init 풀에 등록 (SSE-02)
+      await this.bookingSeatsService.addSseClient(eventId, res, sid);
+    }
+
+    req.on('close', async () => {
+      await this.bookingSeatsService.removeSseClient(eventId, sid, res);
+
+      const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+      if (inBookingSession?.saved) {
+        await this.bookingService.onSeatsSseDisconnected({ sid });
+      } else {
+        await this.authService.setUserStatusReconnectingSelecting(sid);
+        await this.inBookingService.addReconnectingSession(eventId, sid);
+      }
     });
+  }
 
-    return observable;
+  @Patch('seat/section')
+  @UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
+  @ApiOperation({
+    summary: '섹션 구독 전환',
+    description: '구독 섹션을 전환하고 해당 섹션의 최신 좌석 상태를 반환한다. SSE 연결은 유지된다.',
+  })
+  @ApiBody({ type: SectionSwitchReqDto })
+  @ApiExtraModels(SuccessResponseDto, SectionSwitchResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(SectionSwitchResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  async switchSection(@Req() req: Request, @Body() dto: SectionSwitchReqDto) {
+    const sid = req.cookies['SID'];
+    const eventId = await this.authService.getUserEventTarget(sid);
+    if (eventId === null) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
+    const sseRes = await this.bookingSeatsService.getClientResBySid(eventId, sid);
+    const result = await this.bookingSeatsService.switchSseClientSection(
+      eventId,
+      dto.sectionIndex,
+      sseRes,
+      sid,
+    );
+    return new SectionSwitchResDto(result);
   }
 
   @Post('')
@@ -116,26 +211,42 @@ export class BookingController {
     summary: '좌석 점유/취소',
     description: '좌석 하나를 대상으로 점유/취소 요청을 보낸다.',
   })
-  @ApiOkResponse({ description: '좌석 점유/취소 성공' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiBadRequestResponse({ description: '잘못된 요청' })
-  @ApiConflictResponse({ description: '이미 점유/취소된 좌석' })
-  async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookReqDto) {
+  @ApiExtraModels(SuccessResponseDto, BookingResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(BookingResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'COMMON_INVALID_INPUT' })
+  @ApiConflictResponse({ type: ErrorResponseDto, description: 'SEAT_ALREADY_OCCUPIED | SEAT_NOT_OCCUPIED' })
+  async updateSeatOccupancy(@Req() req: Request, @Body() dto: BookingReqDto) {
     const sid = req.cookies['SID'];
 
     if (dto.expectedStatus === SeatStatus.RESERVE) {
       const result = await this.bookingSeatsService.bookSeat(sid, [dto.sectionIndex, dto.seatIndex]);
-      return new BookResDto(result);
+      return new BookingResDto(result);
     } else if (dto.expectedStatus === SeatStatus.DELETE) {
       const result = await this.bookingSeatsService.unBookSeat(sid, [dto.sectionIndex, dto.seatIndex]);
-      return new BookResDto(result);
+      return new BookingResDto(result);
     }
   }
 
   @ApiOperation({ summary: '서버 시간 조회', description: '서버의 현재 시간을 조회한다.' })
-  @ApiOkResponse({ description: '서버 시간 조회 성공', type: ServerTimeDto, example: { now: 1620000000000 } })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiInternalServerErrorResponse({ description: '서버 시간 조회 실패' })
+  @ApiExtraModels(SuccessResponseDto, ServerTimeDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(ServerTimeDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
+  @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   @UseGuards(SessionAuthGuard())
   @Get('server-time')
   async getServerTime() {
@@ -148,8 +259,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 설정',
     description: '특정 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
   })
-  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setInBookingSessionsMaxSize(@Param('eventId') eventId: number, @Body() dto: InBookingSizeReqDto) {
     const maxSize = dto.maxSize;
     const setSize = await this.inBookingService.setInBookingSessionsMaxSize(eventId, maxSize);
@@ -162,8 +281,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 설정(ALL)',
     description: '모든 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
   })
-  @ApiOkResponse({ description: '인원 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setAllInBookingSessionsMaxSize(@Body() dto: InBookingSizeReqDto) {
     const maxSize = dto.maxSize;
     const setSize = await this.inBookingService.setAllInBookingSessionsMaxSize(maxSize);
@@ -176,8 +303,16 @@ export class BookingController {
     summary: 'ADMIN: 좌석 선택창 인원 기본값 설정',
     description: '좌석 선택창에 입장 가능한 인원 수의 기본값을 설정한다.',
   })
-  @ApiOkResponse({ description: '기본값 설정 성공', type: InBookingSizeResDto })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiExtraModels(SuccessResponseDto, InBookingSizeResDto)
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(InBookingSizeResDto) } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async setInBookingSessionsDefaultMaxSize(@Body() dto: InBookingSizeReqDto) {
     const defaultMaxSize = dto.maxSize;
     const setSize = await this.inBookingService.setInBookingSessionsDefaultMaxSize(defaultMaxSize);
@@ -190,8 +325,15 @@ export class BookingController {
     summary: 'ADMIN: 오픈 대상 이벤트 재확인',
     description: '오픈 대상 이벤트를 다시 확인하여 오픈한다.',
   })
-  @ApiOkResponse({ description: '확인 및 오픈 완료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async reloadOpenTarget() {
     await this.openBookingService.scheduleUpcomingReservations();
   }
@@ -202,8 +344,15 @@ export class BookingController {
     summary: 'ADMIN: 예약 초기화',
     description: '특정 이벤트의 예약 상태를 초기화한다.',
   })
-  @ApiOkResponse({ description: '예약 초기화 완료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessResponseDto) },
+        { properties: { data: { type: 'object', nullable: true } } },
+      ],
+    },
+  })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   async initReservation(@Param('eventId') eventId: number) {
     await this.openBookingService.initReservation(eventId);
   }

@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Select from 'react-select';
+import { useParams } from 'react-router-dom';
 
-import { postSeatCount } from '@/api/booking.ts';
+import { BASE_URL } from '@/api/axios.ts';
+import { patchSection, postSeatCount } from '@/api/booking.ts';
 import { postReservation } from '@/api/reservation.ts';
 
 import useConfirm from '@/hooks/useConfirm.tsx';
 import usePreventLeave from '@/hooks/usePreventLeave.tsx';
+import useSSE from '@/hooks/useSSE.tsx';
 
 import { toast } from '@/components/Toast/index.ts';
 import Button from '@/components/common/Button.tsx';
@@ -20,12 +23,11 @@ import { getDate, getTime } from '@/utils/date.ts';
 import { changeSeatCountDebounce } from '@/utils/debounce.ts';
 import { padEndArray } from '@/utils/padArray.ts';
 
+import { API } from '@/constants/index.ts';
 import { SEAT_COUNT_LIST } from '@/constants/reservation.ts';
 import type { EventDetail, PlaceInformation, SectionCoordinate } from '@/type/index.ts';
 import type { SeatCount } from '@/type/reservation.ts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { cx } from 'class-variance-authority';
-import { twMerge } from 'tailwind-merge';
 
 export interface SelectedSeat {
   sectionIndex: number;
@@ -56,15 +58,65 @@ export default function SectionAndSeat({
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [isOpenSelect, setIsOpenSelect] = useState<boolean>(false);
   const [isChangingCount, setIsChangingCount] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [seatStatus, setSeatStatus] = useState<number[] | null>(null);
+  const prevSectionRef = useRef<number | null>(null);
+  const prevSeatStatusRef = useRef<number[] | null>(null);
+  const { eventId } = useParams();
+
+  // per D-01: SectionAndSeat 마운트 시 연결 시작 (init 풀)
+  // per FE-02: 단일 섹션 타입으로 수신
+  // Phase 4: occupiedSeats optional 필드 추가 (per D-01)
+  const { data: sseData } = useSSE<{
+    sectionIndex: number;
+    seatStatus: number[];
+    occupiedSeats?: [number, number][];
+  }>({
+    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
+  });
+
   const { mutate: confirmReservation } = useMutation({ mutationFn: postReservation });
   const { mutate: postSeatCountMutate } = useMutation({ mutationFn: postSeatCount });
+
+  // per D-01, D-03, D-04, D-05
+  const { mutate: patchSectionMutate } = useMutation({
+    mutationFn: (sectionIndex: number) => patchSection({ sectionIndex }),
+    onSuccess: (data) => {
+      setSeatStatus(data.seatStatus); // FE-03: 즉시 반영
+    },
+    onError: () => {
+      toast.error('섹션 전환에 실패했습니다');
+      setSelectedSection(prevSectionRef.current); // D-04: 롤백
+      setSeatStatus(prevSeatStatusRef.current); // D-04: seatStatus 복원
+    },
+    throwOnError: false,
+  });
+
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
   usePreventLeave();
 
+  // FE-02: SSE 브로드캐스트 수신 시 seatStatus 갱신
+  // Phase 4: occupiedSeats 수신 시 selectedSeats 서버 데이터로 동기화 (per D-04)
+  useEffect(() => {
+    if (!sseData) return;
+    if (sseData.occupiedSeats !== undefined) {
+      // Phase 4: 서버 bookedSeats → selectedSeats 동기화 (per D-04)
+      const restored = sseData.occupiedSeats.map(([sectionIdx, seatIndex]) => ({
+        sectionIndex: sectionIdx,
+        seatIndex,
+        name: deriveSeatName(placeInformation, sectionIdx, seatIndex),
+      }));
+      setSelectedSeats(restored);
+    } else if (sseData.sectionIndex >= 0) {
+      // 기존: 좌석 상태 브로드캐스트 업데이트
+      setSeatStatus(sseData.seatStatus);
+    }
+  }, [sseData]);
+
   const { layout } = placeInformation;
   const { overview, overviewHeight, overviewPoints, overviewWidth, sections } = layout;
-  const { name, place, runningDate, runningTime, id: eventId } = event;
+  const { name, place, runningDate, runningTime, id: eventId2 } = event;
 
   const sectionCo = JSON.parse(overviewPoints) as SectionCoordinate[];
   const selectedSectionSeatMap =
@@ -75,9 +127,48 @@ export default function SectionAndSeat({
 
   const SELECT_OPTION_LIST = SEAT_COUNT_LIST.map((count) => ({ value: count, label: `${count}매` }));
 
+  // 좌석 수에 따른 자동 크기 계산
+  const calculateSeatSize = (colLen: number) => {
+    if (colLen <= 15) return 28; // 기본 크기
+    if (colLen <= 25) return 24; // 중간 크기
+    if (colLen <= 35) return 20; // 작은 크기
+    return 16; // 최소 크기
+  };
+
+  // 좌석 규모에 따른 초기 줌 레벨 계산
+  const calculateInitialZoom = (colLen: number, rowLen: number) => {
+    const maxDimension = Math.max(colLen, rowLen);
+    if (maxDimension <= 30) return 1.0; // 100% - 소규모
+    if (maxDimension <= 40) return 0.75; // 75% - 중간 규모
+    return 0.5; // 50% - 대형
+  };
+
+  const seatSize = selectedSectionSeatMap ? calculateSeatSize(selectedSectionSeatMap.colLen) : 28;
+
+  const finalSeatSize = seatSize * zoomLevel;
+
+  // selectedSection이 변경될 때마다 적절한 초기 줌 레벨 설정
+  useEffect(() => {
+    if (selectedSectionSeatMap && typeof selectedSectionSeatMap === 'object') {
+      const rowLen = selectedSectionSeatMap.seats.length / selectedSectionSeatMap.colLen;
+      const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen, rowLen);
+      setZoomLevel(initialZoom);
+    }
+  }, [selectedSection]);
+
+  // per D-04: prevSection 클릭 시점에 캡처 — stale closure 방지를 위해 useRef 사용
+  const handleSectionClick = (newSectionIndex: number) => {
+    prevSectionRef.current = selectedSection; // 롤백 대상 저장
+    prevSeatStatusRef.current = seatStatus; // D-04: seatStatus 롤백 대상 저장
+    setSelectedSection(newSectionIndex); // 낙관적 UI (선택 즉시 반영)
+    setSeatStatus(null); // 이전 섹션 좌석 데이터 클리어
+    patchSectionMutate(newSectionIndex);
+  };
+
   return (
     <div className="flex w-full gap-4">
-      <div className="flex w-[70%] flex-col gap-8 px-4 py-2">
+      {/* 왼쪽 영역 - 너비 제한 강화 */}
+      <div className="flex w-[70%] min-w-0 flex-col gap-8 px-4 py-2">
         <div className="flex flex-col items-start">
           <h2 className="text-heading1 text-typo">{name}</h2>
         </div>
@@ -110,40 +201,103 @@ export default function SectionAndSeat({
         {canViewSeatMap ? (
           <>
             <StageDirection />
-            <div
-              className={twMerge(
-                cx(
-                  'relative mx-auto grid auto-cols-min gap-4',
-                  selectedSectionSeatMap ? `grid-cols-${selectedSectionSeatMap.colLen}` : '',
-                ),
-              )}>
-              {isChangingCount && <Dimmed />}
-              <SeatMap
-                selectedSeats={selectedSeats}
-                setSelectedSeats={setSelectedSeats}
-                selectedSection={sections[selectedSection]}
-                maxSelectCount={seatCount}
-                selectedSectionIndex={selectedSection}
-              />
+
+            {/* 줌 컨트롤 */}
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
+                className="flex h-8 w-8 items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                disabled={zoomLevel <= 0.5}>
+                <span className="text-lg font-bold">-</span>
+              </button>
+              <span className="min-w-[60px] text-center text-sm font-medium">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <button
+                onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.25))}
+                className="flex h-8 w-8 items-center justify-center rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                disabled={zoomLevel >= 2}>
+                <span className="text-lg font-bold">+</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedSectionSeatMap) {
+                    const rowLen = selectedSectionSeatMap.seats.length / selectedSectionSeatMap.colLen;
+                    const initialZoom = calculateInitialZoom(selectedSectionSeatMap.colLen, rowLen);
+                    setZoomLevel(initialZoom);
+                  } else {
+                    setZoomLevel(1);
+                  }
+                }}
+                className="ml-2 rounded bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600">
+                자동
+              </button>
+            </div>
+
+            {/* 핵심: 부모 너비를 절대 넘지 않는 스크롤 컨테이너 */}
+            <div className="w-full overflow-hidden">
+              <div className="mx-auto w-full overflow-auto p-4" style={{ height: '600px' }}>
+                {/* 배치도 정보 표시 */}
+                <div className="mb-4 text-center">
+                  <div className="inline-flex items-center gap-4 rounded bg-white px-4 py-2 shadow-sm">
+                    <span className="text-sm text-gray-600">{selectedSectionSeatMap?.name}구역</span>
+                    <span className="text-xs text-gray-500">
+                      {selectedSectionSeatMap?.colLen}열 ×{' '}
+                      {Math.ceil(
+                        selectedSectionSeatMap?.seats.filter((s) => s === 1).length /
+                          selectedSectionSeatMap?.colLen,
+                      )}
+                      행
+                    </span>
+                  </div>
+                </div>
+
+                {/* 성능 최적화: transform 대신 직접 크기 변경 */}
+                <div
+                  className="relative grid gap-1"
+                  style={{
+                    gridTemplateColumns: selectedSectionSeatMap
+                      ? `repeat(${selectedSectionSeatMap.colLen}, ${finalSeatSize}px)`
+                      : undefined,
+                    justifyContent: 'center',
+                    width: 'fit-content',
+                    margin: '0 auto',
+                  }}>
+                  {isChangingCount && <Dimmed />}
+                  {seatStatus !== null ? (
+                    <SeatMap
+                      selectedSeats={selectedSeats}
+                      setSelectedSeats={setSelectedSeats}
+                      selectedSection={sections[selectedSection]}
+                      maxSelectCount={seatCount}
+                      selectedSectionIndex={selectedSection}
+                      seatStatus={seatStatus}
+                      seatSize={finalSeatSize}
+                    />
+                  ) : (
+                    <Loading />
+                  )}
+                </div>
+              </div>
             </div>
           </>
         ) : (
           <SectionSelectorMap
             sections={sectionCo}
             selectedSection={selectedSection}
-            setSelectedSection={setSelectedSection}
+            setSelectedSection={handleSectionClick}
             svgURL={overview}
             viewBoxData={viewBoxData}
           />
         )}
       </div>
       <Separator direction="col" />
-      <div className="flex flex-col gap-6">
+      <div className="flex w-[30%] min-w-0 flex-col gap-6">
         <SectionSelectorMap
           className="flex-grow-0"
           sections={sectionCo}
           selectedSection={selectedSection}
-          setSelectedSection={setSelectedSection}
+          setSelectedSection={handleSectionClick}
           svgURL={overview}
           viewBoxData={viewBoxData}
         />
@@ -233,7 +387,7 @@ export default function SectionAndSeat({
           onClick={() => {
             confirmReservation(
               {
-                eventId,
+                eventId: eventId2,
                 seats: selectedSeats.map((seat) => ({
                   sectionIndex: seat.sectionIndex,
                   seatIndex: seat.seatIndex,
@@ -273,6 +427,30 @@ const StageDirection = () => {
     </div>
   );
 };
+
+// Phase 4: 서버 bookedSeats [sectionIndex, seatIndex] → SelectedSeat.name 복원 (per D-05)
+// SeatMap.tsx renderSeatMap의 좌석명 생성 로직과 동일하게 구현 (canonical reference)
+export function deriveSeatName(
+  placeInformation: PlaceInformation,
+  sectionIndex: number,
+  seatIndex: number,
+): string {
+  const section = placeInformation.layout.sections[sectionIndex];
+  if (!section) return `${sectionIndex}-${seatIndex}`;
+
+  const { name, seats, colLen } = section;
+  let columnCount = 1;
+  for (let i = 0; i <= seatIndex; i++) {
+    const isNewLine = i % colLen === 0;
+    if (isNewLine) columnCount = 1;
+    if (i === seatIndex) {
+      const rowsCount = Math.floor(i / colLen) + 1;
+      return `${name}구역 ${rowsCount}행 ${columnCount}열`;
+    }
+    if (seats[i]) columnCount++;
+  }
+  return `${sectionIndex}-${seatIndex}`;
+}
 
 const SEAT_STATES = ['선택 가능', '선택 중', '선택 완료', '선택 불가'];
 const getColorClass = (state: string) => {

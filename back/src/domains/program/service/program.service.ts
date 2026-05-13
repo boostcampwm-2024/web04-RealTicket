@@ -1,5 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
+import { AppException } from 'src/common/exception/app.exception';
 import { Event } from 'src/domains/event/entity/event.entity';
 
 import { PlaceMainPageDto } from '../dto/placeMainPage.dto';
@@ -8,6 +9,7 @@ import { ProgramIdDto } from '../dto/programId.dto';
 import { ProgramMainPageDto } from '../dto/programMainPage.dto';
 import { ProgramSpecificDto } from '../dto/programSpecific.dto';
 import { Program } from '../entities/program.entity';
+import { ProgramErrorCode } from '../exception/program-error-code';
 import { ProgramRepository } from '../repository/program.repository';
 
 @Injectable()
@@ -35,7 +37,7 @@ export class ProgramService {
 
   async findSpecificProgram({ programId }: ProgramIdDto): Promise<ProgramSpecificDto> {
     const program: Program = await this.programRepository.selectProgramByIdWithPlaceAndEvent(programId);
-    if (!program) throw new NotFoundException(`해당 프로그램[${programId}]는 존재하지 않습니다.`);
+    if (!program) throw new AppException(ProgramErrorCode.NOT_FOUND);
     const programSpecificdto: ProgramSpecificDto = await this.convertProgramToSpecificDto(program);
     return programSpecificdto;
   }
@@ -49,8 +51,8 @@ export class ProgramService {
     return new ProgramSpecificDto({ ...program, place, events: openedEvents });
   }
 
-  async create(programCreationDto: ProgramCreationDto): Promise<void> {
-    await this.programRepository.storeProgram({
+  async create(programCreationDto: ProgramCreationDto) {
+    return await this.programRepository.storeProgram({
       ...programCreationDto,
       placeId: programCreationDto.placeId,
     });
@@ -58,6 +60,6 @@ export class ProgramService {
 
   async delete({ programId }: ProgramIdDto) {
     const result = await this.programRepository.deleteProgram(programId);
-    if (!result.affected) throw new NotFoundException(`해당 프로그램[${programId}]가 없습니다.`);
+    if (!result.affected) throw new AppException(ProgramErrorCode.NOT_FOUND);
   }
 }

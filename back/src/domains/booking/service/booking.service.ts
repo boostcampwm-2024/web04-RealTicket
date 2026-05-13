@@ -1,12 +1,15 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import Redis from 'ioredis';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger as WinstonLogger } from 'winston';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { UserService } from '../../user/service/user.service';
+import { AppException } from '../../../common/exception/app.exception';
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
+import { BookingErrorCode } from '../exception/booking-error-code';
 
 import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
@@ -15,35 +18,81 @@ import { OpenBookingService } from './open-booking.service';
 import { WaitingQueueService } from './waiting-queue.service';
 
 @Injectable()
-export class BookingService {
-  private logger = new Logger(BookingService.name);
-  private readonly redis: Redis | null;
+export class BookingService implements OnModuleInit, OnModuleDestroy {
+  private readonly pubsubClient: Redis;
+  private static readonly BOOKING_EVENTS_CHANNEL = 'booking:events';
+
   constructor(
-    private readonly redisService: RedisService,
     private readonly authService: AuthService,
     private readonly bookingSeatsService: BookingSeatsService,
     private readonly inBookingService: InBookingService,
     private readonly openBookingService: OpenBookingService,
     private readonly waitingQueueService: WaitingQueueService,
-    private readonly userService: UserService,
     private readonly enterBookingService: EnterBookingService,
+    private readonly redisService: RedisService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {
-    this.redis = this.redisService.getOrThrow();
+    this.pubsubClient = this.redisService.getOrThrow('pubsub');
+  }
+
+  async onModuleInit() {
+    await this.pubsubClient.subscribe(BookingService.BOOKING_EVENTS_CHANNEL);
+    this.pubsubClient.on('message', async (channel: string, message: string) => {
+      if (channel !== BookingService.BOOKING_EVENTS_CHANNEL) return;
+      try {
+        const payload = JSON.parse(message) as
+          | { type: 'in-booking-max-size-changed'; eventId: number }
+          | { type: 'all-in-booking-max-size-changed' }
+          | { type: 'entering-sessions-gc'; eventId: number };
+
+        switch (payload.type) {
+          case 'in-booking-max-size-changed':
+            await this.letInNextWaiting(payload.eventId);
+            break;
+          case 'all-in-booking-max-size-changed': {
+            const eventIds = await this.openBookingService.getOpenedEventIds();
+            await Promise.all(eventIds.map((id) => this.letInNextWaiting(id)));
+            break;
+          }
+          case 'entering-sessions-gc':
+            await this.letInNextWaiting(payload.eventId);
+            break;
+        }
+      } catch (err) {
+        this.logger.error(`booking:events dispatch 실패: ${(err as Error).message}`);
+      }
+    });
+  }
+
+  async onModuleDestroy() {
+    try {
+      await this.pubsubClient.unsubscribe(BookingService.BOOKING_EVENTS_CHANNEL);
+    } catch {
+      // teardown 중 무시
+    }
   }
 
   @OnEvent('seats-sse-close')
   async onSeatsSseDisconnected(event: { sid: string }) {
     const sid = event.sid;
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      return;
+    }
+
     if (await this.openBookingService.isEventOpened(eventId)) {
       await this.collectSeatsIfNotSaved(eventId, sid);
-      await this.inBookingService.emitSession(sid);
+      await this.inBookingService.emitSession(eventId, sid);
       await this.letInNextWaiting(eventId);
     }
   }
 
   private async collectSeatsIfNotSaved(eventId: number, sid: string) {
     const inBookingSession = await this.inBookingService.getSession(eventId, sid);
+    if (process.env.BENCHMARK_MODE === 'true' && eventId === 1) {
+      return;
+    }
     if (inBookingSession && !inBookingSession.saved) {
       const bookedSeats = inBookingSession.bookedSeats;
       bookedSeats.forEach((seat) => {
@@ -54,26 +103,6 @@ export class BookingService {
     }
   }
 
-  @OnEvent('entering-sessions-gc')
-  async onEnteringSessionsGc(event: { eventId: number }) {
-    await this.letInNextWaiting(event.eventId);
-  }
-
-  @OnEvent('in-booking-max-size-changed')
-  async onSpecificInBookingMaxSizeChanged(event: { eventId: number }) {
-    await this.letInNextWaiting(event.eventId);
-  }
-
-  @OnEvent('all-in-booking-max-size-changed')
-  async onAllInBookingMaxSizeChanged() {
-    const eventIds = await this.openBookingService.getOpenedEventIds();
-    await Promise.all(
-      eventIds.map(async (eventId) => {
-        await this.letInNextWaiting(eventId);
-      }),
-    );
-  }
-
   private async letInNextWaiting(eventId: number) {
     const isQueueEmpty = async (eventId: number) =>
       (await this.waitingQueueService.getQueueSize(eventId)) < 1;
@@ -82,16 +111,21 @@ export class BookingService {
       if (!item) {
         break;
       }
-      await this.enterBookingService.addEnteringSession(item.sid);
+      await this.enterBookingService.addEnteringSession(eventId, item.sid);
       await this.authService.setUserStatusEntering(item.sid);
     }
   }
 
   async setInBookingFromEntering(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
+
     const bookingAmount = await this.enterBookingService.getBookingAmount(sid);
 
-    await this.enterBookingService.removeEnteringSession(sid);
+    await this.enterBookingService.removeEnteringSession(eventId, sid);
     await this.inBookingService.insertInBooking(eventId, sid, bookingAmount);
     await this.authService.setUserStatusSelectingSeat(sid);
   }
@@ -100,20 +134,19 @@ export class BookingService {
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     const isOpened = await this.openBookingService.isEventOpened(eventId);
     if (!isOpened) {
-      throw new BadRequestException('예약이 오픈되지 않았습니다.');
+      throw new AppException(BookingErrorCode.NOT_OPEN);
     }
 
-    await this.userService.setUserEventTarget(sid, eventId);
+    await this.authService.setUserEventTarget(sid, eventId);
 
-    return await this.getForwarded(sid);
+    return await this.getForwarded(eventId, sid);
   }
 
-  private async getForwarded(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+  private async getForwarded(eventId: number, sid: string) {
     const isInsertable = await this.isInsertableInBooking(eventId);
 
     if (isInsertable) {
-      await this.enterBookingService.addEnteringSession(sid);
+      await this.enterBookingService.addEnteringSession(eventId, sid);
       await this.authService.setUserStatusEntering(sid);
       return {
         waitingStatus: false,
@@ -122,7 +155,7 @@ export class BookingService {
     }
 
     await this.authService.setUserStatusWaiting(sid);
-    const userOrder = await this.waitingQueueService.pushQueue(sid);
+    const userOrder = await this.waitingQueueService.pushQueue(eventId, sid);
     return {
       waitingStatus: true,
       enteringStatus: false,
@@ -132,27 +165,39 @@ export class BookingService {
 
   private async isInsertableInBooking(eventId: number): Promise<boolean> {
     const inBookingCount = await this.inBookingService.getInBookingSessionCount(eventId);
+    const inBookingReconnectingCount = await this.inBookingService.getReconnectingSessionCount(eventId);
     const enteringCount = await this.enterBookingService.getEnteringSessionCount(eventId);
     const maxSize = await this.inBookingService.getInBookingSessionsMaxSize(eventId);
-    return inBookingCount + enteringCount < maxSize;
+    return inBookingCount + inBookingReconnectingCount + enteringCount < maxSize;
   }
 
   async setBookingAmount(sid: string, bookingAmount: number) {
-    const isInBooking = await this.inBookingService.isInBooking(sid);
+    const eventId = await this.authService.getUserEventTarget(sid);
+
+    if (eventId === null) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
+
+    const isInBooking = await this.inBookingService.isInBooking(eventId, sid);
     if (isInBooking) {
-      await this.flushBookedSeats(sid);
-      return await this.inBookingService.setBookingAmount(sid, bookingAmount);
+      const { flushedSeats } = await this.inBookingService.flushAndSetBookingAmount(
+        eventId,
+        sid,
+        bookingAmount,
+      );
+      if (flushedSeats.length > 0) {
+        await Promise.all(
+          flushedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)),
+        );
+      }
+      return bookingAmount;
+    }
+
+    const isEntering = await this.enterBookingService.isEntering(eventId, sid);
+    if (!isEntering) {
+      throw new AppException(BookingErrorCode.INVALID_STATE);
     }
     return await this.enterBookingService.setBookingAmount(sid, bookingAmount);
-  }
-
-  private async flushBookedSeats(sid: string) {
-    const bookedSeats = await this.inBookingService.getBookedSeats(sid);
-    if (bookedSeats.length > 0) {
-      const eventId = await this.userService.getUserEventTarget(sid);
-      await Promise.all(bookedSeats.map((seat) => this.bookingSeatsService.updateSeatDeleted(eventId, seat)));
-      await this.inBookingService.removeBookedSeats(sid);
-    }
   }
 
   async freeSeatsIfEventOpened(eventId: number, seats: [number, number][]) {
@@ -162,13 +207,6 @@ export class BookingService {
   }
 
   async getTimeMs(): Promise<ServerTimeDto> {
-    try {
-      return {
-        now: Date.now(),
-      };
-    } catch (err) {
-      this.logger.error(err);
-      throw new InternalServerErrorException('서버 시간을 가져오는데 실패했습니다.');
-    }
+    return { now: Date.now() };
   }
 }

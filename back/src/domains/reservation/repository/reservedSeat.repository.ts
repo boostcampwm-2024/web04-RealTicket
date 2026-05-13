@@ -18,4 +18,8 @@ export class ReservedSeatRepository {
       reservation: { id: reservationId },
     });
   }
+
+  async findByEventId(eventId: number): Promise<ReservedSeat[]> {
+    return this.reservedSeatRepository.find({ where: { event: { id: eventId } } });
+  }
 }

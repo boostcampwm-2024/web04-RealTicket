@@ -1,11 +1,9 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
 import { AuthService } from '../../../auth/service/auth.service';
-import { UserService } from '../../user/service/user.service';
 import { ENTERING_GC_INTERVAL, ENTERING_SESSION_EXPIRY } from '../const/enterBooking.const';
 
 @Injectable()
@@ -14,8 +12,6 @@ export class EnterBookingService {
   constructor(
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
-    private readonly userService: UserService,
-    private readonly eventEmitter: EventEmitter2,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {
     this.redis = this.redisService.getOrThrow();
@@ -24,9 +20,21 @@ export class EnterBookingService {
   async gcEnteringSessions(eventId: number) {
     this.deleteIntervalIfExists(`gc-entering-${eventId}`);
 
-    const interval = setInterval(() => {
-      this.removeExpiredSessions(eventId);
-      this.eventEmitter.emit('entering-sessions-gc', { eventId });
+    const lockTtlSeconds = Math.floor((ENTERING_GC_INTERVAL * 0.8) / 1000);
+    const lockKey = `gc-lock:entering:${eventId}`;
+
+    const interval = setInterval(async () => {
+      try {
+        const acquired = await this.redis.set(lockKey, '1', 'EX', lockTtlSeconds, 'NX');
+        if (acquired !== 'OK') {
+          // 다른 레플리카가 이미 GC 실행 중 — 현재 사이클 skip
+          return;
+        }
+        await this.removeExpiredSessions(eventId);
+        await this.redis.publish('booking:events', JSON.stringify({ type: 'entering-sessions-gc', eventId }));
+      } catch {
+        // 락/GC 실패: 다음 사이클에 재시도. 예외가 interval을 죽이지 않도록 흡수.
+      }
     }, ENTERING_GC_INTERVAL);
 
     this.schedulerRegistry.addInterval(`gc-entering-${eventId}`, interval);
@@ -42,18 +50,21 @@ export class EnterBookingService {
     }
   }
 
-  async addEnteringSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+  async addEnteringSession(eventId: number, sid: string) {
     const timestamp = Date.now();
     await this.redis.zadd(`entering:${eventId}`, timestamp, sid);
     return true;
   }
 
-  async removeEnteringSession(sid: string) {
-    const eventId = await this.userService.getUserEventTarget(sid);
+  async removeEnteringSession(eventId: number, sid: string) {
     await this.redis.zrem(`entering:${eventId}`, sid);
     await this.removeBookingAmount(sid);
     return true;
+  }
+
+  async isEntering(eventId: number, sid: string) {
+    const isMember = await this.redis.zscore(`entering:${eventId}`, sid);
+    return isMember !== null;
   }
 
   async getEnteringSessionCount(eventId: number) {
@@ -62,7 +73,7 @@ export class EnterBookingService {
 
   async setBookingAmount(sid: string, bookingAmount: number) {
     await this.redis.set(`entering:${sid}:temp-booking-amount`, bookingAmount);
-    return parseInt(await this.redis.get(`entering:${sid}:temp-booking-amount`));
+    return bookingAmount;
   }
 
   async getBookingAmount(sid: string) {
@@ -70,7 +81,7 @@ export class EnterBookingService {
     if (!bookingAmountData) {
       return 0;
     }
-    return parseInt(await this.redis.get(`entering:${sid}:temp-booking-amount`));
+    return parseInt(bookingAmountData);
   }
 
   async removeBookingAmount(sid: string) {
@@ -104,9 +115,17 @@ export class EnterBookingService {
 
   async clearEnteringPool(eventId: number) {
     this.clearGCInterval(eventId);
-    const keys = await this.redis.keys('entering:*');
-    if (keys.length > 0) {
-      await this.redis.unlink(...keys);
+
+    // 해당 이벤트의 entering sorted set에서 sid 목록 먼저 획득
+    const sids = await this.getAllEnteringSids(eventId);
+
+    // 각 sid의 temp-booking-amount 키 개별 삭제 (다른 이벤트의 키 건드리지 않음)
+    if (sids.length > 0) {
+      const amountKeys = sids.map((sid) => `entering:${sid}:temp-booking-amount`);
+      await this.redis.unlink(...amountKeys);
     }
+
+    // 이벤트의 entering sorted set 키 삭제
+    await this.redis.unlink(`entering:${eventId}`);
   }
 }

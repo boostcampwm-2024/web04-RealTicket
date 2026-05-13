@@ -1,17 +1,35 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SeatsSseDto {
-  constructor(seats: boolean[][]) {
-    this.seatStatus = seats;
+  constructor(sectionIndex: number, seatStatus: number[]) {
+    this.sectionIndex = sectionIndex;
+    this.seatStatus = seatStatus;
   }
+
+  @ApiProperty({
+    name: 'sectionIndex',
+    example: 0,
+    description: '브로드캐스트 대상 섹션 인덱스',
+  })
+  sectionIndex: number;
+
   @ApiProperty({
     name: 'seatStatus',
-    example: [
-      [true, true, false],
-      [false, true, true, true],
-    ],
-    description:
-      '각 칸마다 true는 예약 가능, false는 예약 불가. 상위 배열은 구역의 배열이며 하위 배열은 구역 내의 좌석 배열임.',
+    example: [1, 1, 0, 1],
+    description: '해당 섹션의 좌석 상태 배열. 1은 예약 가능, 0은 예약 불가.',
   })
-  seatStatus: boolean[][];
+  seatStatus: number[];
+
+  @ApiProperty({
+    name: 'occupiedSeats',
+    example: [
+      [0, 5],
+      [1, 12],
+    ],
+    description: '점유 좌석 목록 ([sectionIndex, seatIndex][] 형식). SSE 초기/재연결 시에만 포함.',
+    required: false,
+    isArray: true,
+    type: [Number],
+  })
+  occupiedSeats?: [number, number][];
 }

@@ -63,3 +63,13 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 #docker
 docker-compose.yml
+
+
+# Greenlight stamp (local only, not committed)
+.greenlight-stamp
+
+# GSD planning artifacts (local only, not committed)
+.planning/
+
+# Docker Swarm stack configs (VM/deployment-specific, not committed)
+docker-stack*.yml

@@ -1,42 +1,43 @@
-import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import redisConfig from './config/redisConfig';
-import ormConfig from './config/typeOrmConfig';
+import { GlobalExceptionFilter } from './common/exception/global-exception.filter';
+import { BenchmarkModule } from './benchmark/benchmark.module';
+import { getDatabaseModule, getRedisModule } from './config/moduleFactory';
 import { BookingModule } from './domains/booking/booking.module';
 import { EventModule } from './domains/event/event.module';
 import { PlaceModule } from './domains/place/place.module';
 import { ProgramModule } from './domains/program/program.module';
 import { ReservationModule } from './domains/reservation/reservation.module';
 import { UserModule } from './domains/user/user.module';
-import { MockModule } from './mock/mock.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { LoggingModule } from './util/logger/logging.module';
 import { UserDecoratorMiddleware } from './util/user-injection/user.decorator.middleware';
 import { UserDecoratorModule } from './util/user-injection/user.decorator.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
-    ...(process.env.MOCK_MODE !== 'true'
-      ? [
-          TypeOrmModule.forRoot(ormConfig),
-          RedisModule.forRoot(redisConfig),
-          ScheduleModule.forRoot(),
-          ProgramModule,
-          ReservationModule,
-          PlaceModule,
-          UserModule,
-          BookingModule,
-          EventModule,
-          UserDecoratorModule,
-        ]
-      : []),
-    MockModule,
+    getDatabaseModule(),
+    getRedisModule(),
+    ScheduleModule.forRoot(),
+    LoggingModule,
+    MetricsModule,
+    ProgramModule,
+    ReservationModule,
+    PlaceModule,
+    UserModule,
+    BookingModule,
+    EventModule,
+    UserDecoratorModule,
+    ...(process.env.BENCHMARK_MODE === 'true' ? [BenchmarkModule] : []),
+    AdminModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_FILTER, useClass: GlobalExceptionFilter }],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

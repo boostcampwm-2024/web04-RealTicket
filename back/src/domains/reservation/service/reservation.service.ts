@@ -1,35 +1,36 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { DataSource, In, QueryRunner } from 'typeorm';
+import { Logger as WinstonLogger } from 'winston';
 
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
 import { AuthService } from '../../../auth/service/auth.service';
+import { AppException } from '../../../common/exception/app.exception';
 import { BookingService } from '../../booking/service/booking.service';
 import { InBookingService } from '../../booking/service/in-booking.service';
 import { Event } from '../../event/entity/event.entity';
 import { Place } from '../../place/entity/place.entity';
 import { Section } from '../../place/entity/section.entity';
 import { Program } from '../../program/entities/program.entity';
-import { UserService } from '../../user/service/user.service';
 import { ReservationCreateDto } from '../dto/reservationCreate.dto';
 import { ReservationIdDto } from '../dto/reservationId.dto';
 import { ReservationSeatInfoDto } from '../dto/reservationSeatInfo.dto';
 import { ReservationSpecificDto } from '../dto/reservationSepecific.dto';
 import { Reservation } from '../entity/reservation.entity';
 import { ReservedSeat } from '../entity/reservedSeat.entity';
+import { ReservationErrorCode } from '../exception/reservation-error-code';
 import { ReservationRepository } from '../repository/reservation.repository';
 
 @Injectable()
 export class ReservationService {
-  private logger: Logger = new Logger(ReservationService.name);
-
   constructor(
     @Inject() private readonly reservationRepository: ReservationRepository,
     @Inject() private readonly dataSource: DataSource,
     @Inject() private readonly authService: AuthService,
     @Inject() private readonly bookingService: BookingService,
     @Inject() private readonly inBookingService: InBookingService,
-    @Inject() private readonly userService: UserService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
   ) {}
 
   async findUserReservation({ id }: UserParamDto) {
@@ -72,7 +73,7 @@ export class ReservationService {
   async deleteReservation({ id }: UserParamDto, { reservationId }: ReservationIdDto) {
     const reservation = await this.reservationRepository.findReservationByIdMatchedUserId(id, reservationId);
     if (!reservation) {
-      throw new BadRequestException(`사용자의 해당 예매 내역[${reservationId}]가 존재하지 않습니다.`);
+      throw new AppException(ReservationErrorCode.FORBIDDEN);
     }
 
     const reservedSeats = await reservation.reservedSeats;
@@ -89,22 +90,30 @@ export class ReservationService {
   }
 
   validateReservationLength(seats: ReservationSeatInfoDto[]) {
-    return seats.length < 0 || seats.length > 4;
+    return seats.length <= 0 || seats.length > 4;
   }
 
   async recordReservationTransaction(reservationCreateDto: ReservationCreateDto, sid: string) {
     const queryRunner = this.dataSource.createQueryRunner();
 
     if (this.validateReservationLength(reservationCreateDto.seats)) {
-      throw new BadRequestException('예매 가능한 좌석 수는 1~4개 입니다.');
+      throw new AppException(ReservationErrorCode.INVALID_SEAT_COUNT);
     }
 
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
       const session = await this.authService.getUserSession(sid);
+      if (!session) {
+        throw new AppException(ReservationErrorCode.SESSION_EVENT_NOT_FOUND);
+      }
       const userId = session.id;
-      const eventId = await this.userService.getUserEventTarget(sid);
+      const eventId = await this.authService.getUserEventTarget(sid);
+
+      if (eventId === null) {
+        throw new AppException(ReservationErrorCode.SESSION_EVENT_NOT_FOUND);
+      }
+
       const { bookingAmount, bookedSeats } = await this.inBookingService.getBookAmountAndBookedSeats(
         sid,
         eventId,
@@ -113,12 +122,12 @@ export class ReservationService {
       reservationCreateDto.seats.forEach((seat) => {
         const arr = [seat.sectionIndex, seat.seatIndex];
         if (!bookedSeats.find((bookedSeat) => JSON.stringify(bookedSeat) === JSON.stringify(arr))) {
-          throw new BadRequestException('선점하지 않은 좌석이 포함되어 있습니다.');
+          throw new AppException(ReservationErrorCode.UNBOOKED_SEAT_INCLUDED);
         }
       });
 
       if (reservationCreateDto.eventId !== eventId || reservationCreateDto.seats.length !== bookingAmount) {
-        throw new BadRequestException('예매 정보 또는 설정한 좌석수가 올바르지 않습니다.');
+        throw new AppException(ReservationErrorCode.INVALID_INFO);
       }
 
       const { event, program, place } = await this.getEventDetail(queryRunner, reservationCreateDto.eventId);
@@ -141,7 +150,7 @@ export class ReservationService {
 
       await queryRunner.commitTransaction();
 
-      await this.inBookingService.setIsSaved(sid, true);
+      await this.inBookingService.setIsSaved(eventId, sid, true);
 
       return {
         programName: program.name,
@@ -153,9 +162,13 @@ export class ReservationService {
         }),
       };
     } catch (err) {
-      this.logger.error(err.name, err.stack);
       await queryRunner.rollbackTransaction();
-      throw new BadRequestException('예매에 실패했습니다.');
+      if (err instanceof AppException) {
+        throw err;
+      }
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error(error.name, error.stack);
+      throw new AppException(ReservationErrorCode.CREATE_FAILED);
     } finally {
       await queryRunner.release();
     }
@@ -166,6 +179,9 @@ export class ReservationService {
       where: { id: eventId },
       relations: ['place', 'program'],
     });
+    if (event.length === 0) {
+      throw new AppException(ReservationErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
     const program = await event[0].program;
     const place = await program.place;
 
@@ -200,7 +216,7 @@ export class ReservationService {
   ) {
     const sections = reservationCreateDto.seats.map((seat) => {
       if (!place.sections[seat.sectionIndex]) {
-        throw new BadRequestException(`해당 section이 존재하지 않습니다. sectionIndex: ${seat.sectionIndex}`);
+        throw new AppException(ReservationErrorCode.SECTION_NOT_FOUND);
       }
       return Number.parseInt(place.sections[seat.sectionIndex]);
     });
@@ -210,9 +226,7 @@ export class ReservationService {
     const reservedSeatsInfo: any = reservationCreateDto.seats.map((seat, index) => {
       const section = sectionInfo.find((section) => section.id === sections[index]);
       if (seat.seatIndex >= section.seats.length || seat.seatIndex < 0) {
-        throw new BadRequestException(
-          `해당 section의 seat이 존재하지 않습니다. seatIndex: ${seat.seatIndex}`,
-        );
+        throw new AppException(ReservationErrorCode.SEAT_OUT_OF_RANGE);
       }
       return {
         event: { id: event[0].id },

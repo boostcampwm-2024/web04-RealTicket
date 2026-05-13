@@ -1,17 +1,12 @@
 import { useParams } from 'react-router-dom';
 
-import { BASE_URL } from '@/api/axios.ts';
 import type { PostSeatData } from '@/api/booking.ts';
 import { postSeat } from '@/api/booking.ts';
 
-import useSSE from '@/hooks/useSSE.tsx';
-
 import { toast } from '@/components/Toast/index.ts';
-import Loading from '@/components/common/Loading.tsx';
 
 import type { SelectedSeat } from '@/pages/ReservationPage/SectionAndSeat.tsx';
 
-import { API } from '@/constants/index.ts';
 import type { Section } from '@/type/index.ts';
 import { useMutation, useMutationState } from '@tanstack/react-query';
 
@@ -21,6 +16,8 @@ interface SeatMapProps {
   setSelectedSeats: (seats: SelectedSeat[]) => void;
   maxSelectCount: number;
   selectedSeats: SelectedSeat[];
+  seatStatus: number[]; // SectionAndSeat에서 전달
+  seatSize?: number; // 좌석 크기 prop 추가
 }
 
 export default function SeatMap({
@@ -29,6 +26,8 @@ export default function SeatMap({
   setSelectedSeats,
   maxSelectCount,
   selectedSeats,
+  seatStatus,
+  seatSize = 24, // 기본값
 }: SeatMapProps) {
   const { eventId } = useParams();
   const { mutate: pickSeat } = useMutation({
@@ -55,30 +54,20 @@ export default function SeatMap({
     },
     select: (mutation) => mutation.state.variables as PostSeatData,
   });
-  const { data, isLoading } = useSSE<{ seatStatus: boolean[][] }>({
-    sseURL: `${BASE_URL}${API.BOOKING.GET_SEATS_SSE(Number(eventId))}`,
-  });
-
-  const seatStatusList = data ? data.seatStatus : null;
-  const selectedSeatStatus = seatStatusList ? seatStatusList[selectedSectionIndex] : null;
-  const canRender = isLoading === false && seatStatusList && seatStatusList.length !== 0;
 
   return (
     <>
-      {canRender ? (
-        renderSeatMap(
-          selectedSection,
-          selectedSectionIndex,
-          selectedSeatStatus!,
-          setSelectedSeats,
-          maxSelectCount,
-          selectedSeats,
-          pickSeat,
-          Number(eventId!),
-          reservingList,
-        )
-      ) : (
-        <Loading />
+      {renderSeatMap(
+        selectedSection,
+        selectedSectionIndex,
+        seatStatus,
+        setSelectedSeats,
+        maxSelectCount,
+        selectedSeats,
+        pickSeat,
+        Number(eventId!),
+        reservingList,
+        seatSize,
       )}
     </>
   );
@@ -87,7 +76,7 @@ export default function SeatMap({
 const renderSeatMap = (
   selectedSection: Section,
   selectedSectionIndex: number,
-  seatStatus: boolean[],
+  seatStatus: number[],
   setSelectedSeats: (seats: SelectedSeat[]) => void,
   maxSelectCount: number,
   selectedSeats: SelectedSeat[],
@@ -100,6 +89,7 @@ const renderSeatMap = (
   ) => void,
   eventId: number,
   reservingList: PostSeatData[],
+  seatSize: number, // 좌석 크기 매개변수 추가
 ) => {
   let columnCount = 1;
   const { name, seats, colLen } = selectedSection;
@@ -108,28 +98,36 @@ const renderSeatMap = (
     const rowsCount = Math.floor(index / colLen) + 1;
     const isNewLine = index % colLen === 0;
     if (isNewLine) columnCount = 1;
-    const seatName = seat ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
+    const seatName = seat === 1 ? `${name}구역 ${rowsCount}행 ${columnCount}열` : null;
     const isMine = seatName && selectedSeats.some((selected) => selected.name == seatName);
 
     const isReserving = reservingList.some(
       (reserve) => reserve.seatIndex === index && reserve.sectionIndex === selectedSectionIndex,
     );
-    const isOthers = !seatStatus[index];
-    //TODO 삼항 연산자 제거
-    const stateClass = !seat
-      ? 'bg-transparent  pointer-events-none'
-      : isReserving
-        ? 'bg-warning pointer-events-none'
-        : isMine
-          ? 'bg-success cursor-pointer'
-          : isOthers
-            ? `bg-surface-sub pointer-events-none`
-            : 'bg-primary cursor-pointer';
+    const isOthers = seatStatus[index] === 0;
+
+    const stateClass =
+      seat === 0
+        ? 'bg-transparent pointer-events-none'
+        : isReserving
+          ? 'bg-warning pointer-events-none'
+          : isMine
+            ? 'bg-success cursor-pointer'
+            : isOthers
+              ? `bg-surface-sub pointer-events-none`
+              : 'bg-primary cursor-pointer';
     if (seat) columnCount++;
     return (
       <div
         key={`${seatName}${index}`}
-        className={`h-6 w-6 ${stateClass}`}
+        className={`${stateClass} rounded-sm`}
+        style={{
+          width: `${seatSize}px`, // 동적 크기
+          height: `${seatSize}px`, // 동적 크기
+          flexShrink: 0,
+          minWidth: `${seatSize}px`, // 최소 크기 보장
+          minHeight: `${seatSize}px`, // 최소 크기 보장
+        }}
         data-name={seatName}
         onClick={() => {
           const selectedCount = selectedSeats.length;
