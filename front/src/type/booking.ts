@@ -9,3 +9,7 @@ export interface RePermissionResult {
   totalWaiting: number;
   throughputRate: number;
 }
+
+export interface ServerTimeResult {
+  now: number;
+}

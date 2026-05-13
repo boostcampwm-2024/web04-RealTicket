@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { CustomError } from '@/api/axios.ts';
-import { getPermission } from '@/api/booking.ts';
+import { getPermission, getServerTime } from '@/api/booking.ts';
 import { getEventDetail } from '@/api/event.ts';
 import { getPlaceInformation } from '@/api/place.ts';
 
@@ -12,7 +12,7 @@ import Icon from '@/components/common/Icon.tsx';
 import { getDate, getTime } from '@/utils/date.ts';
 
 import { ROUTE_URL } from '@/constants/index.ts';
-import type { PermissionResult } from '@/type/booking.ts';
+import type { PermissionResult, ServerTimeResult } from '@/type/booking.ts';
 import type { EventDetail, PlaceInformation } from '@/type/index.ts';
 import { useIsFetching, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 
@@ -38,9 +38,21 @@ export default function ReservationWaitingPage() {
   const queryClient = useQueryClient();
   const isPermissionFetching = useIsFetching({ queryKey: PERMISSION_QUERY_KEY });
   const intervalRef = useRef<number | null>(null); // intervalType
-  const [serverTime, setServerTime] = useState(Date.now());
-  const restTime = new Date(reservationOpenDate).getTime() - serverTime;
-  const isOpen = restTime <= 0;
+  const [clientNow, setClientNow] = useState(Date.now());
+  const {
+    data: serverTime,
+    dataUpdatedAt: serverTimeUpdatedAt,
+    isPending: isServerTimePending,
+  } = useQuery<ServerTimeResult, CustomError>({
+    queryKey: SERVER_TIME_QUERY_KEY,
+    queryFn: getServerTime,
+    staleTime: 0,
+  });
+  const currentServerTime =
+    serverTime === undefined ? null : serverTime.now + Math.max(0, clientNow - serverTimeUpdatedAt);
+  const restTime =
+    currentServerTime === null ? null : new Date(reservationOpenDate).getTime() - currentServerTime;
+  const isOpen = restTime !== null && restTime <= 0;
 
   const permissionAndGo = async () => {
     const { enteringStatus, userOrder } = await queryClient.fetchQuery<PermissionResult>({
@@ -56,7 +68,8 @@ export default function ReservationWaitingPage() {
     }
   };
   //TODO 좌석 초기 데이터
-  const renderRestTime = (restTime: number) => {
+  const renderRestTime = (restTime: number | null) => {
+    if (restTime === null) return <span className="text-display1 text-typo-sub">loading</span>;
     const restSeconds = Math.floor(restTime / 1000);
     if (restSeconds <= 0) return <span className="text-display1 text-error">000초</span>;
     if (restSeconds <= 100) {
@@ -80,7 +93,7 @@ export default function ReservationWaitingPage() {
   useEffect(() => {
     if (intervalRef.current === null) {
       intervalRef.current = setInterval(() => {
-        setServerTime(Date.now());
+        setClientNow(Date.now());
       }, 1000);
       return () => {
         if (intervalRef.current !== null) {
@@ -127,7 +140,10 @@ export default function ReservationWaitingPage() {
           </div>
         </div>
       </div>
-      <Button disabled={!isOpen || !!isPermissionFetching} className="my-4" onClick={permissionAndGo}>
+      <Button
+        disabled={!isOpen || !!isPermissionFetching || isServerTimePending}
+        className="my-4"
+        onClick={permissionAndGo}>
         {isOpen ? (
           <span className="text-label1 text-typo-display">예매하기</span>
         ) : (
@@ -139,3 +155,4 @@ export default function ReservationWaitingPage() {
 }
 
 const PERMISSION_QUERY_KEY = ['permission'];
+const SERVER_TIME_QUERY_KEY = ['server-time'];
