@@ -31,6 +31,7 @@ export const API = {
   BOOKING: {
     GET_SEATS_SSE: (id: number) => `/booking/seat/${id}`,
     GET_PERMISSION: (id: number) => `/booking/permission/${id}`,
+    GET_SERVER_TIME: `/booking/server-time`,
     POST_COUNT: `/booking/count`,
     POST_SEAT: `/booking`,
     GET_RE_PERMISSION: (id: number) => `/booking/re-permission/${id}`,

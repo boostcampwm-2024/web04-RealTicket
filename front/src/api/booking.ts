@@ -1,9 +1,12 @@
 import { apiClient } from '@/api/axios.ts';
 
 import { API } from '@/constants/index.ts';
+import type { ServerTimeResult } from '@/type/booking.ts';
 
 export const getPermission = (id: number) => () =>
   apiClient.get(API.BOOKING.GET_PERMISSION(id)).then((res) => res.data);
+export const getServerTime = (): Promise<ServerTimeResult> =>
+  apiClient.get(API.BOOKING.GET_SERVER_TIME).then((res) => res.data);
 export const postSeatCount = (count: number) =>
   apiClient.post(API.BOOKING.POST_COUNT, { bookingAmount: count });
 export const postSeat = (data: PostSeatData) => apiClient.post(API.BOOKING.POST_SEAT, data);
