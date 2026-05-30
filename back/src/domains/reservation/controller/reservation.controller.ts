@@ -26,6 +26,7 @@ import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { USER_ROLE } from 'src/domains/user/const/userRole';
 import { User } from 'src/util/user-injection/user.decorator';
 import { UserParamDto } from 'src/util/user-injection/userParamDto';
 
@@ -40,7 +41,7 @@ import { ReservationService } from '../service/reservation.service';
 export class ReservationController {
   constructor(private readonly reservationService: ReservationService) {}
 
-  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @Get()
   @ApiOperation({
     summary: '유저 예매 내역 조회',
@@ -63,7 +64,7 @@ export class ReservationController {
   }
 
   @Delete(':reservationId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @ApiOperation({
     summary: '유저 예매 내역 삭제',
     description: '예매 내역이 유저가 예매한 내역이면 삭제한다.',

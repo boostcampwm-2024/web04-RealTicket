@@ -25,10 +25,10 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { USER_ROLE } from 'src/domains/user/const/userRole';
 
 import { EventCreationDto } from '../dto/eventCreation.dto';
 import { EventIdDto } from '../dto/eventId.dto';
@@ -41,7 +41,7 @@ export class EventController {
   constructor(private readonly eventService: EventService) {}
 
   @Get(':eventId')
-  @UseGuards(SessionAuthGuard())
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @ApiOperation({ summary: '이벤트 세부 정보 조회', description: 'id값이 일치하는 이벤트를 조회한다.' })
   @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
   @ApiExtraModels(SuccessResponseDto, EventSpecificDto)
@@ -63,7 +63,7 @@ export class EventController {
   }
 
   @Post()
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({ summary: '이벤트 추가[관리자]', description: '새로운 이벤트를 추가한다.' })
   @ApiBody({ type: EventCreationDto })
   @ApiCreatedResponse({
@@ -81,7 +81,7 @@ export class EventController {
   }
 
   @Delete(':eventId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({ summary: '이벤트 삭제[관리자]', description: 'id값이 일치하는 이벤트를 삭제한다.' })
   @ApiParam({ name: 'eventId', description: '이벤트 아이디', type: Number })
   @ApiOkResponse({
