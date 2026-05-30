@@ -99,14 +99,18 @@ export class EnterBookingService {
 
     const results = (await multi.exec()) as [[Error | null, string[]], [Error | null, number]];
 
-    if (results[0][0]) {
-      throw results[0][0];
+    const commandError = results[0][0] ?? results[1][0];
+    if (commandError) {
+      throw commandError;
     }
     const expiredSessions = results[0][1];
 
-    expiredSessions.forEach((sid: string) => {
-      this.authService.setUserStatusLogin(sid);
-    });
+    if (expiredSessions.length > 0) {
+      const amountKeys = expiredSessions.map((sid: string) => `entering:${sid}:temp-booking-amount`);
+      await this.redis.unlink(...amountKeys);
+    }
+
+    await Promise.all(expiredSessions.map((sid: string) => this.authService.resetToLogin(sid, null)));
   }
 
   async getAllEnteringSids(eventId: number) {
