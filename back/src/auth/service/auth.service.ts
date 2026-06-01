@@ -16,6 +16,34 @@ import { User } from '../../domains/user/entity/user.entity';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
 import { USER_STATUS } from '../const/userStatus.const';
 import { AuthErrorCode } from '../exception/auth-error-code';
+import {
+  enterBookingGate as fsmEnterBookingGate,
+  enterWaiting as fsmEnterWaiting,
+  markReconnectingSelection as fsmMarkReconnectingSelection,
+  resetToLogin as fsmResetToLogin,
+  restoreSeatSelection as fsmRestoreSeatSelection,
+  startSeatSelection as fsmStartSeatSelection,
+  type SessionUserStatus,
+  type TransitionResult,
+} from '../fsm/user-state.fsm';
+
+type RedisMulti = ReturnType<Redis['multi']>;
+type SuccessfulTransitionResult = Extract<TransitionResult, { ok: true }>;
+type UserSessionRecord = Record<string, unknown> & { targetEvent?: unknown; userStatus?: unknown };
+type UserStateTransition = (current: SessionUserStatus | string) => TransitionResult;
+type TransitionContext = {
+  session: UserSessionRecord;
+  sessionKey: string;
+  result: SuccessfulTransitionResult;
+};
+type TransitionMutation = (multi: RedisMulti, context: TransitionContext) => void | Promise<void>;
+type TransitionValidation = (redis: Redis, context: TransitionContext) => boolean | Promise<boolean>;
+
+type TransitionOptions = {
+  watchKeys?: string[];
+  validate?: TransitionValidation;
+  mutate?: TransitionMutation;
+};
 
 @Injectable()
 export class AuthService {
@@ -47,6 +75,156 @@ export class AuthService {
     return this.parseSessionData(await this.redis.get(`user:${sid}`));
   }
 
+  private buildTransitionPatch(targetEvent?: number | null) {
+    return targetEvent === undefined ? {} : { targetEvent };
+  }
+
+  private buildSessionRoles(role: string) {
+    return role === USER_ROLE.ADMIN ? [USER_ROLE.USER, USER_ROLE.ADMIN] : [USER_ROLE.USER];
+  }
+
+  private extractExecCommandError(entry: unknown): Error | null {
+    if (!Array.isArray(entry) || !entry[0]) {
+      return null;
+    }
+
+    return entry[0] instanceof Error ? entry[0] : new Error(String(entry[0]));
+  }
+
+  private assertNoExecCommandErrors(
+    execResult: Awaited<ReturnType<RedisMulti['exec']>>,
+    action: string,
+    watchedKeyCount: number,
+  ) {
+    if (!Array.isArray(execResult)) {
+      return;
+    }
+
+    const commandError = execResult
+      .map((entry) => this.extractExecCommandError(entry))
+      .find((error): error is Error => error !== null);
+
+    if (!commandError) {
+      return;
+    }
+
+    this.logger.error(
+      `Redis EXEC command failed during ${action} with ${watchedKeyCount} watched keys: ${commandError.message}`,
+    );
+    throw commandError;
+  }
+
+  async executeUserStateTransition(
+    sid: string,
+    transition: UserStateTransition,
+    patch: Record<string, unknown> = {},
+    options: TransitionOptions = {},
+  ): Promise<TransitionResult | null> {
+    const sessionKey = `user:${sid}`;
+    const watchKeys = [
+      sessionKey,
+      ...(options.watchKeys ?? []).filter((watchKey) => watchKey !== sessionKey),
+    ];
+    const redis = this.redis.duplicate();
+    let needsUnwatch = false;
+
+    try {
+      await redis.watch(...watchKeys);
+      needsUnwatch = true;
+
+      const session = this.parseSessionData(await redis.get(sessionKey)) as UserSessionRecord | null;
+      if (!session) {
+        await redis.unwatch();
+        needsUnwatch = false;
+        return null;
+      }
+
+      const currentStatus =
+        typeof session.userStatus === 'string' ? session.userStatus : String(session.userStatus);
+      const result = transition(currentStatus);
+      if (!result.ok) {
+        await redis.unwatch();
+        needsUnwatch = false;
+        return result;
+      }
+
+      const context = { session, sessionKey, result };
+      const isValid = await options.validate?.(redis, context);
+      if (isValid === false) {
+        await redis.unwatch();
+        needsUnwatch = false;
+        return null;
+      }
+
+      const multi = redis.multi();
+      await options.mutate?.(multi, context);
+      multi.set(sessionKey, JSON.stringify({ ...session, ...patch, userStatus: result.to }), 'KEEPTTL');
+
+      const execResult = await multi.exec();
+      needsUnwatch = false;
+      if (execResult === null) {
+        return null;
+      }
+
+      this.assertNoExecCommandErrors(execResult, result.action, watchKeys.length);
+      return result;
+    } catch (error) {
+      if (needsUnwatch) {
+        try {
+          await redis.unwatch();
+        } catch (unwatchError) {
+          this.logger.warn(
+            `Failed to unwatch user state transition keys: ${
+              unwatchError instanceof Error ? unwatchError.message : 'unknown error'
+            }`,
+          );
+        }
+      }
+      throw error;
+    } finally {
+      redis.disconnect();
+    }
+  }
+
+  async enterWaiting(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
+    return this.executeUserStateTransition(
+      sid,
+      fsmEnterWaiting,
+      this.buildTransitionPatch(targetEvent),
+      options,
+    );
+  }
+
+  async enterBookingGate(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
+    return this.executeUserStateTransition(
+      sid,
+      fsmEnterBookingGate,
+      this.buildTransitionPatch(targetEvent),
+      options,
+    );
+  }
+
+  async startSeatSelection(sid: string, options?: TransitionOptions) {
+    return this.executeUserStateTransition(sid, fsmStartSeatSelection, {}, options);
+  }
+
+  async markReconnectingSelection(sid: string, options?: TransitionOptions) {
+    return this.executeUserStateTransition(sid, fsmMarkReconnectingSelection, {}, options);
+  }
+
+  async restoreSeatSelection(sid: string, options?: TransitionOptions) {
+    return this.executeUserStateTransition(sid, fsmRestoreSeatSelection, {}, options);
+  }
+
+  async resetToLogin(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
+    return this.executeUserStateTransition(
+      sid,
+      fsmResetToLogin,
+      this.buildTransitionPatch(targetEvent),
+      options,
+    );
+  }
+
   async getUserIdFromSession(sid: string): Promise<[number | null, string | null]> {
     const session = await this.getParsedSession(sid);
     if (!session) return [null, null];
@@ -54,77 +232,6 @@ export class AuthService {
     const userLoginId = session.loginId;
     if (!userId || !userLoginId) return [null, null];
     return [userId, userLoginId];
-  }
-
-  async setUserStatusLogin(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-    if (session.userStatus === USER_STATUS.ADMIN) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.LOGIN }),
-      'KEEPTTL',
-    );
-  }
-
-  async setUserStatusWaiting(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-    if (session.userStatus === USER_STATUS.ADMIN) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.WAITING }),
-      'KEEPTTL',
-    );
-  }
-
-  async setUserStatusEntering(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-    if (session.userStatus === USER_STATUS.ADMIN) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.ENTERING }),
-      'KEEPTTL',
-    );
-  }
-
-  async setUserStatusSelectingSeat(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-    if (session.userStatus === USER_STATUS.ADMIN) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.SELECTING_SEAT }),
-      'KEEPTTL',
-    );
-  }
-
-  async setUserStatusReconnectingSelecting(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-    if (session.userStatus === USER_STATUS.ADMIN) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.RECONNECTING_SELECTING }),
-      'KEEPTTL',
-    );
-  }
-
-  async setUserStatusAdmin(sid: string) {
-    const session = await this.getParsedSession(sid);
-    if (!session) return;
-
-    await this.redis.set(
-      `user:${sid}`,
-      JSON.stringify({ ...session, userStatus: USER_STATUS.ADMIN }),
-      'KEEPTTL',
-    );
   }
 
   async removeSession(sid: string, loginId: string) {
@@ -155,7 +262,8 @@ export class AuthService {
       const cachedUserInfo = {
         id: user.id,
         loginId: user.loginId,
-        userStatus: user.role === USER_ROLE.ADMIN ? USER_STATUS.ADMIN : USER_STATUS.LOGIN,
+        userStatus: USER_STATUS.LOGIN,
+        roles: this.buildSessionRoles(user.role),
         targetEvent: null,
       };
 
@@ -239,6 +347,7 @@ export class AuthService {
         id: guestInfo.id,
         loginId: guestInfo.loginId,
         userStatus: USER_STATUS.LOGIN,
+        roles: this.buildSessionRoles(USER_ROLE.USER),
         targetEvent: null,
       };
 

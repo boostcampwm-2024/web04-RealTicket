@@ -27,11 +27,11 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 
-import { USER_STATUS } from 'src/auth/const/userStatus.const';
 import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { AuthService } from 'src/auth/service/auth.service';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
+import { USER_ROLE } from 'src/domains/user/const/userRole';
 
 import { ProgramCreationDto } from '../dto/programCreation.dto';
 import { ProgramIdDto } from '../dto/programId.dto';
@@ -66,8 +66,8 @@ export class ProgramController {
     const sid = req.cookies['SID'];
     if (sid) {
       const session = await this.authService.getUserSession(sid);
-      if (session && session.userStatus !== USER_STATUS.ADMIN) {
-        await this.authService.setUserStatusLogin(sid);
+      if (session) {
+        await this.authService.resetToLogin(sid, null);
       }
     }
 
@@ -96,7 +96,7 @@ export class ProgramController {
 
   @Post()
   @ApiOperation({ summary: '프로그램 추가[관리자]', description: '새로운 프로그램을 추가한다.' })
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiBody({ type: ProgramCreationDto })
   @ApiCreatedResponse({
     schema: {
@@ -116,7 +116,7 @@ export class ProgramController {
   }
 
   @Delete(':programId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({ summary: '프로그램 삭제[관리자]', description: 'id값이 일치하는 프로그램을 삭제한다.' })
   @ApiParam({ name: 'programId', description: '프로그램 아이디', type: Number })
   @ApiOkResponse({

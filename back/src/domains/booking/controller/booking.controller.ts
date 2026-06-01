@@ -31,6 +31,7 @@ import { AuthService } from '../../../auth/service/auth.service';
 import { ErrorResponseDto } from '../../../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../../../common/dto/success-response.dto';
 import { AppException } from '../../../common/exception/app.exception';
+import { USER_ROLE } from '../../user/const/userRole';
 import { SeatStatus } from '../const/seatStatus.enum';
 import { BookingAmountReqDto } from '../dto/bookingAmountReq.dto';
 import { BookingAmountResDto } from '../dto/bookingAmountRes.dto';
@@ -62,7 +63,7 @@ export class BookingController {
     private readonly openBookingService: OpenBookingService,
   ) {}
 
-  @UseGuards(SessionAuthGuard())
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @Get('permission/:eventId')
   async requestAdmission(
     @Param('eventId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE })) eventId: number,
@@ -132,14 +133,16 @@ export class BookingController {
     const sid = req.cookies['SID'];
 
     const session = await this.authService.getUserSession(sid);
+    if (!session || session.targetEvent !== eventId) {
+      throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
+    }
 
     if (session.userStatus === USER_STATUS.ENTERING) {
       await this.bookingService.setInBookingFromEntering(sid);
       // ENTERING: init 풀에 등록 (SSE-02)
       await this.bookingSeatsService.addSseClient(eventId, res, sid);
     } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
-      await this.inBookingService.removeReconnectingSession(eventId, sid);
-      await this.authService.setUserStatusSelectingSeat(sid);
+      await this.bookingService.restoreInBookingFromReconnecting(eventId, sid);
 
       // 재연결 복원: 저장된 섹션으로 자동 복원 (SSE-07)
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
@@ -166,8 +169,7 @@ export class BookingController {
       if (inBookingSession?.saved) {
         await this.bookingService.onSeatsSseDisconnected({ sid });
       } else {
-        await this.authService.setUserStatusReconnectingSelecting(sid);
-        await this.inBookingService.addReconnectingSession(eventId, sid);
+        await this.bookingService.markReconnectingFromSeat(eventId, sid);
       }
     });
   }
@@ -247,14 +249,14 @@ export class BookingController {
   })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_UNAUTHORIZED' })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
-  @UseGuards(SessionAuthGuard())
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @Get('server-time')
   async getServerTime() {
     return await this.bookingService.getTimeMs();
   }
 
   @Post('in-booking-pool-size/event/:eventId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({
     summary: 'ADMIN: 좌석 선택창 인원 설정',
     description: '특정 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
@@ -276,7 +278,7 @@ export class BookingController {
   }
 
   @Post('in-booking-pool-size/all')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({
     summary: 'ADMIN: 좌석 선택창 인원 설정(ALL)',
     description: '모든 이벤트의 좌석 선택창에 입장 가능한 인원 수를 설정한다.',
@@ -298,7 +300,7 @@ export class BookingController {
   }
 
   @Post('in-booking-pool-size/default')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({
     summary: 'ADMIN: 좌석 선택창 인원 기본값 설정',
     description: '좌석 선택창에 입장 가능한 인원 수의 기본값을 설정한다.',
@@ -320,7 +322,7 @@ export class BookingController {
   }
 
   @Post('reload-open-target')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({
     summary: 'ADMIN: 오픈 대상 이벤트 재확인',
     description: '오픈 대상 이벤트를 다시 확인하여 오픈한다.',
@@ -339,7 +341,7 @@ export class BookingController {
   }
 
   @Post('init/:eventId')
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @ApiOperation({
     summary: 'ADMIN: 예약 초기화',
     description: '특정 이벤트의 예약 상태를 초기화한다.',

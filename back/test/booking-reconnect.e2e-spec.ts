@@ -21,6 +21,7 @@ import {
   setBookingCount,
   setupSelectingSeat,
   simulateSSEReconnect,
+  simulateSseCloseTimeout,
   simulateSseDisconnect,
   simulateWaitingSseTimeout,
   transitionToSelectingSeat,
@@ -100,6 +101,48 @@ describe('SSE 재연결 시나리오 (booking-reconnect)', () => {
     await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved').expect(409);
   });
 
+  it('SSE reconnecting timeout converges to LOGIN/null and admits the next waiting user', async () => {
+    await openEventReservation(app, adminSid, eventId).expect(201);
+
+    await withAuth(
+      supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${eventId}`),
+      adminSid,
+    )
+      .send({ maxSize: 1 })
+      .expect(201);
+
+    const user1Sid = await loginAsUser(app, 'rcnto1', 'pass1234');
+    await requestPermission(app, user1Sid, eventId).expect(200);
+    await setBookingCount(app, user1Sid, 1).expect(201);
+    await transitionToSelectingSeat(app, user1Sid);
+    await bookSeat(app, user1Sid, eventId, 0, 0, 'reserved').expect(201);
+
+    const user2Sid = await loginAsUser(app, 'rcnto2', 'pass1234');
+    const waitRes = await requestPermission(app, user2Sid, eventId).expect(200);
+    expect(waitRes.body.data.waitingStatus).toBe(true);
+
+    await simulateSseDisconnect(app, user1Sid);
+
+    const redis = redisService.getOrThrow();
+    expect(await redis.zscore(`reconnecting:${eventId}`, user1Sid)).not.toBeNull();
+
+    await simulateSseCloseTimeout(app, user1Sid);
+
+    const timedOutSession = await authService.getUserSession(user1Sid);
+    expect(timedOutSession.userStatus).toBe('LOGIN');
+    expect(timedOutSession.targetEvent).toBeNull();
+    expect(await redis.hget(`in-booking:${eventId}:sessions`, user1Sid)).toBeNull();
+    expect(await redis.zscore(`reconnecting:${eventId}`, user1Sid)).toBeNull();
+
+    const admittedSession = await authService.getUserSession(user2Sid);
+    expect(admittedSession.userStatus).toBe('ENTERING');
+    expect(admittedSession.targetEvent).toBe(eventId);
+
+    await setBookingCount(app, user2Sid, 1).expect(201);
+    await transitionToSelectingSeat(app, user2Sid);
+    await bookSeat(app, user2Sid, eventId, 0, 0, 'reserved').expect(201);
+  });
+
   describe('WAITING_QUEUE SSE 끊김 시나리오', () => {
     it('WAITING 중 SSE 끊김 → 타임아웃 내 재연결 → 대기 순서(큐 내 위치) 유지', async () => {
       await openEventReservation(app, adminSid, eventId).expect(201);
@@ -161,6 +204,7 @@ describe('SSE 재연결 시나리오 (booking-reconnect)', () => {
       // 상태 검증: LOGIN으로 복귀
       const session = await authService.getUserSession(user2Sid);
       expect(session.userStatus).toBe('LOGIN');
+      expect(session.targetEvent).toBeNull();
 
       // 큐에서 제거됐는지 확인
       const queueSize = await waitingQueueService.getQueueSize(eventId);

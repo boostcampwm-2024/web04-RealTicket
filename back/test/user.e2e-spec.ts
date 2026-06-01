@@ -1,23 +1,63 @@
 import { INestApplication } from '@nestjs/common';
 import supertest from 'supertest';
 
+import { InBookingService } from 'src/domains/booking/service/in-booking.service';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
+  bookSeat,
+  createEvent,
+  createPlace,
+  createProgram,
+  createSections,
   createTestApp,
   extractSid,
   getRedisService,
   loginAsAdmin,
   loginAsGuest,
+  loginAsUser,
   loginUser,
+  requestPermission,
+  setBookingCount,
+  setupSelectingSeat,
+  simulateSseDisconnect,
   signup,
   signupAdmin,
+  transitionToSelectingSeat,
   withAuth,
 } from './helpers/e2e-setup';
+
+async function waitForExpectation(assertion: () => Promise<void>, timeoutMs = 1000) {
+  const startedAt = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  throw lastError;
+}
 
 describe('User (e2e)', () => {
   let app: INestApplication;
   let redisService: TestRedisService;
+
+  async function createBookableEvent(adminSid: string): Promise<number> {
+    const placeId = await createPlace(app, adminSid);
+    await createSections(app, adminSid, placeId, [
+      { name: 'A', colLen: 3, seats: [1, 1, 1, 1, 1, 1], order: 0 },
+    ]);
+    const programId = await createProgram(app, adminSid, placeId);
+    return createEvent(app, adminSid, programId, {
+      reservationOpenDate: new Date(Date.now() - 86400000).toISOString(),
+    });
+  }
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -224,6 +264,58 @@ describe('User (e2e)', () => {
 
       // 로그아웃 후 인증 요청 → 실패
       await withAuth(supertest(app.getHttpServer()).get('/user'), sid).expect(403);
+    });
+
+    it('LOGOUT-RECOVERY-01: in-booking logout deletes the session and cleans booking side effects', async () => {
+      const adminSid = await loginAsAdmin(app, 'logoutadmin1', 'pass1234');
+      const eventId = await createBookableEvent(adminSid);
+      const redis = getRedisService(app).getOrThrow();
+
+      const sid = await loginAsUser(app, 'logoutrec01', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, sid, 1);
+      await bookSeat(app, sid, eventId, 0, 0, 'reserved').expect(201);
+      await simulateSseDisconnect(app, sid);
+
+      expect(await redis.hget(`in-booking:${eventId}:sessions`, sid)).not.toBeNull();
+      expect(await redis.zscore(`reconnecting:${eventId}`, sid)).not.toBeNull();
+
+      await withAuth(supertest(app.getHttpServer()).post('/user/logout'), sid).expect(201);
+
+      await waitForExpectation(async () => {
+        expect(await redis.get(`user:${sid}`)).toBeNull();
+        expect(await redis.hget(`in-booking:${eventId}:sessions`, sid)).toBeNull();
+        expect(await redis.zscore(`reconnecting:${eventId}`, sid)).toBeNull();
+      });
+
+      const secondSid = await loginAsUser(app, 'logoutrec02', 'pass1234');
+      await requestPermission(app, secondSid, eventId).expect(200);
+      await setBookingCount(app, secondSid, 1).expect(201);
+      await transitionToSelectingSeat(app, secondSid);
+
+      await waitForExpectation(async () => {
+        await bookSeat(app, secondSid, eventId, 0, 0, 'reserved').expect(201);
+      });
+    });
+
+    it('LOGOUT-RECOVERY-02: cleanup listener failure does not block session deletion', async () => {
+      const adminSid = await loginAsAdmin(app, 'logoutadmin2', 'pass1234');
+      const eventId = await createBookableEvent(adminSid);
+      const redis = getRedisService(app).getOrThrow();
+      const inBookingService = app.get(InBookingService);
+
+      const sid = await loginAsUser(app, 'logoutrec03', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, sid, 1);
+
+      const cleanupSpy = jest
+        .spyOn(inBookingService, 'getSession')
+        .mockRejectedValueOnce(new Error('forced logout cleanup failure'));
+
+      try {
+        await withAuth(supertest(app.getHttpServer()).post('/user/logout'), sid).expect(201);
+        expect(await redis.get(`user:${sid}`)).toBeNull();
+      } finally {
+        cleanupSpy.mockRestore();
+      }
     });
 
     it('미인증 상태에서 로그아웃 → 403 Forbidden', async () => {

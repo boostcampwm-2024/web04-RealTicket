@@ -521,7 +521,103 @@ describe('Booking (e2e)', () => {
 
       const user2Session = await app.get(AuthService).getUserSession(user2Sid);
       expect(user2Session.userStatus).toBe('LOGIN');
-      expect(user2Session.targetEvent).toBe(0);
+      expect(user2Session.targetEvent).toBeNull();
+    });
+
+    it('예약 초기화는 닫는 이벤트 참가자만 LOGIN/null로 정리하고 다른 이벤트 상태는 보존한다', async () => {
+      const secondEventId = await createEvent(app, adminSid, programId, {
+        reservationOpenDate: new Date(Date.now() - 86400000).toISOString(),
+      });
+      await openEventReservation(app, adminSid, eventId).expect(201);
+      await openEventReservation(app, adminSid, secondEventId).expect(201);
+
+      const setupActiveParticipants = async (
+        targetEventId: number,
+        userPrefix: string,
+      ): Promise<{
+        waitingSid: string;
+        enteringSid: string;
+        selectingSid: string;
+        reconnectingSid: string;
+      }> => {
+        const selectingSid = await loginAsUser(app, `${userPrefix}sel`, 'pass1234');
+        await requestPermission(app, selectingSid, targetEventId).expect(200);
+        await setBookingCount(app, selectingSid, 1).expect(201);
+        await transitionToSelectingSeat(app, selectingSid);
+
+        const reconnectingSid = await loginAsUser(app, `${userPrefix}rec`, 'pass1234');
+        await requestPermission(app, reconnectingSid, targetEventId).expect(200);
+        await setBookingCount(app, reconnectingSid, 1).expect(201);
+        await transitionToSelectingSeat(app, reconnectingSid);
+        await simulateSseDisconnect(app, reconnectingSid);
+
+        const enteringSid = await loginAsUser(app, `${userPrefix}ent`, 'pass1234');
+        await requestPermission(app, enteringSid, targetEventId).expect(200);
+
+        await withAuth(
+          supertest(app.getHttpServer()).post(`/booking/in-booking-pool-size/event/${targetEventId}`),
+          adminSid,
+        )
+          .send({ maxSize: 2 })
+          .expect(201);
+
+        const waitingSid = await loginAsUser(app, `${userPrefix}wait`, 'pass1234');
+        const waitRes = await requestPermission(app, waitingSid, targetEventId).expect(200);
+        expect(waitRes.body.data.waitingStatus).toBe(true);
+
+        return { waitingSid, enteringSid, selectingSid, reconnectingSid };
+      };
+
+      const closing = await setupActiveParticipants(eventId, 'ica');
+      const preserved = await setupActiveParticipants(secondEventId, 'icb');
+      const redis = redisService.getOrThrow();
+      const authService = app.get(AuthService);
+
+      const eventBSeatKeysBefore = await redis.keys(`event:${secondEventId}:*`);
+      expect(eventBSeatKeysBefore.length).toBeGreaterThan(0);
+
+      await openEventReservation(app, adminSid, eventId).expect(201);
+
+      for (const sid of Object.values(closing)) {
+        const session = await authService.getUserSession(sid);
+        expect(session.userStatus).toBe('LOGIN');
+        expect(session.targetEvent).toBeNull();
+        expect(await redis.exists(`user:${sid}`)).toBe(1);
+      }
+
+      expect(await redis.llen(`waiting-queue:${eventId}`)).toBe(0);
+      expect(await redis.get(`waiting-queue:${eventId}:order`)).toBeNull();
+      expect(await redis.zscore(`entering:${eventId}`, closing.enteringSid)).toBeNull();
+      expect(await redis.hget(`in-booking:${eventId}:sessions`, closing.selectingSid)).toBeNull();
+      expect(await redis.hget(`in-booking:${eventId}:sessions`, closing.reconnectingSid)).toBeNull();
+      expect(await redis.zscore(`reconnecting:${eventId}`, closing.reconnectingSid)).toBeNull();
+
+      expect(await redis.llen(`waiting-queue:${secondEventId}`)).toBe(1);
+      expect(await redis.zscore(`entering:${secondEventId}`, preserved.enteringSid)).not.toBeNull();
+      expect(
+        await redis.hget(`in-booking:${secondEventId}:sessions`, preserved.selectingSid),
+      ).not.toBeNull();
+      expect(
+        await redis.hget(`in-booking:${secondEventId}:sessions`, preserved.reconnectingSid),
+      ).not.toBeNull();
+      expect(await redis.zscore(`reconnecting:${secondEventId}`, preserved.reconnectingSid)).not.toBeNull();
+      expect((await redis.keys(`event:${secondEventId}:*`)).length).toBe(eventBSeatKeysBefore.length);
+
+      const waitingSession = await authService.getUserSession(preserved.waitingSid);
+      expect(waitingSession.userStatus).toBe('WAITING');
+      expect(waitingSession.targetEvent).toBe(secondEventId);
+
+      const enteringSession = await authService.getUserSession(preserved.enteringSid);
+      expect(enteringSession.userStatus).toBe('ENTERING');
+      expect(enteringSession.targetEvent).toBe(secondEventId);
+
+      const selectingSession = await authService.getUserSession(preserved.selectingSid);
+      expect(selectingSession.userStatus).toBe('SELECTING_SEAT');
+      expect(selectingSession.targetEvent).toBe(secondEventId);
+
+      const reconnectingSession = await authService.getUserSession(preserved.reconnectingSid);
+      expect(reconnectingSession.userStatus).toBe('RECONNECTING_SELECTING');
+      expect(reconnectingSession.targetEvent).toBe(secondEventId);
     });
 
     it('일반 유저 → 401', async () => {

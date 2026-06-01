@@ -98,7 +98,7 @@ export class UserController {
   })
   @ApiConflictResponse({ type: ErrorResponseDto, description: 'USER_ALREADY_EXISTS' })
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @Post('signup/admin')
   async signupForAdmin(@Body() createUserDto: UserCreateDto) {
     await this.userService.registerUser(createUserDto, USER_ROLE.ADMIN);
@@ -120,7 +120,7 @@ export class UserController {
     return userInfo;
   }
 
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @Delete('/guest')
   async deleteGuestMode() {
     await this.userService.removeAllGuest();
@@ -193,7 +193,7 @@ export class UserController {
     },
   })
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
-  @UseGuards(SessionAuthGuard(USER_STATUS.LOGIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   @Post('logout')
   async getUserLogout(@Req() req: Request, @User() user: UserParamDto) {
     const sid = req.cookies['SID'];
@@ -211,7 +211,7 @@ export class UserController {
   })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
   @Get()
-  @UseGuards(SessionAuthGuard())
+  @UseGuards(SessionAuthGuard(USER_ROLE.USER))
   async getUserInfo(@Req() req: Request) {
     return await this.authService.getUserInfo(req.cookies['SID']);
   }

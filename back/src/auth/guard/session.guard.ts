@@ -5,10 +5,28 @@ import Redis from 'ioredis';
 
 import { AppException } from '../../common/exception/app.exception';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
-import { USER_LEVEL, USER_STATUS } from '../const/userStatus.const';
 import { AuthErrorCode } from '../exception/auth-error-code';
 
-export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STATUS.LOGIN) {
+import {
+  canAccessSessionRequirements,
+  type SessionAuthRequirement,
+} from './session-auth-requirement.policy';
+
+function assertExplicitRequirements(requirements: SessionAuthRequirement) {
+  if (typeof requirements === 'string') {
+    return;
+  }
+
+  if (Array.isArray(requirements) && requirements.length > 0) {
+    return;
+  }
+
+  throw new Error('SessionAuthGuard requires explicit session requirements');
+}
+
+export function SessionAuthGuard(requirements: SessionAuthRequirement) {
+  assertExplicitRequirements(requirements);
+
   @Injectable()
   class SessionGuard {
     readonly redis: Redis;
@@ -36,14 +54,11 @@ export function SessionAuthGuard(requiredStatuses: string | string[] = USER_STAT
         throw new AppException(AuthErrorCode.SESSION_EXPIRED);
       }
 
-      const statusesToCheck = Array.isArray(requiredStatuses) ? requiredStatuses : [requiredStatuses];
-
-      for (const requiredStatus of statusesToCheck) {
-        if (USER_LEVEL[session.userStatus] >= USER_LEVEL[requiredStatus]) {
-          await this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + AUTH_EXPIRE_TIME);
-          return true;
-        }
+      if (canAccessSessionRequirements(session, requirements)) {
+        await this.redis.expireat(`user:${sessionId}`, Math.round(Date.now() / 1000) + AUTH_EXPIRE_TIME);
+        return true;
       }
+
       throw new AppException(AuthErrorCode.UNAUTHORIZED);
     }
   }

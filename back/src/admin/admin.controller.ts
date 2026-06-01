@@ -18,10 +18,10 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { USER_STATUS } from '../auth/const/userStatus.const';
 import { SessionAuthGuard } from '../auth/guard/session.guard';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/success-response.dto';
+import { USER_ROLE } from '../domains/user/const/userRole';
 import { AdminService } from './admin.service';
 import { UpdateLogLevelDto } from './dto/update-log-level.dto';
 
@@ -52,7 +52,7 @@ export class AdminController {
     },
   })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @Get('log-level')
   getLogLevel() {
     return this.adminService.getLogLevels();
@@ -82,7 +82,7 @@ export class AdminController {
   })
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
   @HttpCode(HttpStatus.OK)
-  @UseGuards(SessionAuthGuard(USER_STATUS.ADMIN))
+  @UseGuards(SessionAuthGuard(USER_ROLE.ADMIN))
   @Patch('log-level')
   setLogLevel(@Body() dto: UpdateLogLevelDto) {
     return this.adminService.setLogLevels(dto.transports);

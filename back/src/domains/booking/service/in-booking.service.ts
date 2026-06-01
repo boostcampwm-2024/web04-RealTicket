@@ -136,8 +136,7 @@ export class InBookingService {
   async emitSession(eventId: number, sid: string) {
     if (eventId !== 0) {
       await this.removeInBooking(eventId, sid);
-      await this.authService.setUserStatusLogin(sid);
-      await this.authService.setUserEventTarget(sid, 0);
+      await this.authService.resetToLogin(sid, null);
     }
   }
 
@@ -286,8 +285,9 @@ export class InBookingService {
 
     const results = (await multi.exec()) as [[Error | null, string[]], [Error | null, number]];
 
-    if (results[0][0]) {
-      throw results[0][0];
+    const commandError = results[0][0] ?? results[1][0];
+    if (commandError) {
+      throw commandError;
     }
     const expiredSessions = results[0][1];
 
@@ -309,7 +309,7 @@ export class InBookingService {
       const userSession = JSON.parse(sessionData);
       const eventId = userSession?.targetEvent;
 
-      if (!eventId || eventId === 0) {
+      if (eventId === null || eventId === undefined || eventId === 0) {
         return;
       }
 

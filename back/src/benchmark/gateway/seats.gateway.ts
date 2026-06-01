@@ -18,7 +18,8 @@ import { Server } from 'ws';
 import * as WebSocket from 'ws';
 
 import { AUTH_EXPIRE_TIME } from '../../auth/const/authExpireTime.const';
-import { USER_LEVEL, USER_STATUS } from '../../auth/const/userStatus.const';
+import { USER_STATUS } from '../../auth/const/userStatus.const';
+import { canAccessSessionRequirements } from '../../auth/guard/session-auth-requirement.policy';
 import { BookingSeatsService } from '../../domains/booking/service/booking-seats.service';
 import { BookingService } from '../../domains/booking/service/booking.service';
 
@@ -68,7 +69,12 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return false;
     }
 
-    const session = JSON.parse(sessionData);
+    let session: any;
+    try {
+      session = JSON.parse(sessionData);
+    } catch {
+      return false;
+    }
     if (!session) {
       return false;
     }
@@ -77,14 +83,11 @@ export class SeatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return false;
     }
 
-    const statusesToCheck = [USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT];
-
-    for (const requiredStatus of statusesToCheck) {
-      if (USER_LEVEL[session.userStatus] >= USER_LEVEL[requiredStatus]) {
-        await this.redis.expireat(`user:${sid}`, Math.round(Date.now() / 1000) + AUTH_EXPIRE_TIME);
-        return true;
-      }
+    if (canAccessSessionRequirements(session, [USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT])) {
+      await this.redis.expireat(`user:${sid}`, Math.round(Date.now() / 1000) + AUTH_EXPIRE_TIME);
+      return true;
     }
+
     return false;
   }
 

@@ -2,7 +2,6 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test as NestTest, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
-import { Repository } from 'typeorm';
 
 import { AppModule } from 'src/app.module';
 import { AuthService } from 'src/auth/service/auth.service';
@@ -295,12 +294,12 @@ export async function transitionToSelectingSeat(
   defaultSectionIndex: number = 0,
 ) {
   const bookingService = app.get(BookingService);
+  const auth = app.get(AuthService);
+  const inBookingService = app.get(InBookingService);
   await bookingService.setInBookingFromEntering(sid);
 
   // Phase 2: VAL 검증을 위해 subscribedSection 초기화
-  const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
-  const eventId = await authService.getUserEventTarget(sid);
+  const eventId = await auth.getUserEventTarget(sid);
   if (eventId !== null) {
     const session = await inBookingService.getSession(eventId, sid);
     if (session) {
@@ -318,13 +317,12 @@ export async function transitionToSelectingSeat(
  */
 export async function simulateSseDisconnect(app: INestApplication, sid: string) {
   const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
   if (eventId === null) {
     throw new Error(`simulateSseDisconnect: sid=${sid}의 targetEvent가 null입니다.`);
   }
-  await authService.setUserStatusReconnectingSelecting(sid);
-  await inBookingService.addReconnectingSession(eventId, sid);
+  const bookingService = app.get(BookingService);
+  await bookingService.markReconnectingFromSeat(eventId, sid);
 }
 
 /**
@@ -355,10 +353,9 @@ export async function simulateSseCloseTimeout(app: INestApplication, sid: string
  */
 export async function simulateSSEReconnect(app: INestApplication, sid: string) {
   const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
-  await inBookingService.removeReconnectingSession(eventId, sid);
-  await authService.setUserStatusSelectingSeat(sid);
+  const bookingService = app.get(BookingService);
+  await bookingService.restoreInBookingFromReconnecting(eventId, sid);
 }
 
 /**
@@ -414,8 +411,8 @@ export async function simulateWaitingSseTimeout(app: INestApplication, sid: stri
   }
 
   // getAllWaitingSids가 큐 없음을 캐치할 수 있도록 queueSubscription 정리는 하지 않음
-  // (실제 timeout 처리와 동일하게 상태만 변경)
-  await authService.setUserStatusLogin(sid);
+  // (실제 timeout 처리와 동일하게 상태와 targetEvent만 변경)
+  await authService.resetToLogin(sid, null);
 }
 
 /**
@@ -434,13 +431,12 @@ export function switchSection(app: INestApplication, sid: string, sectionIndex: 
  */
 export async function simulateSseDisconnectWithSection(app: INestApplication, sid: string) {
   const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
   if (eventId === null) {
     throw new Error(`simulateSseDisconnectWithSection: sid=${sid}의 targetEvent가 null입니다.`);
   }
-  await authService.setUserStatusReconnectingSelecting(sid);
-  await inBookingService.addReconnectingSession(eventId, sid);
+  const bookingService = app.get(BookingService);
+  await bookingService.markReconnectingFromSeat(eventId, sid);
 }
 
 /**
@@ -451,10 +447,9 @@ export async function simulateSseDisconnectWithSection(app: INestApplication, si
  */
 export async function simulateSSEReconnectWithSection(app: INestApplication, sid: string) {
   const authService = app.get(AuthService);
-  const inBookingService = app.get(InBookingService);
   const eventId = await authService.getUserEventTarget(sid);
-  await inBookingService.removeReconnectingSession(eventId, sid);
-  await authService.setUserStatusSelectingSeat(sid);
+  const bookingService = app.get(BookingService);
+  await bookingService.restoreInBookingFromReconnecting(eventId, sid);
 }
 
 /**

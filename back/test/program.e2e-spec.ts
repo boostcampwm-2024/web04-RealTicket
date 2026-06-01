@@ -1,16 +1,22 @@
 import { INestApplication } from '@nestjs/common';
 import supertest from 'supertest';
 
+import { USER_STATUS } from 'src/auth/const/userStatus.const';
+import { AuthService } from 'src/auth/service/auth.service';
+import { USER_ROLE } from 'src/domains/user/const/userRole';
 import { TestRedisService } from 'src/testing/redis/test-redis.service';
 
 import {
   createEvent,
   createPlace,
   createProgram,
+  createSections,
   createTestApp,
   getRedisService,
   loginAsAdmin,
   loginAsGuest,
+  loginAsUser,
+  setupSelectingSeat,
   withAuth,
 } from './helpers/e2e-setup';
 
@@ -130,6 +136,61 @@ describe('Program (e2e)', () => {
             id: expect.any(Number),
             name: expect.any(String),
           }),
+        }),
+      );
+    });
+
+    it('resets non-admin booking session to LOGIN with null targetEvent', async () => {
+      await createSections(app, adminSid, placeId);
+      const programId = await createProgram(app, adminSid, placeId, { name: 'Reset Program' });
+      const eventId = await createEvent(app, adminSid, programId, {
+        reservationOpenDate: new Date(Date.now() - 86400000).toISOString(),
+      });
+      const userSid = await loginAsUser(app, 'pgreset1', 'pass1234');
+      await setupSelectingSeat(app, adminSid, eventId, userSid, 1, 0);
+
+      const beforeSession = await app.get(AuthService).getUserSession(userSid);
+      expect(beforeSession).toEqual(
+        expect.objectContaining({
+          userStatus: USER_STATUS.SELECTING_SEAT,
+          targetEvent: eventId,
+        }),
+      );
+
+      await withAuth(supertest(app.getHttpServer()).get('/program'), userSid).expect(200);
+
+      const afterSession = await app.get(AuthService).getUserSession(userSid);
+      expect(afterSession).toEqual(
+        expect.objectContaining({
+          userStatus: USER_STATUS.LOGIN,
+          targetEvent: null,
+        }),
+      );
+    });
+
+    it('resets explicit admin role booking sessions to LOGIN with null targetEvent while preserving roles', async () => {
+      await createProgram(app, adminSid, placeId, { name: 'Admin Reset Program' });
+      const redis = redisService.getOrThrow();
+      const rawSession = await redis.get(`user:${adminSid}`);
+      expect(rawSession).toBeTruthy();
+      await redis.set(
+        `user:${adminSid}`,
+        JSON.stringify({
+          ...JSON.parse(rawSession!),
+          userStatus: USER_STATUS.WAITING,
+          roles: [USER_ROLE.USER, USER_ROLE.ADMIN],
+          targetEvent: 1234,
+        }),
+      );
+
+      await withAuth(supertest(app.getHttpServer()).get('/program'), adminSid).expect(200);
+
+      const afterSession = await app.get(AuthService).getUserSession(adminSid);
+      expect(afterSession).toEqual(
+        expect.objectContaining({
+          userStatus: USER_STATUS.LOGIN,
+          roles: [USER_ROLE.USER, USER_ROLE.ADMIN],
+          targetEvent: null,
         }),
       );
     });
