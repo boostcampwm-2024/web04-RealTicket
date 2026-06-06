@@ -1,9 +1,12 @@
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AppException } from '../../common/exception/app.exception';
 import { USER_ROLE } from '../../domains/user/const/userRole';
 import { AUTH_EXPIRE_TIME } from '../const/authExpireTime.const';
+import { AuthErrorCode } from '../exception/auth-error-code';
 import { USER_STATUS } from '../fsm/user-state.fsm';
+import { runUserStateTransitionLua } from '../luaScripts/userStateTransitionLua';
 
 import { AuthService } from './auth.service';
 
@@ -13,6 +16,10 @@ jest.mock('bcryptjs', () => ({
 
 jest.mock('uuid', () => ({
   v4: jest.fn(),
+}));
+
+jest.mock('../luaScripts/userStateTransitionLua', () => ({
+  runUserStateTransitionLua: jest.fn(),
 }));
 
 type SessionFixture = {
@@ -95,8 +102,12 @@ beforeEach(() => {
   (uuidv4 as jest.Mock).mockReturnValue('session-1');
 });
 
-describe('AuthService FSM session transitions', () => {
-  it('writes a valid semantic transition with existing fields and KEEPTTL preserved', async () => {
+const mockedRunUserStateTransitionLua = runUserStateTransitionLua as jest.MockedFunction<
+  typeof runUserStateTransitionLua
+>;
+
+describe('AuthService FSM 세션 전이', () => {
+  it('enterWaiting은 set targetEvent 패치 모드로 Lua를 호출함', async () => {
     const session = {
       id: 1,
       loginId: 'user1',
@@ -105,29 +116,179 @@ describe('AuthService FSM session transitions', () => {
       nickname: 'kept',
     };
     const { service, redis, multi } = createService(session);
-
-    await expect(service.enterBookingGate('sid-1', 7)).resolves.toEqual({
+    mockedRunUserStateTransitionLua.mockResolvedValue({
       ok: true,
-      action: 'enterBookingGate',
+      code: 'OK',
+      action: 'enterWaiting',
       from: USER_STATUS.LOGIN,
+      to: USER_STATUS.WAITING,
+    });
+
+    await expect(service.enterWaiting('sid-1', 7)).resolves.toEqual({
+      ok: true,
+      code: 'OK',
+      action: 'enterWaiting',
+      from: USER_STATUS.LOGIN,
+      to: USER_STATUS.WAITING,
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: 'enterWaiting',
+      expectedFrom: USER_STATUS.LOGIN,
+      nextTo: USER_STATUS.WAITING,
+      targetEventPatch: { mode: 'set', eventId: 7 },
+      expectedTargetEvent: null,
+    });
+    expect(redis.watch).not.toHaveBeenCalled();
+    expect(multi.set).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('enterBookingGate는 targetEvent를 유지하고 WAITING 시작 상태로 Lua를 호출함', async () => {
+    const { service, redis, multi } = createService({
+      id: 1,
+      loginId: 'user1',
+      userStatus: USER_STATUS.WAITING,
+      targetEvent: 7,
+    });
+    mockedRunUserStateTransitionLua.mockResolvedValue({
+      ok: true,
+      code: 'OK',
+      action: 'enterBookingGate',
+      from: USER_STATUS.WAITING,
       to: USER_STATUS.ENTERING,
     });
 
-    expect(redis.watch).toHaveBeenCalledWith('user:sid-1');
-    expect(multi.set).toHaveBeenCalledWith(
-      'user:sid-1',
-      JSON.stringify({ ...session, targetEvent: 7, userStatus: USER_STATUS.ENTERING }),
-      'KEEPTTL',
-    );
-    expect(multi.exec).toHaveBeenCalledTimes(1);
-    expect(redis.set).not.toHaveBeenCalled();
+    await expect(service.enterBookingGate('sid-1')).resolves.toMatchObject({
+      ok: true,
+      code: 'OK',
+      action: 'enterBookingGate',
+      from: USER_STATUS.WAITING,
+      to: USER_STATUS.ENTERING,
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: 'enterBookingGate',
+      expectedFrom: USER_STATUS.WAITING,
+      nextTo: USER_STATUS.ENTERING,
+      targetEventPatch: { mode: 'preserve' },
+      expectedTargetEvent: 7,
+    });
+    expect(multi.set).not.toHaveBeenCalled();
+  });
+
+  it('WAITING에서 예매 진입 시 호출자 event를 expectedTargetEvent로 전달함', async () => {
+    const { service, redis } = createService({
+      id: 1,
+      loginId: 'user1',
+      userStatus: USER_STATUS.WAITING,
+      targetEvent: 8,
+    });
+    mockedRunUserStateTransitionLua.mockResolvedValue({
+      ok: false,
+      code: 'TARGET_EVENT_MISMATCH',
+      action: 'enterBookingGate',
+      expectedFrom: USER_STATUS.WAITING,
+      nextTo: USER_STATUS.ENTERING,
+      details: [8],
+    });
+
+    await expect(service.enterBookingGate('sid-1', 7)).resolves.toEqual({
+      ok: false,
+      code: 'TARGET_EVENT_MISMATCH',
+      action: 'enterBookingGate',
+      expectedFrom: USER_STATUS.WAITING,
+      nextTo: USER_STATUS.ENTERING,
+      details: [8],
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: 'enterBookingGate',
+      expectedFrom: USER_STATUS.WAITING,
+      nextTo: USER_STATUS.ENTERING,
+      targetEventPatch: { mode: 'set', eventId: 7 },
+      expectedTargetEvent: 7,
+    });
+  });
+
+  it.each([
+    ['startSeatSelection', USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT],
+    ['markReconnectingSelection', USER_STATUS.SELECTING_SEAT, USER_STATUS.RECONNECTING_SELECTING],
+    ['restoreSeatSelection', USER_STATUS.RECONNECTING_SELECTING, USER_STATUS.SELECTING_SEAT],
+  ] as const)('%s는 targetEvent를 유지하며 Lua를 호출함', async (methodName, from, to) => {
+    const { service, redis } = createService({
+      id: 1,
+      loginId: 'user1',
+      userStatus: from,
+      targetEvent: 7,
+    });
+    mockedRunUserStateTransitionLua.mockResolvedValue({
+      ok: true,
+      code: 'OK',
+      action: methodName,
+      from,
+      to,
+    });
+
+    await expect(service[methodName]('sid-1')).resolves.toMatchObject({
+      ok: true,
+      code: 'OK',
+      action: methodName,
+      from,
+      to,
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: methodName,
+      expectedFrom: from,
+      nextTo: to,
+      targetEventPatch: { mode: 'preserve' },
+      expectedTargetEvent: 7,
+    });
+  });
+
+  it('skipExpectedFromCheck가 명시되면 현재 상태 비교 없이 Lua 입력을 생성함', async () => {
+    const { service, redis, multi } = createService({
+      id: 1,
+      loginId: 'user1',
+      userStatus: USER_STATUS.SELECTING_SEAT,
+      targetEvent: 7,
+    });
+    mockedRunUserStateTransitionLua.mockResolvedValue({
+      ok: true,
+      code: 'OK',
+      action: 'enterBookingGate',
+      to: USER_STATUS.ENTERING,
+    });
+
+    await expect(
+      service.enterBookingGate('sid-1', 7, { skipExpectedFromCheck: true }),
+    ).resolves.toEqual({
+      ok: true,
+      code: 'OK',
+      action: 'enterBookingGate',
+      to: USER_STATUS.ENTERING,
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: 'enterBookingGate',
+      nextTo: USER_STATUS.ENTERING,
+      targetEventPatch: { mode: 'set', eventId: 7 },
+      expectedTargetEvent: 7,
+    });
+    expect(multi.set).not.toHaveBeenCalled();
   });
 
   it.each([
     [USER_STATUS.SELECTING_SEAT, 'INVALID_TRANSITION'],
     ['ADMIN', 'UNKNOWN_STATE'],
     ['BROKEN_STATE', 'UNKNOWN_STATE'],
-  ])('does not write for rejected transition from %s', async (userStatus, reason) => {
+  ])('%s에서 거부된 전이는 세션을 쓰지 않음', async (userStatus, reason) => {
     const { service, redis, multi } = createService({
       id: 1,
       loginId: 'user1',
@@ -143,13 +304,15 @@ describe('AuthService FSM session transitions', () => {
       reason,
     });
 
-    expect(redis.unwatch).toHaveBeenCalledTimes(1);
+    expect(redis.unwatch).not.toHaveBeenCalled();
     expect(multi.set).not.toHaveBeenCalled();
     expect(multi.exec).not.toHaveBeenCalled();
     expect(redis.set).not.toHaveBeenCalled();
+    expect(mockedRunUserStateTransitionLua).not.toHaveBeenCalled();
   });
 
-  it('returns null when Redis CAS commit is lost', async () => {
+  it('option 기반 예매 콜백 전이는 임시 WATCH 호환 경로를 유지함', async () => {
+    const validate = jest.fn().mockResolvedValue(true);
     const { service, multi } = createService(
       {
         id: 1,
@@ -160,7 +323,12 @@ describe('AuthService FSM session transitions', () => {
       null,
     );
 
-    await expect(service.enterWaiting('sid-1', 3)).resolves.toBeNull();
+    await expect(
+      service.enterWaiting('sid-1', 3, {
+        watchKeys: ['waiting-queue:3'],
+        validate,
+      }),
+    ).resolves.toBeNull();
 
     expect(multi.set).toHaveBeenCalledWith(
       'user:sid-1',
@@ -168,9 +336,10 @@ describe('AuthService FSM session transitions', () => {
       'KEEPTTL',
     );
     expect(multi.exec).toHaveBeenCalledTimes(1);
+    expect(mockedRunUserStateTransitionLua).not.toHaveBeenCalled();
   });
 
-  it('throws when Redis EXEC contains a command-level error', async () => {
+  it('Redis EXEC에 명령 단위 오류가 있으면 throw함', async () => {
     const commandError = new Error('WRONGTYPE Operation against a key holding the wrong kind of value');
     const session = {
       id: 1,
@@ -202,7 +371,7 @@ describe('AuthService FSM session transitions', () => {
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('WRONGTYPE Operation'));
   });
 
-  it('does not write session or side effects when a watched transition validation fails', async () => {
+  it('WATCH 기반 전이 검증이 실패하면 세션과 부수 효과를 쓰지 않음', async () => {
     const validate = jest.fn().mockResolvedValue(false);
     const mutate = jest.fn();
     const { service, redis, multi } = createService({
@@ -227,7 +396,7 @@ describe('AuthService FSM session transitions', () => {
     expect(multi.exec).not.toHaveBeenCalled();
   });
 
-  it('does not expose legacy setUserStatus compatibility wrappers', () => {
+  it('기존 setUserStatus 호환 wrapper를 노출하지 않음', () => {
     const { service } = createService(null);
     const legacyWrapperNames = [
       'setUserStatusLogin',
@@ -243,32 +412,92 @@ describe('AuthService FSM session transitions', () => {
     }
   });
 
-  it('semantic login reset writes explicit null targetEvent with KEEPTTL', async () => {
+  it('raw setUserEventTarget 세션 패치를 노출하지 않음', () => {
+    const { service } = createService(null);
+
+    expect('setUserEventTarget' in service).toBe(false);
+    expect('getUserEventTarget' in service).toBe(true);
+  });
+
+  it('의미 기반 login reset은 명시적인 null targetEvent를 KEEPTTL로 전달함', async () => {
     const session = {
       id: 1,
       loginId: 'user1',
       userStatus: USER_STATUS.SELECTING_SEAT,
       targetEvent: 7,
     };
-    const { service, multi } = createService(session);
-
-    await expect(service.resetToLogin('sid-1', null)).resolves.toEqual({
+    const { service, redis, multi } = createService(session);
+    mockedRunUserStateTransitionLua.mockResolvedValue({
       ok: true,
+      code: 'OK',
       action: 'resetToLogin',
       from: USER_STATUS.SELECTING_SEAT,
       to: USER_STATUS.LOGIN,
     });
 
-    expect(multi.set).toHaveBeenCalledWith(
-      'user:sid-1',
-      JSON.stringify({ ...session, targetEvent: null, userStatus: USER_STATUS.LOGIN }),
-      'KEEPTTL',
+    await expect(service.resetToLogin('sid-1', null)).resolves.toEqual({
+      ok: true,
+      code: 'OK',
+      action: 'resetToLogin',
+      from: USER_STATUS.SELECTING_SEAT,
+      to: USER_STATUS.LOGIN,
+    });
+
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      action: 'resetToLogin',
+      expectedFrom: USER_STATUS.SELECTING_SEAT,
+      nextTo: USER_STATUS.LOGIN,
+      targetEventPatch: { mode: 'clear' },
+      expectedTargetEvent: 7,
+    });
+    expect(multi.set).not.toHaveBeenCalled();
+  });
+
+  it('Redis Lua 인프라 실패를 로그로 남기고 다시 throw함', async () => {
+    const error = new Error('ERR Error running script');
+    const { service, logger } = createService({
+      id: 1,
+      loginId: 'user1',
+      userStatus: USER_STATUS.LOGIN,
+      targetEvent: null,
+    });
+    mockedRunUserStateTransitionLua.mockRejectedValue(error);
+
+    await expect(service.enterWaiting('sid-1', 7)).rejects.toThrow(error.message);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Redis Lua user state transition failed during enterWaiting'),
     );
   });
 });
 
-describe('AuthService session role persistence', () => {
-  it('stores explicit USER role membership for normal registered users', async () => {
+describe('AuthService 세션 역할 저장', () => {
+  it('비밀번호 검증이 실패하면 기존 세션을 제거하지 않음', async () => {
+    const { service, redis, userRepository } = createService(null);
+    redis.get.mockResolvedValue('old-session');
+    userRepository.findOne.mockResolvedValue({
+      id: 1,
+      loginId: 'user1',
+      loginPassword: 'hashed',
+      role: USER_ROLE.USER,
+    });
+    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+    try {
+      await service.validateUser('user1', 'wrong-password');
+      throw new Error('validateUser가 실패해야 함');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).getCode()).toBe(AuthErrorCode.INVALID_CREDENTIALS);
+    }
+
+    expect(redis.unlink).not.toHaveBeenCalledWith('user:old-session');
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.zadd).not.toHaveBeenCalled();
+  });
+
+  it('일반 가입 사용자는 USER 역할을 명시적으로 저장함', async () => {
     const { service, redis, userRepository } = createService(null);
     userRepository.findOne.mockResolvedValue({
       id: 1,
@@ -291,7 +520,7 @@ describe('AuthService session role persistence', () => {
     });
   });
 
-  it('stores explicit USER and ADMIN role membership for admin users', async () => {
+  it('관리자는 USER와 ADMIN 역할을 명시적으로 저장함', async () => {
     const { service, redis, userRepository } = createService(null);
     userRepository.findOne.mockResolvedValue({
       id: 2,
@@ -314,7 +543,7 @@ describe('AuthService session role persistence', () => {
     });
   });
 
-  it('stores explicit USER role membership for guest users', async () => {
+  it('게스트 사용자는 USER 역할을 명시적으로 저장함', async () => {
     const { service, redis, userRepository } = createService(null);
     userRepository.save.mockResolvedValue({
       id: 3,
