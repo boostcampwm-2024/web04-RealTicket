@@ -8,6 +8,7 @@ import {
   enterBookingGate,
   enterWaiting,
   getAllowedTransitions,
+  getUserStateTransitionTarget,
   markReconnectingSelection,
   resetToLogin,
   restoreSeatSelection,
@@ -29,8 +30,8 @@ const namedTransitions: Record<UserStateTransitionAction, (current: SessionUserS
     resetToLogin,
   };
 
-describe('user-state FSM', () => {
-  it('exports the persisted status strings from the FSM source of truth', () => {
+describe('사용자 상태 FSM', () => {
+  it('영속 상태 문자열을 FSM 원천에서 그대로 내보냄', () => {
     expect(USER_STATUS).toEqual({
       LOGIN: 'LOGIN',
       WAITING: 'WAITING',
@@ -49,13 +50,13 @@ describe('user-state FSM', () => {
     expect(BOOKING_USER_STATES).not.toContain('ADMIN');
   });
 
-  it('keeps the legacy const surface compatible with the FSM source', () => {
+  it('기존 const 표면을 FSM 원천과 호환되게 유지함', () => {
     expect(compatUserStatus).toBe(fsmUserStatus);
     expect(compatUserStatus.SELECTING_SEAT).toBe('SELECTING_SEAT');
     expect(compatUserStatus.RECONNECTING_SELECTING).toBe('RECONNECTING_SELECTING');
   });
 
-  it('exposes exactly the allowed transition table', () => {
+  it('허용된 전이 테이블만 정확히 노출함', () => {
     expect(getAllowedTransitions()).toBe(USER_STATE_TRANSITIONS);
     expect(getAllowedTransitions()).toEqual([
       { action: 'enterWaiting', from: USER_STATUS.LOGIN, to: USER_STATUS.WAITING },
@@ -79,9 +80,20 @@ describe('user-state FSM', () => {
     ]);
   });
 
-  it.each(getAllowedTransitions())('$action allows $from -> $to', ({ action, from, to }) => {
+  it.each(getAllowedTransitions())('$action 전이는 $from에서 $to로 이동함', ({ action, from, to }) => {
     expect(transitionUserState(action, from)).toEqual({ ok: true, action, from, to });
     expect(namedTransitions[action](from)).toEqual({ ok: true, action, from, to });
+  });
+
+  it.each([
+    ['enterWaiting', USER_STATUS.WAITING],
+    ['enterBookingGate', USER_STATUS.ENTERING],
+    ['startSeatSelection', USER_STATUS.SELECTING_SEAT],
+    ['markReconnectingSelection', USER_STATUS.RECONNECTING_SELECTING],
+    ['restoreSeatSelection', USER_STATUS.SELECTING_SEAT],
+    ['resetToLogin', USER_STATUS.LOGIN],
+  ] as const)('%s 전이의 기본 도착 상태를 제공함', (action, to) => {
+    expect(getUserStateTransitionTarget(action)).toBe(to);
   });
 
   it.each([
@@ -90,7 +102,7 @@ describe('user-state FSM', () => {
     ['enterBookingGate', USER_STATUS.SELECTING_SEAT, USER_STATUS.ENTERING],
     ['restoreSeatSelection', USER_STATUS.SELECTING_SEAT, USER_STATUS.SELECTING_SEAT],
     ['resetToLogin', USER_STATUS.LOGIN, USER_STATUS.LOGIN],
-  ] as const)('%s rejects invalid transition from %s', (action, from, to) => {
+  ] as const)('%s 전이는 %s 시작 상태를 거부함', (action, from, to) => {
     expect(transitionUserState(action, from)).toEqual({
       ok: false,
       action,
@@ -100,7 +112,7 @@ describe('user-state FSM', () => {
     });
   });
 
-  it('treats a stale ADMIN persisted state as unknown', () => {
+  it('오래된 ADMIN 저장 상태를 알 수 없는 상태로 취급함', () => {
     expect(transitionUserState('enterBookingGate', 'ADMIN')).toEqual({
       ok: false,
       action: 'enterBookingGate',
@@ -110,7 +122,7 @@ describe('user-state FSM', () => {
     });
   });
 
-  it('rejects unknown persisted states without coercing them', () => {
+  it('알 수 없는 저장 상태를 변환하지 않고 거부함', () => {
     expect(transitionUserState('enterWaiting', 'BROKEN_STATE')).toEqual({
       ok: false,
       action: 'enterWaiting',
@@ -120,7 +132,7 @@ describe('user-state FSM', () => {
     });
   });
 
-  it('checks state capability by exact explicit membership', () => {
+  it('명시된 상태 집합 포함 여부로 접근 가능 상태를 판단함', () => {
     expect(canAccessState(USER_STATUS.SELECTING_SEAT, USER_STATUS.LOGIN)).toBe(false);
     expect(canAccessState(USER_STATUS.SELECTING_SEAT, USER_STATUS.SELECTING_SEAT)).toBe(true);
     expect(
