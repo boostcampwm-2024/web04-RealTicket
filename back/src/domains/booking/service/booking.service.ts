@@ -12,6 +12,7 @@ import { IN_BOOKING_DEFAULT_MAX_SIZE } from '../const/inBookingDefaultMaxSize.co
 import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
+import { runImmediateAdmissionLua, runWaitingHeadPromotionLua } from '../luaScripts/admissionCapacityLua';
 
 import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
@@ -112,41 +113,31 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async letInNextWaiting(eventId: number) {
-    const isQueueEmpty = async (eventId: number) =>
-      (await this.waitingQueueService.getQueueSize(eventId)) < 1;
-    while (!(await isQueueEmpty(eventId)) && (await this.isInsertableInBooking(eventId))) {
-      const item = await this.getWaitingHead(eventId);
-      if (!item) {
-        break;
-      }
-
-      const result = await this.authService.enterBookingGate(item.sid, eventId, {
-        watchKeys: [...this.getAdmissionWatchKeys(eventId), this.getWaitingQueueKey(eventId)],
-        validate: async (redis, context) => {
-          if (!this.isSessionTargetingEvent(context, eventId)) {
-            return false;
-          }
-
-          const head = await redis.lindex(this.getWaitingQueueKey(eventId), 0);
-          if (!head) {
-            return false;
-          }
-
-          const parsed = JSON.parse(head);
-          return parsed?.sid === item.sid && (await this.isInsertableInBookingWithRedis(redis, eventId));
+    while (true) {
+      const result = await runWaitingHeadPromotionLua(this.redis, {
+        waitingQueueKey: this.getWaitingQueueKey(eventId),
+        userKeyPrefix: 'user:',
+        eventId,
+        keys: {
+          enteringKey: this.getEnteringKey(eventId),
+          inBookingSessionsKey: this.getInBookingSessionsKey(eventId),
+          reconnectingKey: this.getReconnectingKey(eventId),
+          maxSizeKey: this.getInBookingMaxSizeKey(eventId),
+          defaultMaxSizeKey: 'in-booking:default-max-size',
         },
-        mutate: (multi) => {
-          multi.lpop(this.getWaitingQueueKey(eventId));
-          multi.zadd(this.getEnteringKey(eventId), Date.now(), item.sid);
-        },
+        defaultMaxSize: IN_BOOKING_DEFAULT_MAX_SIZE,
+        nowMs: Date.now(),
       });
 
-      if (result?.ok) {
+      if (result.ok) {
         continue;
       }
 
-      if (result && !result.ok) {
-        await this.waitingQueueService.popQueue(eventId);
+      if (
+        result.code === 'STALE_SESSION_MISSING' ||
+        result.code === 'STALE_STATE_MISMATCH' ||
+        result.code === 'STALE_TARGET_EVENT_MISMATCH'
+      ) {
         continue;
       }
 
@@ -279,7 +270,7 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    if (enteringResult === 'rejected' || enteringResult === 'lost') {
+    if (enteringResult === 'rejected') {
       throw new AppException(BookingErrorCode.INVALID_STATE);
     }
 
@@ -295,38 +286,30 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async isInsertableInBooking(eventId: number): Promise<boolean> {
-    return this.isInsertableInBookingWithRedis(this.redis, eventId);
-  }
-
-  private async tryEnterBookingGate(
-    eventId: number,
-    sid: string,
-  ): Promise<'entered' | 'full' | 'rejected' | 'lost'> {
-    let validationRan = false;
-    let capacityAvailable = false;
-
-    const result = await this.authService.enterBookingGate(sid, eventId, {
-      watchKeys: this.getAdmissionWatchKeys(eventId),
-      validate: async (redis) => {
-        validationRan = true;
-        capacityAvailable = await this.isInsertableInBookingWithRedis(redis, eventId);
-        return capacityAvailable;
+  private async tryEnterBookingGate(eventId: number, sid: string): Promise<'entered' | 'full' | 'rejected'> {
+    const result = await runImmediateAdmissionLua(this.redis, {
+      sessionKey: `user:${sid}`,
+      eventId,
+      keys: {
+        enteringKey: this.getEnteringKey(eventId),
+        inBookingSessionsKey: this.getInBookingSessionsKey(eventId),
+        reconnectingKey: this.getReconnectingKey(eventId),
+        maxSizeKey: this.getInBookingMaxSizeKey(eventId),
+        defaultMaxSizeKey: 'in-booking:default-max-size',
       },
-      mutate: (multi) => {
-        multi.zadd(this.getEnteringKey(eventId), Date.now(), sid);
-      },
+      defaultMaxSize: IN_BOOKING_DEFAULT_MAX_SIZE,
+      nowMs: Date.now(),
     });
 
-    if (result?.ok) {
+    if (result.ok) {
       return 'entered';
     }
 
-    if (result && !result.ok) {
-      return 'rejected';
+    if (result.code === 'CAPACITY_FULL') {
+      return 'full';
     }
 
-    return validationRan && !capacityAvailable ? 'full' : 'lost';
+    return 'rejected';
   }
 
   private async tryEnterWaitingQueue(eventId: number, sid: string): Promise<number | null> {
@@ -348,34 +331,6 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     });
 
     return result?.ok ? nextOrder : null;
-  }
-
-  private async isInsertableInBookingWithRedis(redis: Redis, eventId: number): Promise<boolean> {
-    const inBookingCount = await redis.hlen(this.getInBookingSessionsKey(eventId));
-    const inBookingReconnectingCount = await redis.zcard(this.getReconnectingKey(eventId));
-    const enteringCount = await redis.zcard(this.getEnteringKey(eventId));
-    const maxSize = await this.getInBookingSessionsMaxSizeWithRedis(redis, eventId);
-    return inBookingCount + inBookingReconnectingCount + enteringCount < maxSize;
-  }
-
-  private async getInBookingSessionsMaxSizeWithRedis(redis: Redis, eventId: number): Promise<number> {
-    const raw = await redis.get(this.getInBookingMaxSizeKey(eventId));
-    if (raw) {
-      return parseInt(raw);
-    }
-
-    const defaultRaw = await redis.get('in-booking:default-max-size');
-    return defaultRaw ? parseInt(defaultRaw) : IN_BOOKING_DEFAULT_MAX_SIZE;
-  }
-
-  private getAdmissionWatchKeys(eventId: number): string[] {
-    return [
-      this.getEnteringKey(eventId),
-      this.getInBookingSessionsKey(eventId),
-      this.getReconnectingKey(eventId),
-      this.getInBookingMaxSizeKey(eventId),
-      'in-booking:default-max-size',
-    ];
   }
 
   private getEnteringKey(eventId: number): string {
@@ -404,11 +359,6 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
 
   private getWaitingOrderKey(eventId: number): string {
     return `waiting-queue:${eventId}:order`;
-  }
-
-  private async getWaitingHead(eventId: number): Promise<{ sid: string; order: number } | null> {
-    const item = await this.redis.lindex(this.getWaitingQueueKey(eventId), 0);
-    return item ? JSON.parse(item) : null;
   }
 
   private async getWaitingOrder(eventId: number, sid: string): Promise<number | null> {
