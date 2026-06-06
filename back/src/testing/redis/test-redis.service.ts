@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 
+import { installAdmissionCapacityCommandMock } from './admission-capacity-command-mock';
+import { installUserStateTransitionCommandMock } from './user-state-transition-command-mock';
+
 @Injectable()
 export class TestRedisService {
   private redisClient: Redis;
@@ -10,6 +13,8 @@ export class TestRedisService {
   constructor() {
     this.redisClient = new RedisMock() as unknown as Redis;
     this.pubsubClient = new RedisMock() as unknown as Redis;
+    installAdmissionCapacityCommandMock(this.redisClient);
+    installUserStateTransitionCommandMock(this.redisClient);
   }
 
   getOrThrow(namespace?: string): Redis {

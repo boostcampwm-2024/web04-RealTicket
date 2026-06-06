@@ -88,22 +88,20 @@ describe('booking abnormal flows', () => {
       expect(sessionAfter.targetEvent).toBe(eventId);
     });
 
-    it('ABN-01b: admission CAS loss does not leak targetEvent or entering slot', async () => {
+    it('ABN-01b: admission Lua write failure does not leak targetEvent or entering slot', async () => {
       await openEventReservation(app, adminSid, eventId).expect(201);
       const userSid = await loginAsUser(app, 'abn01buser1', 'pass1234');
-      const enterSpy = jest.spyOn(authService, 'enterBookingGate').mockResolvedValueOnce(null);
+      const redis = getRedisService(app).getOrThrow();
+      await redis.set(`entering:${eventId}`, 'wrong-type');
 
       const res = await requestPermission(app, userSid, eventId);
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(500);
       const sessionAfter = await authService.getUserSession(userSid);
       expect(sessionAfter.userStatus).toBe('LOGIN');
       expect(sessionAfter.targetEvent).toBeNull();
 
-      const redis = getRedisService(app).getOrThrow();
-      expect(await redis.zscore(`entering:${eventId}`, userSid)).toBeNull();
-
-      enterSpy.mockRestore();
+      expect(await redis.get(`entering:${eventId}`)).toBe('wrong-type');
     });
 
     it('ABN-02: SELECTING_SEAT cross-event permission returns 400 without mutation', async () => {
