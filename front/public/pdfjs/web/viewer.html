@@ -11,19 +11,25 @@
     <header class="toolbar" aria-label="PDF viewer controls">
       <div class="title" id="fileName">PDF</div>
       <div class="controls">
-        <button id="previousPage" type="button" aria-label="Previous page">&lt;</button>
-        <label class="pageControl" aria-label="Current page">
-          <input id="pageNumber" type="number" min="1" value="1" />
-          <span id="pageCount">/ -</span>
-        </label>
-        <button id="nextPage" type="button" aria-label="Next page">&gt;</button>
-        <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
-        <span id="zoomValue">100%</span>
-        <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
-        <button id="fitToggle" class="fitToggle" type="button" aria-label="너비에 맞춤">
-          너비 맞춤
-        </button>
-        <a id="downloadLink" class="download" download>Download</a>
+        <div class="controlGroup" aria-label="페이지">
+          <button id="previousPage" type="button" aria-label="Previous page">&lt;</button>
+          <label class="pageControl" aria-label="Current page">
+            <input id="pageNumber" type="number" min="1" value="1" />
+            <span id="pageCount">/ -</span>
+          </label>
+          <button id="nextPage" type="button" aria-label="Next page">&gt;</button>
+        </div>
+        <div class="controlGroup" aria-label="줌">
+          <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
+          <span id="zoomValue">100%</span>
+          <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="fitToggle" class="fitToggle" type="button" aria-label="너비 맞춤 적용">
+            너비 맞춤
+          </button>
+        </div>
+        <div class="controlGroup" aria-label="다운로드">
+          <a id="downloadLink" class="download" download>Download</a>
+        </div>
       </div>
     </header>
     <div id="viewerContainer" class="viewerContainer" role="main" tabindex="0">

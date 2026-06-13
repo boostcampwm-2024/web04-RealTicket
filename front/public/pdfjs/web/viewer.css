@@ -53,6 +53,12 @@ body {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  gap: 18px;
+}
+
+.controlGroup {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -189,6 +195,7 @@ button:disabled {
   .controls {
     width: 100%;
     flex-wrap: wrap;
+    row-gap: 10px;
   }
 
   .download {
