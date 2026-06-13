@@ -23,9 +23,20 @@ const previousPage = document.getElementById('previousPage');
 const nextPage = document.getElementById('nextPage');
 const zoomOut = document.getElementById('zoomOut');
 const zoomIn = document.getElementById('zoomIn');
-const fitWidth = document.getElementById('fitWidth');
+const fitToggle = document.getElementById('fitToggle');
 const zoomValue = document.getElementById('zoomValue');
 const downloadLink = document.getElementById('downloadLink');
+
+const FIT_MODES = {
+  WIDTH: {
+    label: '너비 맞춤',
+    scaleValue: 'page-width',
+  },
+  HEIGHT: {
+    label: '높이 맞춤',
+    scaleValue: 'page-height',
+  },
+};
 
 const query = new URLSearchParams(window.location.search);
 const file = query.get('file');
@@ -34,6 +45,7 @@ const initialPage = getPageFromHash();
 let pdfDocument = null;
 let currentPage = 1;
 let ctrlWheelDelta = 0;
+let nextFitMode = FIT_MODES.WIDTH;
 
 setControlsEnabled(false);
 
@@ -114,8 +126,8 @@ function bindControls(pdfViewer, linkService) {
     zoomInViewer(pdfViewer);
   });
 
-  fitWidth.addEventListener('click', () => {
-    fitToWidth(pdfViewer);
+  fitToggle.addEventListener('click', () => {
+    toggleFitMode(pdfViewer);
   });
 
   viewerContainer.addEventListener('wheel', event => {
@@ -171,13 +183,17 @@ function zoomOutViewer(pdfViewer) {
   pdfViewer.decreaseScale();
 }
 
-function fitToWidth(pdfViewer) {
+function toggleFitMode(pdfViewer) {
   if (!pdfDocument) {
     return;
   }
 
-  pdfViewer.currentScaleValue = 'page-width';
+  pdfViewer.currentScaleValue = nextFitMode.scaleValue;
   updateZoomControl(pdfViewer.currentScale);
+  nextFitMode = nextFitMode === FIT_MODES.WIDTH
+    ? FIT_MODES.HEIGHT
+    : FIT_MODES.WIDTH;
+  updateFitToggle();
 }
 
 function zoomWithWheel(deltaY, pdfViewer) {
@@ -235,7 +251,7 @@ function handleKeyboardShortcut(event, pdfViewer, linkService) {
       break;
     case '0':
       event.preventDefault();
-      fitToWidth(pdfViewer);
+      toggleFitMode(pdfViewer);
       break;
     default:
       break;
@@ -258,9 +274,10 @@ function bindViewerEvents(eventBus, pdfViewer, linkService) {
 
     const page = clampPage(initialPage);
     currentPage = page;
-    pdfViewer.currentScaleValue = 'page-width';
+    pdfViewer.currentScale = 1;
     linkService.goToPage(page);
     updatePageControls();
+    updateFitToggle();
     updateZoomControl(pdfViewer.currentScale);
     syncUrlHash(page);
   });
@@ -284,6 +301,11 @@ function updatePageControls() {
 
 function updateZoomControl(scale) {
   zoomValue.textContent = `${Math.round(scale * 100)}%`;
+}
+
+function updateFitToggle() {
+  fitToggle.textContent = nextFitMode.label;
+  fitToggle.setAttribute('aria-label', `${nextFitMode.label} 적용`);
 }
 
 function getPageFromHash() {
@@ -332,7 +354,7 @@ function setControlsEnabled(enabled) {
   nextPage.disabled = !enabled;
   zoomOut.disabled = !enabled;
   zoomIn.disabled = !enabled;
-  fitWidth.disabled = !enabled;
+  fitToggle.disabled = !enabled;
   pageNumberInput.disabled = !enabled;
 }
 

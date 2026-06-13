@@ -82,6 +82,11 @@ button:disabled {
   opacity: 0.45;
 }
 
+.fitToggle {
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .download {
   padding: 0 12px;
 }
