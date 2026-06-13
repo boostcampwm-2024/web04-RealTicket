@@ -10,6 +10,11 @@ const {
 } = await import('./pdf_viewer.mjs');
 
 const PDFJS_ROOT = '/pdfjs';
+const WHEEL_ZOOM_STEP = 100;
+const WHEEL_ZOOM_INTERVAL_MS = 80;
+const WHEEL_ZOOM_SCALE_DELTA = 1.1;
+const MIN_ZOOM_SCALE = 0.1;
+const MAX_ZOOM_SCALE = 10;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_ROOT}/build/pdf.worker.min.mjs`;
 
@@ -45,6 +50,10 @@ const initialView = getViewFromHash();
 let pdfDocument = null;
 let currentPage = 1;
 let ctrlWheelDelta = 0;
+let ctrlWheelFrameId = null;
+let ctrlWheelTimeoutId = null;
+let lastCtrlWheelZoomAt = 0;
+let pendingWheelScale = null;
 let nextFitMode = FIT_MODES.WIDTH;
 
 setControlsEnabled(false);
@@ -182,6 +191,7 @@ function zoomInViewer(pdfViewer) {
     return;
   }
 
+  clearPendingWheelZoom();
   pdfViewer.increaseScale();
 }
 
@@ -190,6 +200,7 @@ function zoomOutViewer(pdfViewer) {
     return;
   }
 
+  clearPendingWheelZoom();
   pdfViewer.decreaseScale();
 }
 
@@ -198,6 +209,7 @@ function toggleFitMode(pdfViewer) {
     return;
   }
 
+  clearPendingWheelZoom();
   pdfViewer.currentScaleValue = nextFitMode.scaleValue;
   updateZoomControl(pdfViewer.currentScale);
   nextFitMode = nextFitMode === FIT_MODES.WIDTH
@@ -207,17 +219,117 @@ function toggleFitMode(pdfViewer) {
 }
 
 function zoomWithWheel(deltaY, pdfViewer) {
-  const wheelStep = 100;
-  ctrlWheelDelta += deltaY;
+  if (!pdfDocument) {
+    return;
+  }
 
-  while (Math.abs(ctrlWheelDelta) >= wheelStep) {
-    if (ctrlWheelDelta < 0) {
-      zoomInViewer(pdfViewer);
-      ctrlWheelDelta += wheelStep;
-    } else {
-      zoomOutViewer(pdfViewer);
-      ctrlWheelDelta -= wheelStep;
+  ctrlWheelDelta += deltaY;
+  if (updatePendingWheelScale(pdfViewer)) {
+    scheduleWheelZoom(pdfViewer);
+  }
+}
+
+function updatePendingWheelScale(pdfViewer) {
+  const steps = Math.trunc(Math.abs(ctrlWheelDelta) / WHEEL_ZOOM_STEP);
+
+  if (steps === 0) {
+    return false;
+  }
+
+  const isZoomingIn = ctrlWheelDelta < 0;
+  const stepDelta = steps * WHEEL_ZOOM_STEP;
+  const baseScale = pendingWheelScale ?? pdfViewer.currentScale;
+
+  pendingWheelScale = getWheelScaleAfterSteps(
+    baseScale,
+    isZoomingIn ? steps : -steps,
+  );
+  ctrlWheelDelta += isZoomingIn ? stepDelta : -stepDelta;
+
+  return true;
+}
+
+function scheduleWheelZoom(pdfViewer) {
+  if (ctrlWheelFrameId !== null || ctrlWheelTimeoutId !== null) {
+    return;
+  }
+
+  const now = performance.now();
+  const elapsed = now - lastCtrlWheelZoomAt;
+
+  if (lastCtrlWheelZoomAt > 0 && elapsed < WHEEL_ZOOM_INTERVAL_MS) {
+    ctrlWheelTimeoutId = window.setTimeout(() => {
+      ctrlWheelTimeoutId = null;
+      scheduleWheelZoom(pdfViewer);
+    }, WHEEL_ZOOM_INTERVAL_MS - elapsed);
+    return;
+  }
+
+  ctrlWheelFrameId = requestAnimationFrame(() => {
+    ctrlWheelFrameId = null;
+
+    const zoomApplied = applyPendingWheelZoom(pdfViewer);
+    if (zoomApplied) {
+      lastCtrlWheelZoomAt = performance.now();
     }
+  });
+}
+
+function applyPendingWheelZoom(pdfViewer) {
+  if (!pdfDocument || pendingWheelScale === null) {
+    return false;
+  }
+
+  const previousScale = pdfViewer.currentScale;
+  const nextScale = pendingWheelScale;
+
+  pendingWheelScale = null;
+
+  if (nextScale === previousScale) {
+    return false;
+  }
+
+  pdfViewer.currentScale = nextScale;
+
+  if (pdfViewer.currentScale === previousScale) {
+    ctrlWheelDelta = 0;
+    return false;
+  }
+
+  return true;
+}
+
+function getWheelScaleAfterSteps(scale, signedSteps) {
+  let nextScale = scale;
+  const steps = Math.abs(signedSteps);
+  const scaleDelta = signedSteps > 0
+    ? WHEEL_ZOOM_SCALE_DELTA
+    : 1 / WHEEL_ZOOM_SCALE_DELTA;
+  const round = signedSteps > 0 ? Math.ceil : Math.floor;
+
+  for (let step = 0; step < steps; step += 1) {
+    nextScale = round((nextScale * scaleDelta).toFixed(2) * 10) / 10;
+  }
+
+  return clampZoomScale(nextScale);
+}
+
+function clampZoomScale(scale) {
+  return Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, scale));
+}
+
+function clearPendingWheelZoom() {
+  ctrlWheelDelta = 0;
+  pendingWheelScale = null;
+
+  if (ctrlWheelFrameId !== null) {
+    cancelAnimationFrame(ctrlWheelFrameId);
+    ctrlWheelFrameId = null;
+  }
+
+  if (ctrlWheelTimeoutId !== null) {
+    clearTimeout(ctrlWheelTimeoutId);
+    ctrlWheelTimeoutId = null;
   }
 }
 
