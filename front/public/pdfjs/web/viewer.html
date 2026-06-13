@@ -4,27 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PDF Viewer</title>
+    <link rel="stylesheet" href="./pdf_viewer.css" />
     <link rel="stylesheet" href="./viewer.css" />
   </head>
   <body>
     <header class="toolbar" aria-label="PDF viewer controls">
       <div class="title" id="fileName">PDF</div>
       <div class="controls">
-        <button id="previousPage" type="button" aria-label="Previous page">‹</button>
-        <label class="pageControl">
+        <button id="previousPage" type="button" aria-label="Previous page">Prev</button>
+        <label class="pageControl" aria-label="Current page">
           <input id="pageNumber" type="number" min="1" value="1" />
           <span id="pageCount">/ -</span>
         </label>
-        <button id="nextPage" type="button" aria-label="Next page">›</button>
-        <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+        <button id="nextPage" type="button" aria-label="Next page">Next</button>
+        <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
         <span id="zoomValue">100%</span>
-        <button id="zoomIn" type="button" aria-label="Zoom in">＋</button>
+        <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
         <a id="downloadLink" class="download" download>Download</a>
       </div>
     </header>
-    <main id="viewer" class="viewer" aria-live="polite">
+    <div id="viewerContainer" class="viewerContainer" role="main" tabindex="0">
+      <div id="viewer" class="pdfViewer"></div>
       <div id="status" class="status">Loading PDF...</div>
-    </main>
+    </div>
     <script type="module" src="./viewer.mjs"></script>
   </body>
 </html>

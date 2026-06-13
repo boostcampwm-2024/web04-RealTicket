@@ -12,6 +12,8 @@ const copies = [
   ['iccs'],
   ['standard_fonts'],
   ['wasm'],
+  ['web', ['pdf_viewer.mjs', 'pdf_viewer.mjs.map', 'pdf_viewer.css']],
+  ['web/images'],
 ];
 
 if (!existsSync(pdfjsRoot)) {
@@ -28,7 +30,6 @@ for (const [directory, files] of copies) {
     throw new Error(`Missing pdfjs-dist asset directory: ${sourceDir}`);
   }
 
-  rmSync(targetDir, { recursive: true, force: true });
   mkdirSync(targetDir, { recursive: true });
 
   if (files) {
@@ -38,6 +39,7 @@ for (const [directory, files] of copies) {
     continue;
   }
 
+  rmSync(targetDir, { recursive: true, force: true });
   cpSync(sourceDir, targetDir, { recursive: true });
 }
 
