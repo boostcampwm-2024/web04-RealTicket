@@ -71,5 +71,17 @@ docker-compose.yml
 # GSD planning artifacts (local only, not committed)
 .planning/
 
+# Generated from pdfjs-dist before front dev/build
+front/public/pdfjs/build/
+front/public/pdfjs/cmaps/
+front/public/pdfjs/iccs/
+front/public/pdfjs/standard_fonts/
+front/public/pdfjs/wasm/
+front/public/pdfjs/web/images/
+front/public/pdfjs/web/pdf_viewer.css
+front/public/pdfjs/web/pdf_viewer.js
+front/public/pdfjs/web/pdf_viewer.mjs
+front/public/pdfjs/web/pdf_viewer.mjs.map
+
 # Docker Swarm stack configs (VM/deployment-specific, not committed)
 docker-stack*.yml

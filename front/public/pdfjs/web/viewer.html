@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="./pdf_viewer.css" />
+    <link rel="stylesheet" href="./viewer.css" />
+  </head>
+  <body>
+    <header class="toolbar" aria-label="PDF viewer controls">
+      <div class="title" id="fileName">PDF</div>
+      <div class="controls">
+        <div class="controlGroup" aria-label="페이지">
+          <button id="previousPage" type="button" aria-label="Previous page">&lt;</button>
+          <label class="pageControl" aria-label="Current page">
+            <input id="pageNumber" type="number" min="1" value="1" />
+            <span id="pageCount">/ -</span>
+          </label>
+          <button id="nextPage" type="button" aria-label="Next page">&gt;</button>
+        </div>
+        <div class="controlGroup" aria-label="줌">
+          <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
+          <span id="zoomValue">100%</span>
+          <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="fitToggle" class="fitToggle" type="button" aria-label="너비에 맞춤 적용">
+            너비에 맞춤
+          </button>
+        </div>
+        <div class="controlGroup" aria-label="다운로드">
+          <a id="downloadLink" class="download" download>Download</a>
+        </div>
+      </div>
+    </header>
+    <div id="viewerContainer" class="viewerContainer" role="main" tabindex="0">
+      <div id="viewer" class="pdfViewer"></div>
+      <div id="status" class="status" role="status">
+        <p id="statusMessage">PDF를 불러오는 중입니다.</p>
+        <a id="directPdfLink" class="statusLink" href="/portfolio/신성규_포트폴리오.pdf">
+          PDF 직접 열기
+        </a>
+      </div>
+    </div>
+    <script type="module" src="./viewer.js"></script>
+  </body>
+</html>
