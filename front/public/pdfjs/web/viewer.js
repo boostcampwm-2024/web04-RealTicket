@@ -15,6 +15,7 @@ const WHEEL_ZOOM_INTERVAL_MS = 80;
 const WHEEL_ZOOM_SCALE_DELTA = 1.1;
 const MIN_ZOOM_SCALE = 0.1;
 const MAX_ZOOM_SCALE = 10;
+const FIT_SCROLL_TOP_OFFSET = 0;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_ROOT}/build/pdf.worker.min.js`;
 
@@ -37,11 +38,11 @@ const directPdfLink = document.getElementById('directPdfLink');
 const FIT_MODES = {
   WIDTH: {
     label: '너비에 맞춤',
-    scaleValue: 'page-width',
+    type: 'width',
   },
   HEIGHT: {
     label: '높이에 맞춤',
-    scaleValue: 'page-height',
+    type: 'height',
   },
 };
 
@@ -213,12 +214,63 @@ function toggleFitMode(pdfViewer) {
   }
 
   clearPendingWheelZoom();
-  pdfViewer.currentScaleValue = nextFitMode.scaleValue;
+  const page = getDisplayedPageNumber();
+  const nextScale = getFitScaleForPage(page, nextFitMode, pdfViewer);
+
+  if (nextScale === null) {
+    return;
+  }
+
+  currentPage = page;
+  pdfViewer.currentScale = nextScale;
   updateZoomControl(pdfViewer.currentScale);
+  updatePageControls();
+  syncUrlHash(page);
+  scrollToPageTop(page, FIT_SCROLL_TOP_OFFSET);
+
   nextFitMode = nextFitMode === FIT_MODES.WIDTH
     ? FIT_MODES.HEIGHT
     : FIT_MODES.WIDTH;
   updateFitToggle();
+}
+
+function getDisplayedPageNumber() {
+  return clampPage(Number(pageNumberInput.value) || currentPage);
+}
+
+function getFitScaleForPage(page, fitMode, pdfViewer) {
+  const pageElement = getPageElement(page);
+
+  if (!pageElement || pdfViewer.currentScale <= 0) {
+    return null;
+  }
+
+  const pageRect = pageElement.getBoundingClientRect();
+
+  if (pageRect.width <= 0 || pageRect.height <= 0) {
+    return null;
+  }
+
+  const unscaledPageSize = fitMode.type === FIT_MODES.WIDTH.type
+    ? pageRect.width / pdfViewer.currentScale
+    : pageRect.height / pdfViewer.currentScale;
+  const availableSize = fitMode.type === FIT_MODES.WIDTH.type
+    ? getAvailableFitWidth()
+    : getAvailableFitHeight();
+
+  return clampZoomScale(availableSize / unscaledPageSize);
+}
+
+function getAvailableFitWidth() {
+  const containerStyle = getComputedStyle(viewerContainer);
+  const horizontalPadding = parseFloat(containerStyle.paddingLeft)
+    + parseFloat(containerStyle.paddingRight);
+
+  return Math.max(1, viewerContainer.clientWidth - horizontalPadding);
+}
+
+function getAvailableFitHeight() {
+  return Math.max(1, viewerContainer.clientHeight);
 }
 
 function zoomWithWheel(deltaY, pdfViewer) {
@@ -472,10 +524,12 @@ function isValidTopOffset(top) {
   return Number.isInteger(top) && top >= 0;
 }
 
+function getPageElement(page) {
+  return viewerElement.querySelector(`.page[data-page-number="${page}"]`);
+}
+
 function scrollToPageTop(page, top, attempts = 0) {
-  const pageElement = viewerElement.querySelector(
-    `.page[data-page-number="${page}"]`,
-  );
+  const pageElement = getPageElement(page);
 
   if (!pageElement) {
     if (attempts < 20) {
