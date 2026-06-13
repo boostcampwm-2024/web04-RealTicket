@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="./viewer.css" />
+  </head>
+  <body>
+    <header class="toolbar" aria-label="PDF viewer controls">
+      <div class="title" id="fileName">PDF</div>
+      <div class="controls">
+        <button id="previousPage" type="button" aria-label="Previous page">‹</button>
+        <label class="pageControl">
+          <input id="pageNumber" type="number" min="1" value="1" />
+          <span id="pageCount">/ -</span>
+        </label>
+        <button id="nextPage" type="button" aria-label="Next page">›</button>
+        <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+        <span id="zoomValue">100%</span>
+        <button id="zoomIn" type="button" aria-label="Zoom in">＋</button>
+        <a id="downloadLink" class="download" download>Download</a>
+      </div>
+    </header>
+    <main id="viewer" class="viewer" aria-live="polite">
+      <div id="status" class="status">Loading PDF...</div>
+    </main>
+    <script type="module" src="./viewer.mjs"></script>
+  </body>
+</html>
