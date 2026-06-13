@@ -11,15 +11,16 @@
     <header class="toolbar" aria-label="PDF viewer controls">
       <div class="title" id="fileName">PDF</div>
       <div class="controls">
-        <button id="previousPage" type="button" aria-label="Previous page">Prev</button>
+        <button id="previousPage" type="button" aria-label="Previous page">&lt;</button>
         <label class="pageControl" aria-label="Current page">
           <input id="pageNumber" type="number" min="1" value="1" />
           <span id="pageCount">/ -</span>
         </label>
-        <button id="nextPage" type="button" aria-label="Next page">Next</button>
+        <button id="nextPage" type="button" aria-label="Next page">&gt;</button>
         <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
         <span id="zoomValue">100%</span>
         <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+        <button id="fitWidth" type="button" aria-label="Fit to width">Fit</button>
         <a id="downloadLink" class="download" download>Download</a>
       </div>
     </header>

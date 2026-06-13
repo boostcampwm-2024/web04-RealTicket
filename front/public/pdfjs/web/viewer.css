@@ -172,7 +172,7 @@ button:disabled {
 
 @media (max-width: 720px) {
   :root {
-    --toolbar-height: 112px;
+    --toolbar-height: 156px;
   }
 
   .toolbar {

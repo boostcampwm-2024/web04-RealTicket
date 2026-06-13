@@ -23,6 +23,7 @@ const previousPage = document.getElementById('previousPage');
 const nextPage = document.getElementById('nextPage');
 const zoomOut = document.getElementById('zoomOut');
 const zoomIn = document.getElementById('zoomIn');
+const fitWidth = document.getElementById('fitWidth');
 const zoomValue = document.getElementById('zoomValue');
 const downloadLink = document.getElementById('downloadLink');
 
@@ -32,6 +33,7 @@ const initialPage = getPageFromHash();
 
 let pdfDocument = null;
 let currentPage = 1;
+let ctrlWheelDelta = 0;
 
 setControlsEnabled(false);
 
@@ -86,38 +88,165 @@ async function openPdf(fileUrl) {
 
 function bindControls(pdfViewer, linkService) {
   previousPage.addEventListener('click', () => {
-    linkService.goToPage(Math.max(1, currentPage - 1));
+    goToPreviousPage(linkService);
   });
 
   nextPage.addEventListener('click', () => {
-    linkService.goToPage(Math.min(pdfDocument.numPages, currentPage + 1));
+    goToNextPage(linkService);
   });
 
   pageNumberInput.addEventListener('change', () => {
-    linkService.goToPage(Number(pageNumberInput.value));
+    goToPage(Number(pageNumberInput.value), linkService);
   });
 
   pageNumberInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       pageNumberInput.blur();
-      linkService.goToPage(Number(pageNumberInput.value));
+      goToPage(Number(pageNumberInput.value), linkService);
     }
   });
 
   zoomOut.addEventListener('click', () => {
-    pdfViewer.decreaseScale();
+    zoomOutViewer(pdfViewer);
   });
 
   zoomIn.addEventListener('click', () => {
-    pdfViewer.increaseScale();
+    zoomInViewer(pdfViewer);
+  });
+
+  fitWidth.addEventListener('click', () => {
+    fitToWidth(pdfViewer);
+  });
+
+  viewerContainer.addEventListener('wheel', event => {
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    zoomWithWheel(event.deltaY, pdfViewer);
+  }, { passive: false });
+
+  window.addEventListener('keydown', event => {
+    handleKeyboardShortcut(event, pdfViewer, linkService);
   });
 
   window.addEventListener('hashchange', () => {
     const page = getPageFromHash();
     if (page !== currentPage) {
-      linkService.goToPage(page);
+      goToPage(page, linkService);
     }
   });
+}
+
+function goToPreviousPage(linkService) {
+  goToPage(currentPage - 1, linkService);
+}
+
+function goToNextPage(linkService) {
+  goToPage(currentPage + 1, linkService);
+}
+
+function goToPage(page, linkService) {
+  if (!pdfDocument) {
+    return;
+  }
+
+  linkService.goToPage(clampPage(page));
+}
+
+function zoomInViewer(pdfViewer) {
+  if (!pdfDocument) {
+    return;
+  }
+
+  pdfViewer.increaseScale();
+}
+
+function zoomOutViewer(pdfViewer) {
+  if (!pdfDocument) {
+    return;
+  }
+
+  pdfViewer.decreaseScale();
+}
+
+function fitToWidth(pdfViewer) {
+  if (!pdfDocument) {
+    return;
+  }
+
+  pdfViewer.currentScaleValue = 'page-width';
+  updateZoomControl(pdfViewer.currentScale);
+}
+
+function zoomWithWheel(deltaY, pdfViewer) {
+  const wheelStep = 100;
+  ctrlWheelDelta += deltaY;
+
+  while (Math.abs(ctrlWheelDelta) >= wheelStep) {
+    if (ctrlWheelDelta < 0) {
+      zoomInViewer(pdfViewer);
+      ctrlWheelDelta += wheelStep;
+    } else {
+      zoomOutViewer(pdfViewer);
+      ctrlWheelDelta -= wheelStep;
+    }
+  }
+}
+
+function handleKeyboardShortcut(event, pdfViewer, linkService) {
+  if (
+    isTextInput(event.target)
+    || event.altKey
+    || event.metaKey
+    || event.ctrlKey
+  ) {
+    return;
+  }
+
+  switch (event.key) {
+    case 'ArrowLeft':
+    case 'PageUp':
+      event.preventDefault();
+      goToPreviousPage(linkService);
+      break;
+    case 'ArrowRight':
+    case 'PageDown':
+      event.preventDefault();
+      goToNextPage(linkService);
+      break;
+    case 'Home':
+      event.preventDefault();
+      goToPage(1, linkService);
+      break;
+    case 'End':
+      event.preventDefault();
+      goToPage(pdfDocument?.numPages, linkService);
+      break;
+    case '+':
+    case '=':
+      event.preventDefault();
+      zoomInViewer(pdfViewer);
+      break;
+    case '-':
+      event.preventDefault();
+      zoomOutViewer(pdfViewer);
+      break;
+    case '0':
+      event.preventDefault();
+      fitToWidth(pdfViewer);
+      break;
+    default:
+      break;
+  }
+}
+
+function isTextInput(target) {
+  return target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || target?.isContentEditable;
 }
 
 function bindViewerEvents(eventBus, pdfViewer, linkService) {
@@ -203,6 +332,7 @@ function setControlsEnabled(enabled) {
   nextPage.disabled = !enabled;
   zoomOut.disabled = !enabled;
   zoomIn.disabled = !enabled;
+  fitWidth.disabled = !enabled;
   pageNumberInput.disabled = !enabled;
 }
 
