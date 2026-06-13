@@ -40,7 +40,7 @@ const FIT_MODES = {
 
 const query = new URLSearchParams(window.location.search);
 const file = query.get('file');
-const initialPage = getPageFromHash();
+const initialView = getViewFromHash();
 
 let pdfDocument = null;
 let currentPage = 1;
@@ -144,10 +144,7 @@ function bindControls(pdfViewer, linkService) {
   });
 
   window.addEventListener('hashchange', () => {
-    const page = getPageFromHash();
-    if (page !== currentPage) {
-      goToPage(page, linkService);
-    }
+    goToView(getViewFromHash(), linkService);
   });
 }
 
@@ -165,6 +162,19 @@ function goToPage(page, linkService) {
   }
 
   linkService.goToPage(clampPage(page));
+}
+
+function goToView(view, linkService) {
+  if (!pdfDocument) {
+    return;
+  }
+
+  const page = clampPage(view.page);
+  linkService.goToPage(page);
+
+  if (isValidTopOffset(view.top)) {
+    scrollToPageTop(page, view.top);
+  }
 }
 
 function zoomInViewer(pdfViewer) {
@@ -272,14 +282,14 @@ function bindViewerEvents(eventBus, pdfViewer, linkService) {
     setControlsEnabled(true);
     hideStatus();
 
-    const page = clampPage(initialPage);
+    const page = clampPage(initialView.page);
     currentPage = page;
     pdfViewer.currentScale = 1;
-    linkService.goToPage(page);
+    goToView({ ...initialView, page }, linkService);
     updatePageControls();
     updateFitToggle();
     updateZoomControl(pdfViewer.currentScale);
-    syncUrlHash(page);
+    syncUrlHash(page, initialView.top);
   });
 
   eventBus.on('pagechanging', ({ pageNumber }) => {
@@ -308,14 +318,26 @@ function updateFitToggle() {
   fitToggle.setAttribute('aria-label', `${nextFitMode.label} 적용`);
 }
 
-function getPageFromHash() {
+function getViewFromHash() {
   const params = new URLSearchParams(window.location.hash.slice(1));
   const page = Number(params.get('page'));
-  return Number.isInteger(page) && page > 0 ? page : 1;
+  const top = params.has('top') ? Number(params.get('top')) : null;
+
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    top: Number.isFinite(top) && top >= 0 ? Math.round(top) : null,
+  };
 }
 
-function syncUrlHash(page) {
-  const nextHash = `page=${page}`;
+function syncUrlHash(page, top = getCurrentHashTopForPage(page)) {
+  const nextParams = new URLSearchParams();
+  nextParams.set('page', String(page));
+
+  if (isValidTopOffset(top)) {
+    nextParams.set('top', String(top));
+  }
+
+  const nextHash = nextParams.toString();
 
   if (window.location.hash.slice(1) !== nextHash) {
     history.replaceState(
@@ -324,6 +346,43 @@ function syncUrlHash(page) {
       `${window.location.pathname}${window.location.search}#${nextHash}`,
     );
   }
+}
+
+function getCurrentHashTopForPage(page) {
+  const view = getViewFromHash();
+  return view.page === page ? view.top : null;
+}
+
+function isValidTopOffset(top) {
+  return Number.isInteger(top) && top >= 0;
+}
+
+function scrollToPageTop(page, top, attempts = 0) {
+  const pageElement = viewerElement.querySelector(
+    `.page[data-page-number="${page}"]`,
+  );
+
+  if (!pageElement) {
+    if (attempts < 20) {
+      requestAnimationFrame(() => scrollToPageTop(page, top, attempts + 1));
+    }
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    const containerRect = viewerContainer.getBoundingClientRect();
+    const pageRect = pageElement.getBoundingClientRect();
+    const nextScrollTop = viewerContainer.scrollTop
+      + pageRect.top
+      - containerRect.top
+      + top;
+
+    viewerContainer.scrollTo({
+      top: nextScrollTop,
+      left: viewerContainer.scrollLeft,
+      behavior: 'auto',
+    });
+  });
 }
 
 function clampPage(page) {
