@@ -23,8 +23,8 @@
           <button id="zoomOut" type="button" aria-label="Zoom out">-</button>
           <span id="zoomValue">100%</span>
           <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
-          <button id="fitToggle" class="fitToggle" type="button" aria-label="너비 맞춤 적용">
-            너비 맞춤
+          <button id="fitToggle" class="fitToggle" type="button" aria-label="너비에 맞춤 적용">
+            너비에 맞춤
           </button>
         </div>
         <div class="controlGroup" aria-label="다운로드">
@@ -34,8 +34,13 @@
     </header>
     <div id="viewerContainer" class="viewerContainer" role="main" tabindex="0">
       <div id="viewer" class="pdfViewer"></div>
-      <div id="status" class="status">Loading PDF...</div>
+      <div id="status" class="status" role="status">
+        <p id="statusMessage">PDF를 불러오는 중입니다.</p>
+        <a id="directPdfLink" class="statusLink" href="/portfolio/신성규_포트폴리오.pdf">
+          PDF 직접 열기
+        </a>
+      </div>
     </div>
-    <script type="module" src="./viewer.mjs"></script>
+    <script type="module" src="./viewer.js"></script>
   </body>
 </html>

@@ -147,6 +147,15 @@ button:disabled {
   text-align: center;
 }
 
+.status p {
+  margin: 0 0 12px;
+}
+
+.statusLink {
+  color: #93c5fd;
+  font-size: 14px;
+}
+
 .status[hidden] {
   display: none;
 }

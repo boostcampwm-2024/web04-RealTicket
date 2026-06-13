@@ -79,6 +79,7 @@ front/public/pdfjs/standard_fonts/
 front/public/pdfjs/wasm/
 front/public/pdfjs/web/images/
 front/public/pdfjs/web/pdf_viewer.css
+front/public/pdfjs/web/pdf_viewer.js
 front/public/pdfjs/web/pdf_viewer.mjs
 front/public/pdfjs/web/pdf_viewer.mjs.map
 

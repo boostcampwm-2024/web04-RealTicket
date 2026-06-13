@@ -7,12 +7,22 @@ const pdfjsRoot = join(rootDir, 'node_modules', 'pdfjs-dist');
 const publicPdfjsRoot = join(rootDir, 'public', 'pdfjs');
 
 const copies = [
-  ['build', ['pdf.min.mjs', 'pdf.worker.min.mjs']],
+  ['build', [
+    'pdf.min.mjs',
+    { from: 'pdf.min.mjs', to: 'pdf.min.js' },
+    'pdf.worker.min.mjs',
+    { from: 'pdf.worker.min.mjs', to: 'pdf.worker.min.js' },
+  ]],
   ['cmaps'],
   ['iccs'],
   ['standard_fonts'],
   ['wasm'],
-  ['web', ['pdf_viewer.mjs', 'pdf_viewer.mjs.map', 'pdf_viewer.css']],
+  ['web', [
+    'pdf_viewer.mjs',
+    { from: 'pdf_viewer.mjs', to: 'pdf_viewer.js' },
+    'pdf_viewer.mjs.map',
+    'pdf_viewer.css',
+  ]],
   ['web/images'],
 ];
 
@@ -34,7 +44,10 @@ for (const [directory, files] of copies) {
 
   if (files) {
     for (const file of files) {
-      cpSync(join(sourceDir, file), join(targetDir, file));
+      const sourceFile = typeof file === 'string' ? file : file.from;
+      const targetFile = typeof file === 'string' ? file : file.to;
+
+      cpSync(join(sourceDir, sourceFile), join(targetDir, targetFile));
     }
     continue;
   }
