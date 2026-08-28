@@ -6,6 +6,7 @@ import {
   type LuaUserStateTransitionResult,
 } from '../../../auth/fsm/user-state-transition.contract';
 import { USER_STATUS } from '../../../auth/fsm/user-state.fsm';
+import { sessionWriteLuaHelpers } from '../../../auth/luaScripts/sessionLuaHelpers';
 
 export type ImmediateAdmissionBusinessCode = 'CAPACITY_FULL';
 
@@ -58,6 +59,8 @@ export type WaitingHeadPromotionLuaInput = {
 };
 
 export const admissionCapacityLuaHelpers = `
+  ${sessionWriteLuaHelpers}
+
   local function readPositiveNumber(key)
     local raw = redis.call('GET', key)
     if raw then
@@ -94,29 +97,6 @@ export const admissionCapacityLuaHelpers = `
     local maxSize = getMaxSize(maxSizeKey, defaultMaxSizeKey, defaultMaxSizeFallback)
 
     return inBookingCount + reconnectingCount + enteringCount < maxSize
-  end
-
-  local function prepareSessionWrite(sessionKey, session)
-    local encodedSession = cjson.encode(session)
-    local ttl = redis.call('PTTL', sessionKey)
-    if ttl == -2 or ttl == 0 then
-      return nil, nil, 'SESSION_EXPIRED_DURING_WRITE'
-    end
-
-    if ttl > 0 or ttl == -1 then
-      return encodedSession, ttl, 'OK'
-    end
-
-    return nil, nil, 'SESSION_EXPIRED_DURING_WRITE'
-  end
-
-  local function writePreparedSessionPreservingTtl(sessionKey, encodedSession, ttl)
-    if ttl > 0 then
-      redis.call('PSETEX', sessionKey, ttl, encodedSession)
-      return
-    end
-
-    redis.call('SET', sessionKey, encodedSession)
   end
 `;
 

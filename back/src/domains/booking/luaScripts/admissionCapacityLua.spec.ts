@@ -291,15 +291,22 @@ describe('admissionCapacityLua 계약', () => {
     }
   });
 
-  it('공유 Lua helper는 Redis-side capacity 계산과 TTL 보존 쓰기를 제공함', () => {
+  it('공유 Lua helper는 Redis-side capacity 계산을 제공함', () => {
     const source = readFileSync(join(__dirname, 'admissionCapacityLua.ts'), 'utf8');
 
     expect(source).toContain('local function hasAdmissionCapacity');
     expect(source).toContain("redis.call('HLEN', inBookingSessionsKey)");
-    expect(source).toContain('local function prepareSessionWrite');
-    expect(source).toContain('local function writePreparedSessionPreservingTtl');
-    expect(source).toContain("redis.call('PTTL', sessionKey)");
-    expect(source).toContain("redis.call('PSETEX', sessionKey, ttl, encodedSession)");
+  });
+
+  it('TTL 보존 쓰기를 자체 구현하지 않고 공용 helper에 위임함', () => {
+    const source = readFileSync(join(__dirname, 'admissionCapacityLua.ts'), 'utf8');
+
+    expect(source).toContain('sessionWriteLuaHelpers');
+    expect(source).toContain('prepareSessionWrite(sessionKey, session)');
+    expect(source).toContain('writePreparedSessionPreservingTtl(sessionKey, encodedSession, ttl)');
+    expect(source).not.toContain('local function prepareSessionWrite');
+    expect(source).not.toContain("redis.call('PSETEX'");
+    expect(source).not.toContain("redis.call('PTTL'");
   });
 
   it('즉시 입장과 대기열 head 승격 Lua 명령을 같은 Redis 인스턴스에 한 번만 등록함', async () => {

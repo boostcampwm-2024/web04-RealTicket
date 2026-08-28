@@ -7,7 +7,11 @@ import {
   type LuaUserStateTransitionResult,
 } from '../fsm/user-state-transition.contract';
 
+import { sessionWriteLuaHelpers } from './sessionLuaHelpers';
+
 const userStateTransitionLua = `
+  ${sessionWriteLuaHelpers}
+
   local sessionKey = KEYS[1]
 
   local expectedFromMode = ARGV[1]
@@ -50,19 +54,12 @@ const userStateTransitionLua = `
     session.targetEvent = cjson.null
   end
 
-  local encodedSession = cjson.encode(session)
-  local ttl = redis.call('PTTL', sessionKey)
-  if ttl == -2 or ttl == 0 then
-    return {'SESSION_EXPIRED_DURING_WRITE'}
+  local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
+  if prepareCode ~= 'OK' then
+    return {prepareCode}
   end
 
-  if ttl > 0 then
-    redis.call('PSETEX', sessionKey, ttl, encodedSession)
-  elseif ttl == -1 then
-    redis.call('SET', sessionKey, encodedSession)
-  else
-    return {'SESSION_EXPIRED_DURING_WRITE'}
-  end
+  writePreparedSessionPreservingTtl(sessionKey, encodedSession, ttl)
 
   return {'OK'}
 `;

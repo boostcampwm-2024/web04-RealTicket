@@ -76,8 +76,7 @@ async function emulateUserStateTransitionCommand(
   }
 
   if (expectedTargetEventMode !== 'none') {
-    const expectedTargetEvent =
-      expectedTargetEventMode === 'null' ? null : Number(expectedTargetEventValue);
+    const expectedTargetEvent = expectedTargetEventMode === 'null' ? null : Number(expectedTargetEventValue);
 
     if (session.targetEvent !== expectedTargetEvent) {
       return ['TARGET_EVENT_MISMATCH', session.targetEvent];
@@ -325,9 +324,7 @@ describe('runUserStateTransitionLua 실행', () => {
   it('SESSION_EXPIRED_DURING_WRITE를 타입화된 거부 결과로 매핑함', async () => {
     const expiringRedis = {
       defineCommand: jest.fn(function (this: RedisWithStubbedCommand, name: string) {
-        this[name as 'userStateTransition'] = jest
-          .fn()
-          .mockResolvedValue(['SESSION_EXPIRED_DURING_WRITE']);
+        this[name as 'userStateTransition'] = jest.fn().mockResolvedValue(['SESSION_EXPIRED_DURING_WRITE']);
         return this;
       }),
     } as unknown as Redis;
@@ -371,10 +368,13 @@ describe('runUserStateTransitionLua 실행', () => {
     expect(source).toContain("return {'OK'}");
   });
 
-  it('0 PTTL을 만료 없는 세션 분기로 처리하지 않음', () => {
+  it('TTL 보존 쓰기를 자체 구현하지 않고 공용 helper에 위임함', () => {
     const source = readFileSync(join(__dirname, 'userStateTransitionLua.ts'), 'utf8');
 
-    expect(source).toContain('if ttl == -2 or ttl == 0 then');
-    expect(source).toContain('elseif ttl == -1 then');
+    expect(source).toContain('sessionWriteLuaHelpers');
+    expect(source).toContain('prepareSessionWrite(sessionKey, session)');
+    expect(source).toContain('writePreparedSessionPreservingTtl(sessionKey, encodedSession, ttl)');
+    expect(source).not.toContain("redis.call('PSETEX'");
+    expect(source).not.toContain("redis.call('PTTL'");
   });
 });
