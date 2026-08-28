@@ -17,6 +17,7 @@ import {
   type MarkReconnectingLuaResult,
   type RestoreSelectingLuaResult,
 } from '../luaScripts/reconnectingTransitionLua';
+import { runWaitingQueueEntryLua, type WaitingQueueEntryLuaResult } from '../luaScripts/waitingQueueEntryLua';
 
 import { BookingService } from './booking.service';
 
@@ -28,6 +29,10 @@ jest.mock('../luaScripts/admissionCapacityLua', () => ({
 jest.mock('../luaScripts/reconnectingTransitionLua', () => ({
   runMarkReconnectingLua: jest.fn(),
   runRestoreSelectingLua: jest.fn(),
+}));
+
+jest.mock('../luaScripts/waitingQueueEntryLua', () => ({
+  runWaitingQueueEntryLua: jest.fn(),
 }));
 
 type TransitionContextFixture = {
@@ -276,6 +281,35 @@ function restoreFailedResult(code: 'NOT_RECONNECTING' | 'STATE_MISMATCH'): Resto
   };
 }
 
+function waitingEntryOkResult(order: number): WaitingQueueEntryLuaResult {
+  return {
+    transition: {
+      ok: true,
+      code: 'OK',
+      action: 'enterWaiting',
+      from: USER_STATUS.LOGIN,
+      to: USER_STATUS.WAITING,
+    },
+    order,
+  };
+}
+
+function waitingEntryFailedResult(
+  code: 'STATE_MISMATCH' | 'SESSION_MISSING' | 'TARGET_EVENT_MISMATCH',
+): WaitingQueueEntryLuaResult {
+  return {
+    transition: {
+      ok: false,
+      code,
+      action: 'enterWaiting',
+      expectedFrom: USER_STATUS.LOGIN,
+      nextTo: USER_STATUS.WAITING,
+      details: [],
+    },
+    order: null,
+  };
+}
+
 async function callLetInNextWaiting(service: BookingService, eventId = 42) {
   await (service as unknown as { letInNextWaiting(eventId: number): Promise<void> }).letInNextWaiting(
     eventId,
@@ -386,9 +420,11 @@ describe('BookingService 재연결 전이 Lua 연동', () => {
 
 describe('BookingService immediate admission Lua integration', () => {
   const runImmediateAdmissionLuaMock = jest.mocked(runImmediateAdmissionLua);
+  const runWaitingQueueEntryLuaMock = jest.mocked(runWaitingQueueEntryLua);
 
   beforeEach(() => {
     runImmediateAdmissionLuaMock.mockReset();
+    runWaitingQueueEntryLuaMock.mockReset();
   });
 
   it('즉시 입장 Lua OK 결과를 기존 entering DTO로 반환하고 WATCH 경로를 호출하지 않음', async () => {
@@ -436,12 +472,7 @@ describe('BookingService immediate admission Lua integration', () => {
       nextTo: USER_STATUS.ENTERING,
       details: [],
     });
-    authService.enterWaiting.mockImplementation(
-      async (_sid: string, _eventId: number, options: TransitionOptionsFixture) => {
-        await options.validate?.(redis, createContext(null));
-        return { ok: true, action: 'enterWaiting' };
-      },
-    );
+    runWaitingQueueEntryLuaMock.mockResolvedValue(waitingEntryOkResult(1));
 
     await expect(service.isAdmission(42, 'sid-1')).resolves.toEqual({
       waitingStatus: true,
@@ -450,13 +481,13 @@ describe('BookingService immediate admission Lua integration', () => {
     });
 
     expect(authService.enterBookingGate).not.toHaveBeenCalled();
-    expect(authService.enterWaiting).toHaveBeenCalledWith(
-      'sid-1',
-      42,
-      expect.objectContaining({
-        watchKeys: ['waiting-queue:42', 'waiting-queue:42:order'],
-      }),
-    );
+    expect(runWaitingQueueEntryLuaMock).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      waitingQueueKey: 'waiting-queue:42',
+      waitingOrderKey: 'waiting-queue:42:order',
+      eventId: 42,
+      sid: 'sid-1',
+    });
   });
 
   it('즉시 입장 Lua stale 세션 결과는 기존 INVALID_STATE 예외로 유지함', async () => {
@@ -475,7 +506,34 @@ describe('BookingService immediate admission Lua integration', () => {
     await expectInvalidState(() => service.isAdmission(42, 'sid-1'));
 
     expect(authService.enterBookingGate).not.toHaveBeenCalled();
-    expect(authService.enterWaiting).not.toHaveBeenCalled();
+    expect(runWaitingQueueEntryLuaMock).not.toHaveBeenCalled();
+  });
+
+  it('대기열 진입 Lua가 거부하면 INVALID_STATE로 변환함', async () => {
+    const { openBookingService, authService, service } = createService();
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    authService.getUserSession.mockResolvedValue(loginSession());
+    runImmediateAdmissionLuaMock.mockResolvedValue({
+      ok: false,
+      code: 'CAPACITY_FULL',
+      action: 'enterBookingGate',
+      expectedFrom: USER_STATUS.LOGIN,
+      nextTo: USER_STATUS.ENTERING,
+      details: [],
+    });
+    runWaitingQueueEntryLuaMock.mockResolvedValue(waitingEntryFailedResult('STATE_MISMATCH'));
+
+    await expectInvalidState(() => service.isAdmission(42, 'sid-1'));
+  });
+
+  it('대기열 진입 경로는 WATCH 기반 order 갱신으로 회귀하지 않음', () => {
+    const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
+    const body = extractMethodBody(source, 'private async tryEnterWaitingQueue', 'private getEnteringKey');
+
+    expect(body).toContain('runWaitingQueueEntryLua(this.redis');
+    expect(body).not.toContain('watchKeys');
+    expect(body).not.toContain('this.authService.enterWaiting');
+    expect(body).not.toContain('parseInt');
   });
 });
 

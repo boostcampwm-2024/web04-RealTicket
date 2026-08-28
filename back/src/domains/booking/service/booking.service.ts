@@ -14,6 +14,7 @@ import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
 import { runImmediateAdmissionLua, runWaitingHeadPromotionLua } from '../luaScripts/admissionCapacityLua';
 import { runMarkReconnectingLua, runRestoreSelectingLua } from '../luaScripts/reconnectingTransitionLua';
+import { runWaitingQueueEntryLua } from '../luaScripts/waitingQueueEntryLua';
 
 import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
@@ -316,24 +317,15 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tryEnterWaitingQueue(eventId: number, sid: string): Promise<number | null> {
-    const orderKey = this.getWaitingOrderKey(eventId);
-    const queueKey = this.getWaitingQueueKey(eventId);
-    let nextOrder: number | null = null;
-
-    const result = await this.authService.enterWaiting(sid, eventId, {
-      watchKeys: [queueKey, orderKey],
-      validate: async (redis) => {
-        const rawOrder = await redis.get(orderKey);
-        nextOrder = rawOrder ? parseInt(rawOrder) + 1 : 1;
-        return Number.isFinite(nextOrder);
-      },
-      mutate: (multi) => {
-        multi.set(orderKey, nextOrder);
-        multi.rpush(queueKey, JSON.stringify({ sid, order: nextOrder }));
-      },
+    const { order } = await runWaitingQueueEntryLua(this.redis, {
+      sessionKey: `user:${sid}`,
+      waitingQueueKey: this.getWaitingQueueKey(eventId),
+      waitingOrderKey: this.getWaitingOrderKey(eventId),
+      eventId,
+      sid,
     });
 
-    return result?.ok ? nextOrder : null;
+    return order;
   }
 
   private getEnteringKey(eventId: number): string {
