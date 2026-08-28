@@ -284,15 +284,15 @@ describe('booking abnormal flows', () => {
       await requestPermission(app, userSid, eventId).expect(200);
       await setBookingCount(app, userSid, 1).expect(201);
 
-      const startSpy = jest.spyOn(authService, 'startSeatSelection').mockResolvedValueOnce(null);
+      // entering 풀에서 사라진 상태(예: GC 회수)를 만들어 전이가 fail-closed 되는지 확인함
+      const redis = getRedisService(app).getOrThrow();
+      await redis.zrem(`entering:${eventId}`, userSid);
 
       await expect(bookingService.setInBookingFromEntering(userSid)).rejects.toThrow();
 
       const sessionAfter = await authService.getUserSession(userSid);
       expect(sessionAfter.userStatus).toBe('ENTERING');
       expect(await inBookingService.getSession(eventId, userSid)).toBeNull();
-
-      startSpy.mockRestore();
     });
   });
 });

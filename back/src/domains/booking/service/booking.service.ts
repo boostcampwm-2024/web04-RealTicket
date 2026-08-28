@@ -14,6 +14,7 @@ import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
 import { runImmediateAdmissionLua, runWaitingHeadPromotionLua } from '../luaScripts/admissionCapacityLua';
 import { runMarkReconnectingLua, runRestoreSelectingLua } from '../luaScripts/reconnectingTransitionLua';
+import { runStartSeatSelectionLua } from '../luaScripts/startSeatSelectionLua';
 import { runWaitingQueueEntryLua } from '../luaScripts/waitingQueueEntryLua';
 
 import { BookingSeatsService } from './booking-seats.service';
@@ -110,10 +111,6 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private isSessionTargetingEvent(context: { session: { targetEvent?: unknown } }, eventId: number) {
-    return context.session.targetEvent === eventId;
-  }
-
   private async letInNextWaiting(eventId: number) {
     while (true) {
       const result = await runWaitingHeadPromotionLua(this.redis, {
@@ -154,45 +151,16 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
-    const enteringKey = this.getEnteringKey(eventId);
-    const inBookingKey = this.getInBookingSessionsKey(eventId);
-    const bookingAmountKey = this.getEnteringBookingAmountKey(sid);
-    let bookingAmount = 0;
-
-    const result = await this.authService.startSeatSelection(sid, {
-      watchKeys: [enteringKey, inBookingKey, bookingAmountKey],
-      validate: async (redis, context) => {
-        if (!this.isSessionTargetingEvent(context, eventId)) {
-          return false;
-        }
-
-        const score = await redis.zscore(enteringKey, sid);
-        if (score === null) {
-          return false;
-        }
-
-        const bookingAmountData = await redis.get(bookingAmountKey);
-        bookingAmount = bookingAmountData ? parseInt(bookingAmountData) : 0;
-        return Number.isFinite(bookingAmount);
-      },
-      mutate: (multi) => {
-        multi.zrem(enteringKey, sid);
-        multi.del(bookingAmountKey);
-        multi.hset(
-          inBookingKey,
-          sid,
-          JSON.stringify({
-            sid,
-            bookingAmount,
-            bookedSeats: [],
-            saved: false,
-            subscribedSection: null,
-          }),
-        );
-      },
+    const result = await runStartSeatSelectionLua(this.redis, {
+      sessionKey: `user:${sid}`,
+      enteringKey: this.getEnteringKey(eventId),
+      inBookingSessionsKey: this.getInBookingSessionsKey(eventId),
+      bookingAmountKey: this.getEnteringBookingAmountKey(sid),
+      eventId,
+      sid,
     });
 
-    if (!result?.ok) {
+    if (!result.ok) {
       throw new AppException(BookingErrorCode.INVALID_STATE);
     }
   }

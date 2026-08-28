@@ -17,6 +17,10 @@ import {
   type MarkReconnectingLuaResult,
   type RestoreSelectingLuaResult,
 } from '../luaScripts/reconnectingTransitionLua';
+import {
+  runStartSeatSelectionLua,
+  type StartSeatSelectionLuaResult,
+} from '../luaScripts/startSeatSelectionLua';
 import { runWaitingQueueEntryLua, type WaitingQueueEntryLuaResult } from '../luaScripts/waitingQueueEntryLua';
 
 import { BookingService } from './booking.service';
@@ -35,29 +39,11 @@ jest.mock('../luaScripts/waitingQueueEntryLua', () => ({
   runWaitingQueueEntryLua: jest.fn(),
 }));
 
-type TransitionContextFixture = {
-  session: { targetEvent: number | null };
-  sessionKey: string;
-  result: { ok: true; action: string; from: string; to: string };
-};
+jest.mock('../luaScripts/startSeatSelectionLua', () => ({
+  runStartSeatSelectionLua: jest.fn(),
+}));
 
 type RedisMock = Record<string, jest.Mock>;
-type MultiMock = Record<string, jest.Mock>;
-
-type TransitionOptionsFixture = {
-  validate?: (redis: RedisMock, context: TransitionContextFixture) => boolean | Promise<boolean>;
-  mutate?: (multi: MultiMock, context: TransitionContextFixture) => void | Promise<void>;
-};
-
-function createMultiMock(): MultiMock {
-  return {
-    del: jest.fn().mockReturnThis(),
-    hset: jest.fn().mockReturnThis(),
-    lpop: jest.fn().mockReturnThis(),
-    zadd: jest.fn().mockReturnThis(),
-    zrem: jest.fn().mockReturnThis(),
-  };
-}
 
 function createRedisMock(): RedisMock {
   return {
@@ -67,28 +53,6 @@ function createRedisMock(): RedisMock {
     lrange: jest.fn().mockResolvedValue([]),
     zcard: jest.fn().mockResolvedValue(0),
     zscore: jest.fn().mockResolvedValue('1'),
-  };
-}
-
-function createContext(targetEvent: number | null): TransitionContextFixture {
-  return {
-    session: { targetEvent },
-    sessionKey: 'user:sid-1',
-    result: {
-      ok: true,
-      action: 'transition',
-      from: USER_STATUS.ENTERING,
-      to: USER_STATUS.SELECTING_SEAT,
-    },
-  };
-}
-
-function successfulTransition(action: string) {
-  return {
-    ok: true,
-    action,
-    from: USER_STATUS.ENTERING,
-    to: USER_STATUS.SELECTING_SEAT,
   };
 }
 
@@ -310,38 +274,96 @@ function waitingEntryFailedResult(
   };
 }
 
+function startSeatSelectionOkResult(): StartSeatSelectionLuaResult {
+  return {
+    ok: true,
+    code: 'OK',
+    action: 'startSeatSelection',
+    from: USER_STATUS.ENTERING,
+    to: USER_STATUS.SELECTING_SEAT,
+  };
+}
+
+function startSeatSelectionFailedResult(
+  code: 'NOT_ENTERING' | 'STATE_MISMATCH' | 'TARGET_EVENT_MISMATCH',
+): StartSeatSelectionLuaResult {
+  return {
+    ok: false,
+    code,
+    action: 'startSeatSelection',
+    expectedFrom: USER_STATUS.ENTERING,
+    nextTo: USER_STATUS.SELECTING_SEAT,
+    details: [],
+  };
+}
+
 async function callLetInNextWaiting(service: BookingService, eventId = 42) {
   await (service as unknown as { letInNextWaiting(eventId: number): Promise<void> }).letInNextWaiting(
     eventId,
   );
 }
 
-describe('BookingService transaction-local event ownership validation', () => {
-  it('does not move entering state into in-booking when transaction targetEvent changed', async () => {
+describe('BookingService 좌석 선택 진입 Lua 연동', () => {
+  const runStartSeatSelectionLuaMock = jest.mocked(runStartSeatSelectionLua);
+
+  beforeEach(() => {
+    runStartSeatSelectionLuaMock.mockReset();
+  });
+
+  it('세션에 대상 이벤트가 없으면 Lua를 호출하지 않고 SESSION_EVENT_NOT_FOUND를 던짐', async () => {
     const { authService, service } = createService();
-    const transactionRedis = createRedisMock();
-    const multi = createMultiMock();
+    authService.getUserEventTarget.mockResolvedValue(null);
 
-    authService.getUserEventTarget.mockResolvedValue(1);
-    authService.startSeatSelection.mockImplementation(
-      async (_sid: string, options: TransitionOptionsFixture) => {
-        const isValid = await options.validate?.(transactionRedis, createContext(2));
-        if (isValid === false) {
-          return null;
-        }
+    await expect(service.setInBookingFromEntering('sid-1')).rejects.toBeInstanceOf(AppException);
+    expect(runStartSeatSelectionLuaMock).not.toHaveBeenCalled();
+  });
 
-        await options.mutate?.(multi, createContext(2));
-        return successfulTransition('startSeatSelection');
-      },
-    );
+  it('entering 풀, in-booking 해시, 임시 예매 수량 키를 Lua runner에 넘김', async () => {
+    const { authService, redis, service } = createService();
+    authService.getUserEventTarget.mockResolvedValue(42);
+    runStartSeatSelectionLuaMock.mockResolvedValue(startSeatSelectionOkResult());
+
+    await expect(service.setInBookingFromEntering('sid-1')).resolves.toBeUndefined();
+
+    expect(runStartSeatSelectionLuaMock).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      enteringKey: 'entering:42',
+      inBookingSessionsKey: 'in-booking:42:sessions',
+      bookingAmountKey: 'entering:sid-1:temp-booking-amount',
+      eventId: 42,
+      sid: 'sid-1',
+    });
+  });
+
+  it('entering 멤버가 아니면 INVALID_STATE로 변환함', async () => {
+    const { authService, service } = createService();
+    authService.getUserEventTarget.mockResolvedValue(42);
+    runStartSeatSelectionLuaMock.mockResolvedValue(startSeatSelectionFailedResult('NOT_ENTERING'));
 
     await expectInvalidState(() => service.setInBookingFromEntering('sid-1'));
+  });
 
-    expect(transactionRedis.zscore).not.toHaveBeenCalled();
-    expect(transactionRedis.get).not.toHaveBeenCalled();
-    expect(multi.zrem).not.toHaveBeenCalled();
-    expect(multi.del).not.toHaveBeenCalled();
-    expect(multi.hset).not.toHaveBeenCalled();
+  it('좌석 선택 진입 경로는 WATCH 콜백으로 회귀하지 않음', () => {
+    const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
+    const body = extractMethodBody(
+      source,
+      'async setInBookingFromEntering',
+      'async restoreInBookingFromReconnecting',
+    );
+
+    expect(body).toContain('runStartSeatSelectionLua(this.redis');
+    expect(body).not.toContain('watchKeys');
+    expect(body).not.toContain('this.authService.startSeatSelection');
+    expect(body).not.toContain('multi.hset');
+  });
+
+  it('BookingService에는 WATCH 기반 전이 옵션이 남아 있지 않음', () => {
+    const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
+
+    expect(source).not.toContain('watchKeys');
+    expect(source).not.toContain('validate:');
+    expect(source).not.toContain('mutate:');
+    expect(source).not.toContain('isSessionTargetingEvent');
   });
 });
 
