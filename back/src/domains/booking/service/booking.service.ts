@@ -252,7 +252,7 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
         const waitingResponse = {
           waitingStatus: true,
           enteringStatus: false,
-          userOrder: await this.getWaitingOrder(eventId, sid),
+          userOrder: await this.resolveWaitingOrder(eventId, sid, session),
         };
         return waitingResponse;
       }
@@ -356,7 +356,20 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     return `waiting-queue:${eventId}:order`;
   }
 
-  private async getWaitingOrder(eventId: number, sid: string): Promise<number | null> {
+  private async resolveWaitingOrder(
+    eventId: number,
+    sid: string,
+    session: { waitingOrder?: unknown },
+  ): Promise<number | null> {
+    if (typeof session.waitingOrder === 'number') {
+      return session.waitingOrder;
+    }
+
+    // 순번을 세션에 남기기 이전에 대기열에 들어간 세션만 큐 스캔으로 보정함.
+    return this.scanWaitingOrder(eventId, sid);
+  }
+
+  private async scanWaitingOrder(eventId: number, sid: string): Promise<number | null> {
     const items = await this.redis.lrange(this.getWaitingQueueKey(eventId), 0, -1);
     for (const item of items) {
       const parsed = JSON.parse(item);

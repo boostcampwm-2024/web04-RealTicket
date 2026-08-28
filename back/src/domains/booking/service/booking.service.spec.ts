@@ -649,3 +649,43 @@ describe('BookingService Phase 2 final static gates', () => {
     expect(source).not.toContain('authService.enterBookingGate');
   });
 });
+
+describe('BookingService 대기 순번 조회', () => {
+  it('세션에 순번이 있으면 대기열을 스캔하지 않고 그대로 반환함', async () => {
+    const { openBookingService, authService, redis, service } = createService();
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    authService.getUserSession.mockResolvedValue({
+      ...loginSession(),
+      targetEvent: 42,
+      userStatus: USER_STATUS.WAITING,
+      waitingOrder: 7,
+    });
+
+    await expect(service.isAdmission(42, 'sid-1')).resolves.toEqual({
+      waitingStatus: true,
+      enteringStatus: false,
+      userOrder: 7,
+    });
+
+    expect(redis.lrange).not.toHaveBeenCalled();
+  });
+
+  it('순번이 없는 이전 세션만 대기열 스캔으로 보정함', async () => {
+    const { openBookingService, authService, redis, service } = createService();
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    authService.getUserSession.mockResolvedValue({
+      ...loginSession(),
+      targetEvent: 42,
+      userStatus: USER_STATUS.WAITING,
+    });
+    redis.lrange.mockResolvedValue([JSON.stringify({ sid: 'sid-1', order: 3 })]);
+
+    await expect(service.isAdmission(42, 'sid-1')).resolves.toEqual({
+      waitingStatus: true,
+      enteringStatus: false,
+      userOrder: 3,
+    });
+
+    expect(redis.lrange).toHaveBeenCalledWith('waiting-queue:42', 0, -1);
+  });
+});
