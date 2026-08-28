@@ -48,24 +48,6 @@ export class WaitingQueueService implements OnModuleDestroy {
     this.sseBroadcaster.removeClient(String(eventId), res);
   }
 
-  async pushQueue(eventId: number, sid: string) {
-    if (!this.queueSubscriptionMap.has(eventId)) {
-      await this.createQueueSubscription(eventId);
-    }
-    const order = await this.redis.incr(`waiting-queue:${eventId}:order`);
-    const item = JSON.stringify({ sid, order });
-    await this.redis.rpush(`waiting-queue:${eventId}`, item);
-    return order;
-  }
-
-  async popQueue(eventId: number) {
-    const item = await this.redis.lpop(`waiting-queue:${eventId}`);
-    if (!item) {
-      return null;
-    }
-    return JSON.parse(item);
-  }
-
   async getQueueSize(eventId: number) {
     const size = await this.redis.llen(`waiting-queue:${eventId}`);
     return size;

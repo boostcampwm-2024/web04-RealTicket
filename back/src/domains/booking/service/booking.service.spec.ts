@@ -112,7 +112,6 @@ function createService() {
   };
   const waitingQueueService = {
     getQueueSize: jest.fn(),
-    popQueue: jest.fn(),
   };
   const enterBookingService = {
     isEntering: jest.fn(),
@@ -289,7 +288,6 @@ describe('BookingService transaction-local event ownership validation', () => {
 
     expect(multi.zadd).not.toHaveBeenCalled();
   });
-
 });
 
 describe('BookingService immediate admission Lua integration', () => {
@@ -408,7 +406,7 @@ describe('BookingService waiting-head promotion Lua integration', () => {
   });
 
   it('대기열 head 승격 OK면 정원이 찰 때까지 Lua 호출을 반복함', async () => {
-    const { authService, redis, service, waitingQueueService } = createService();
+    const { authService, redis, service } = createService();
     runWaitingHeadPromotionLuaMock
       .mockResolvedValueOnce(promotionOkResult())
       .mockResolvedValueOnce(promotionOkResult())
@@ -432,11 +430,10 @@ describe('BookingService waiting-head promotion Lua integration', () => {
       nowMs: expect.any(Number),
     });
     expect(authService.enterBookingGate).not.toHaveBeenCalled();
-    expect(waitingQueueService.popQueue).not.toHaveBeenCalled();
   });
 
   it('stale head 결과면 다음 후보를 위해 Lua 호출을 계속함', async () => {
-    const { service, waitingQueueService } = createService();
+    const { service } = createService();
     runWaitingHeadPromotionLuaMock
       .mockResolvedValueOnce(promotionFailedResult('STALE_SESSION_MISSING', ['sid-1']))
       .mockResolvedValueOnce(promotionFailedResult('STALE_STATE_MISMATCH', [USER_STATUS.LOGIN]))
@@ -445,17 +442,15 @@ describe('BookingService waiting-head promotion Lua integration', () => {
     await callLetInNextWaiting(service);
 
     expect(runWaitingHeadPromotionLuaMock).toHaveBeenCalledTimes(3);
-    expect(waitingQueueService.popQueue).not.toHaveBeenCalled();
   });
 
-  it('CAPACITY_FULL이면 head 제거 없이 승격 loop를 멈춤', async () => {
-    const { service, waitingQueueService } = createService();
+  it('CAPACITY_FULL이면 승격 loop를 멈춤', async () => {
+    const { service } = createService();
     runWaitingHeadPromotionLuaMock.mockResolvedValue(promotionFailedResult('CAPACITY_FULL'));
 
     await callLetInNextWaiting(service);
 
     expect(runWaitingHeadPromotionLuaMock).toHaveBeenCalledTimes(1);
-    expect(waitingQueueService.popQueue).not.toHaveBeenCalled();
   });
 
   it('QUEUE_EMPTY이면 queue pre-read 없이 승격 loop를 멈춤', async () => {
@@ -469,16 +464,14 @@ describe('BookingService waiting-head promotion Lua integration', () => {
     expect(redis.lindex).not.toHaveBeenCalled();
   });
 
-  it('Lua 실패는 stale pop으로 변환하지 않고 caller로 throw함', async () => {
-    const { service, waitingQueueService } = createService();
+  it('Lua 실패는 삼키지 않고 caller로 throw함', async () => {
+    const { service } = createService();
     const failure = new Error('redis lua failure');
     runWaitingHeadPromotionLuaMock.mockRejectedValue(failure);
 
     await expect(
       (service as unknown as { letInNextWaiting(eventId: number): Promise<void> }).letInNextWaiting(42),
     ).rejects.toThrow(failure);
-
-    expect(waitingQueueService.popQueue).not.toHaveBeenCalled();
   });
 
   it('대기열 head 승격 경로는 Lua runner를 사용하고 hot WATCH pre-read로 회귀하지 않음', () => {
@@ -488,7 +481,6 @@ describe('BookingService waiting-head promotion Lua integration', () => {
     expect(promotionBody).toContain('runWaitingHeadPromotionLua(this.redis');
     expect(promotionBody).not.toContain('this.authService.enterBookingGate');
     expect(promotionBody).not.toContain('getWaitingHead');
-    expect(promotionBody).not.toContain('waitingQueueService.popQueue');
     expect(promotionBody).not.toContain('getAdmissionWatchKeys');
   });
 });
