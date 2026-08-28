@@ -22,34 +22,15 @@ import {
   type TargetEventPatch,
 } from '../fsm/user-state-transition.contract';
 import {
-  enterBookingGate as fsmEnterBookingGate,
-  enterWaiting as fsmEnterWaiting,
-  markReconnectingSelection as fsmMarkReconnectingSelection,
-  resetToLogin as fsmResetToLogin,
-  restoreSeatSelection as fsmRestoreSeatSelection,
-  startSeatSelection as fsmStartSeatSelection,
   type SessionUserStatus,
   type TransitionResult,
   type UserStateTransitionAction,
 } from '../fsm/user-state.fsm';
 import { runUserStateTransitionLua } from '../luaScripts/userStateTransitionLua';
 
-type RedisMulti = ReturnType<Redis['multi']>;
-type SuccessfulTransitionResult = Extract<TransitionResult, { ok: true }>;
 type UserSessionRecord = Record<string, unknown> & { targetEvent?: unknown; userStatus?: unknown };
-type UserStateTransition = (current: SessionUserStatus | string) => TransitionResult;
-type TransitionContext = {
-  session: UserSessionRecord;
-  sessionKey: string;
-  result: SuccessfulTransitionResult;
-};
-type TransitionMutation = (multi: RedisMulti, context: TransitionContext) => void | Promise<void>;
-type TransitionValidation = (redis: Redis, context: TransitionContext) => boolean | Promise<boolean>;
 
 type TransitionOptions = {
-  watchKeys?: string[];
-  validate?: TransitionValidation;
-  mutate?: TransitionMutation;
   skipExpectedFromCheck?: boolean;
 };
 type SemanticTransitionResult = TransitionResult | LuaUserStateTransitionResult | null;
@@ -82,10 +63,6 @@ export class AuthService {
 
   private async getParsedSession(sid: string) {
     return this.parseSessionData(await this.redis.get(`user:${sid}`));
-  }
-
-  private buildTransitionPatch(targetEvent?: number | null) {
-    return targetEvent === undefined ? {} : { targetEvent };
   }
 
   private buildTargetEventPatch(targetEvent?: number | null): TargetEventPatch {
@@ -121,37 +98,6 @@ export class AuthService {
     }
 
     return this.getSessionTargetEvent(session);
-  }
-
-  private extractExecCommandError(entry: unknown): Error | null {
-    if (!Array.isArray(entry) || !entry[0]) {
-      return null;
-    }
-
-    return entry[0] instanceof Error ? entry[0] : new Error(String(entry[0]));
-  }
-
-  private assertNoExecCommandErrors(
-    execResult: Awaited<ReturnType<RedisMulti['exec']>>,
-    action: string,
-    watchedKeyCount: number,
-  ) {
-    if (!Array.isArray(execResult)) {
-      return;
-    }
-
-    const commandError = execResult
-      .map((entry) => this.extractExecCommandError(entry))
-      .find((error): error is Error => error !== null);
-
-    if (!commandError) {
-      return;
-    }
-
-    this.logger.error(
-      `Redis EXEC command failed during ${action} with ${watchedKeyCount} watched keys: ${commandError.message}`,
-    );
-    throw commandError;
   }
 
   private async runLuaBackedUserStateTransition(
@@ -190,26 +136,12 @@ export class AuthService {
     }
   }
 
-  private hasWatchedTransitionOptions(options?: TransitionOptions): boolean {
-    return Boolean(options?.validate || options?.mutate || (options?.watchKeys?.length ?? 0) > 0);
-  }
-
   private async runSemanticUserStateTransition(
     sid: string,
     action: UserStateTransitionAction,
-    transition: UserStateTransition,
     targetEvent?: number | null,
     options?: TransitionOptions,
   ): Promise<SemanticTransitionResult> {
-    if (this.hasWatchedTransitionOptions(options)) {
-      return this.executeWatchedUserStateTransition(
-        sid,
-        transition,
-        this.buildTransitionPatch(targetEvent),
-        options,
-      );
-    }
-
     return this.runLuaBackedUserStateTransition(
       sid,
       action,
@@ -218,123 +150,28 @@ export class AuthService {
     );
   }
 
-  // Temporary boundary for booking callbacks until Phase 2-4 move those side effects into Lua scripts.
-  private async executeWatchedUserStateTransition(
-    sid: string,
-    transition: UserStateTransition,
-    patch: Record<string, unknown> = {},
-    options: TransitionOptions = {},
-  ): Promise<TransitionResult | null> {
-    const sessionKey = `user:${sid}`;
-    const watchKeys = [
-      sessionKey,
-      ...(options.watchKeys ?? []).filter((watchKey) => watchKey !== sessionKey),
-    ];
-    const redis = this.redis.duplicate();
-    let needsUnwatch = false;
-
-    try {
-      await redis.watch(...watchKeys);
-      needsUnwatch = true;
-
-      const session = this.parseSessionData(await redis.get(sessionKey)) as UserSessionRecord | null;
-      if (!session) {
-        await redis.unwatch();
-        needsUnwatch = false;
-        return null;
-      }
-
-      const result = transition(this.getSessionUserStatus(session));
-      if (!result.ok) {
-        await redis.unwatch();
-        needsUnwatch = false;
-        return result;
-      }
-
-      const context = { session, sessionKey, result };
-      const isValid = await options.validate?.(redis, context);
-      if (isValid === false) {
-        await redis.unwatch();
-        needsUnwatch = false;
-        return null;
-      }
-
-      const multi = redis.multi();
-      await options.mutate?.(multi, context);
-      multi.set(sessionKey, JSON.stringify({ ...session, ...patch, userStatus: result.to }), 'KEEPTTL');
-
-      const execResult = await multi.exec();
-      needsUnwatch = false;
-      if (execResult === null) {
-        return null;
-      }
-
-      this.assertNoExecCommandErrors(execResult, result.action, watchKeys.length);
-      return result;
-    } catch (error) {
-      if (needsUnwatch) {
-        try {
-          await redis.unwatch();
-        } catch (unwatchError) {
-          this.logger.warn(
-            `Failed to unwatch user state transition keys: ${
-              unwatchError instanceof Error ? unwatchError.message : 'unknown error'
-            }`,
-          );
-        }
-      }
-      throw error;
-    } finally {
-      redis.disconnect();
-    }
-  }
-
   async enterWaiting(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'enterWaiting', fsmEnterWaiting, targetEvent, options);
+    return this.runSemanticUserStateTransition(sid, 'enterWaiting', targetEvent, options);
   }
 
   async enterBookingGate(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(
-      sid,
-      'enterBookingGate',
-      fsmEnterBookingGate,
-      targetEvent,
-      options,
-    );
+    return this.runSemanticUserStateTransition(sid, 'enterBookingGate', targetEvent, options);
   }
 
   async startSeatSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(
-      sid,
-      'startSeatSelection',
-      fsmStartSeatSelection,
-      undefined,
-      options,
-    );
+    return this.runSemanticUserStateTransition(sid, 'startSeatSelection', undefined, options);
   }
 
   async markReconnectingSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(
-      sid,
-      'markReconnectingSelection',
-      fsmMarkReconnectingSelection,
-      undefined,
-      options,
-    );
+    return this.runSemanticUserStateTransition(sid, 'markReconnectingSelection', undefined, options);
   }
 
   async restoreSeatSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(
-      sid,
-      'restoreSeatSelection',
-      fsmRestoreSeatSelection,
-      undefined,
-      options,
-    );
+    return this.runSemanticUserStateTransition(sid, 'restoreSeatSelection', undefined, options);
   }
 
   async resetToLogin(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'resetToLogin', fsmResetToLogin, targetEvent, options);
+    return this.runSemanticUserStateTransition(sid, 'resetToLogin', targetEvent, options);
   }
 
   async getUserIdFromSession(sid: string): Promise<[number | null, string | null]> {

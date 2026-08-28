@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -265,9 +268,7 @@ describe('AuthService FSM 세션 전이', () => {
       to: USER_STATUS.ENTERING,
     });
 
-    await expect(
-      service.enterBookingGate('sid-1', 7, { skipExpectedFromCheck: true }),
-    ).resolves.toEqual({
+    await expect(service.enterBookingGate('sid-1', 7, { skipExpectedFromCheck: true })).resolves.toEqual({
       ok: true,
       code: 'OK',
       action: 'enterBookingGate',
@@ -311,89 +312,37 @@ describe('AuthService FSM 세션 전이', () => {
     expect(mockedRunUserStateTransitionLua).not.toHaveBeenCalled();
   });
 
-  it('option 기반 예매 콜백 전이는 임시 WATCH 호환 경로를 유지함', async () => {
-    const validate = jest.fn().mockResolvedValue(true);
-    const { service, multi } = createService(
-      {
-        id: 1,
-        loginId: 'user1',
-        userStatus: USER_STATUS.LOGIN,
-        targetEvent: null,
-      },
-      null,
-    );
-
-    await expect(
-      service.enterWaiting('sid-1', 3, {
-        watchKeys: ['waiting-queue:3'],
-        validate,
-      }),
-    ).resolves.toBeNull();
-
-    expect(multi.set).toHaveBeenCalledWith(
-      'user:sid-1',
-      JSON.stringify({ id: 1, loginId: 'user1', userStatus: USER_STATUS.WAITING, targetEvent: 3 }),
-      'KEEPTTL',
-    );
-    expect(multi.exec).toHaveBeenCalledTimes(1);
-    expect(mockedRunUserStateTransitionLua).not.toHaveBeenCalled();
-  });
-
-  it('Redis EXEC에 명령 단위 오류가 있으면 throw함', async () => {
-    const commandError = new Error('WRONGTYPE Operation against a key holding the wrong kind of value');
-    const session = {
-      id: 1,
-      loginId: 'user1',
-      userStatus: USER_STATUS.LOGIN,
-      targetEvent: null,
-    };
-    const { service, logger, multi } = createService(session, [
-      [null, 1],
-      [commandError, null],
-    ]);
-
-    await expect(
-      service.enterBookingGate('sid-1', 7, {
-        watchKeys: ['entering:7'],
-        mutate: (multi) => {
-          multi.zadd('entering:7', 1234, 'sid-1');
-        },
-      }),
-    ).rejects.toThrow(commandError.message);
-
-    expect(multi.zadd).toHaveBeenCalledWith('entering:7', 1234, 'sid-1');
-    expect(multi.set).toHaveBeenCalledWith(
-      'user:sid-1',
-      JSON.stringify({ ...session, targetEvent: 7, userStatus: USER_STATUS.ENTERING }),
-      'KEEPTTL',
-    );
-    expect(multi.exec).toHaveBeenCalledTimes(1);
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('WRONGTYPE Operation'));
-  });
-
-  it('WATCH 기반 전이 검증이 실패하면 세션과 부수 효과를 쓰지 않음', async () => {
-    const validate = jest.fn().mockResolvedValue(false);
-    const mutate = jest.fn();
+  it('모든 전이가 Lua runner를 거치고 WATCH 트랜잭션을 열지 않음', async () => {
     const { service, redis, multi } = createService({
       id: 1,
       loginId: 'user1',
       userStatus: USER_STATUS.LOGIN,
       targetEvent: null,
     });
+    mockedRunUserStateTransitionLua.mockResolvedValue({
+      ok: true,
+      code: 'OK',
+      action: 'enterWaiting',
+      from: USER_STATUS.LOGIN,
+      to: USER_STATUS.WAITING,
+    });
 
-    await expect(
-      service.enterBookingGate('sid-1', 7, {
-        watchKeys: ['entering:7'],
-        validate,
-        mutate,
-      }),
-    ).resolves.toBeNull();
+    await service.enterWaiting('sid-1', 3);
 
-    expect(redis.watch).toHaveBeenCalledWith('user:sid-1', 'entering:7');
-    expect(validate).toHaveBeenCalledTimes(1);
-    expect(mutate).not.toHaveBeenCalled();
-    expect(multi.set).not.toHaveBeenCalled();
+    expect(mockedRunUserStateTransitionLua).toHaveBeenCalledTimes(1);
+    expect(redis.watch).not.toHaveBeenCalled();
+    expect(redis.duplicate).not.toHaveBeenCalled();
     expect(multi.exec).not.toHaveBeenCalled();
+  });
+
+  it('AuthService에는 WATCH 기반 전이 경로가 남아 있지 않음', () => {
+    const source = readFileSync(join(__dirname, 'auth.service.ts'), 'utf8');
+
+    expect(source).not.toContain('executeWatchedUserStateTransition');
+    expect(source).not.toContain('watchKeys');
+    expect(source).not.toContain('.duplicate()');
+    expect(source).not.toContain('redis.watch');
+    expect(source).not.toContain("'KEEPTTL'");
   });
 
   it('기존 setUserStatus 호환 wrapper를 노출하지 않음', () => {
