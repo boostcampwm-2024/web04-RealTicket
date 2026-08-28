@@ -13,6 +13,7 @@ import { BookingAdmissionStatusDto } from '../dto/bookingAdmissionStatus.dto';
 import { ServerTimeDto } from '../dto/serverTime.dto';
 import { BookingErrorCode } from '../exception/booking-error-code';
 import { runImmediateAdmissionLua, runWaitingHeadPromotionLua } from '../luaScripts/admissionCapacityLua';
+import { runMarkReconnectingLua, runRestoreSelectingLua } from '../luaScripts/reconnectingTransitionLua';
 
 import { BookingSeatsService } from './booking-seats.service';
 import { EnterBookingService } from './enter-booking.service';
@@ -196,32 +197,34 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async restoreInBookingFromReconnecting(eventId: number, sid: string) {
-    const reconnectingKey = this.getReconnectingKey(eventId);
-    const result = await this.authService.restoreSeatSelection(sid, {
-      watchKeys: [reconnectingKey],
-      validate: async (redis, context) =>
-        this.isSessionTargetingEvent(context, eventId) && (await redis.zscore(reconnectingKey, sid)) !== null,
-      mutate: (multi) => {
-        multi.zrem(reconnectingKey, sid);
-      },
+    const result = await runRestoreSelectingLua(this.redis, {
+      sessionKey: `user:${sid}`,
+      reconnectingKey: this.getReconnectingKey(eventId),
+      eventId,
+      sid,
     });
 
-    if (!result?.ok) {
+    if (!result.ok) {
       throw new AppException(BookingErrorCode.INVALID_STATE);
     }
   }
 
   async markReconnectingFromSeat(eventId: number, sid: string): Promise<boolean> {
-    const reconnectingKey = this.getReconnectingKey(eventId);
-    const result = await this.authService.markReconnectingSelection(sid, {
-      watchKeys: [reconnectingKey],
-      validate: (_redis, context) => this.isSessionTargetingEvent(context, eventId),
-      mutate: (multi) => {
-        multi.zadd(reconnectingKey, Date.now(), sid);
-      },
+    const result = await runMarkReconnectingLua(this.redis, {
+      sessionKey: `user:${sid}`,
+      reconnectingKey: this.getReconnectingKey(eventId),
+      eventId,
+      sid,
+      nowMs: Date.now(),
     });
 
-    return !!result?.ok;
+    if (!result.ok) {
+      this.logger.warn(
+        `재연결 표시 실패로 in-booking 슬롯이 남을 수 있음: eventId=${eventId} sid=${sid} code=${result.code}`,
+      );
+    }
+
+    return result.ok;
   }
 
   // 함수 이름 생각하기

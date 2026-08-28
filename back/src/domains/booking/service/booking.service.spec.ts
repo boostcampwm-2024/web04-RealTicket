@@ -11,12 +11,23 @@ import {
   type WaitingHeadPromotionBusinessCode,
   type WaitingHeadPromotionLuaResult,
 } from '../luaScripts/admissionCapacityLua';
+import {
+  runMarkReconnectingLua,
+  runRestoreSelectingLua,
+  type MarkReconnectingLuaResult,
+  type RestoreSelectingLuaResult,
+} from '../luaScripts/reconnectingTransitionLua';
 
 import { BookingService } from './booking.service';
 
 jest.mock('../luaScripts/admissionCapacityLua', () => ({
   runImmediateAdmissionLua: jest.fn(),
   runWaitingHeadPromotionLua: jest.fn(),
+}));
+
+jest.mock('../luaScripts/reconnectingTransitionLua', () => ({
+  runMarkReconnectingLua: jest.fn(),
+  runRestoreSelectingLua: jest.fn(),
 }));
 
 type TransitionContextFixture = {
@@ -119,6 +130,7 @@ function createService() {
   };
   const logger = {
     error: jest.fn(),
+    warn: jest.fn(),
   };
 
   const service = new BookingService(
@@ -134,6 +146,7 @@ function createService() {
 
   return {
     authService,
+    logger,
     openBookingService,
     redis,
     service,
@@ -210,6 +223,59 @@ function promotionFailedResult(
   };
 }
 
+function extractMethodBody(source: string, startMarker: string, endMarker: string): string {
+  const methodStart = source.indexOf(startMarker);
+  const nextMethodStart = source.indexOf(endMarker, methodStart);
+
+  if (methodStart < 0 || nextMethodStart < 0) {
+    throw new Error(`${startMarker} 본문을 찾을 수 없음`);
+  }
+
+  return source.slice(methodStart, nextMethodStart);
+}
+
+function markOkResult(): MarkReconnectingLuaResult {
+  return {
+    ok: true,
+    code: 'OK',
+    action: 'markReconnectingSelection',
+    from: USER_STATUS.SELECTING_SEAT,
+    to: USER_STATUS.RECONNECTING_SELECTING,
+  };
+}
+
+function markFailedResult(code: 'STATE_MISMATCH' | 'SESSION_MISSING'): MarkReconnectingLuaResult {
+  return {
+    ok: false,
+    code,
+    action: 'markReconnectingSelection',
+    expectedFrom: USER_STATUS.SELECTING_SEAT,
+    nextTo: USER_STATUS.RECONNECTING_SELECTING,
+    details: [],
+  };
+}
+
+function restoreOkResult(): RestoreSelectingLuaResult {
+  return {
+    ok: true,
+    code: 'OK',
+    action: 'restoreSeatSelection',
+    from: USER_STATUS.RECONNECTING_SELECTING,
+    to: USER_STATUS.SELECTING_SEAT,
+  };
+}
+
+function restoreFailedResult(code: 'NOT_RECONNECTING' | 'STATE_MISMATCH'): RestoreSelectingLuaResult {
+  return {
+    ok: false,
+    code,
+    action: 'restoreSeatSelection',
+    expectedFrom: USER_STATUS.RECONNECTING_SELECTING,
+    nextTo: USER_STATUS.SELECTING_SEAT,
+    details: [],
+  };
+}
+
 async function callLetInNextWaiting(service: BookingService, eventId = 42) {
   await (service as unknown as { letInNextWaiting(eventId: number): Promise<void> }).letInNextWaiting(
     eventId,
@@ -243,50 +309,78 @@ describe('BookingService transaction-local event ownership validation', () => {
     expect(multi.del).not.toHaveBeenCalled();
     expect(multi.hset).not.toHaveBeenCalled();
   });
+});
 
-  it('does not restore reconnecting state for a mismatched transaction targetEvent', async () => {
-    const { authService, service } = createService();
-    const transactionRedis = createRedisMock();
-    const multi = createMultiMock();
+describe('BookingService 재연결 전이 Lua 연동', () => {
+  const runMarkReconnectingLuaMock = jest.mocked(runMarkReconnectingLua);
+  const runRestoreSelectingLuaMock = jest.mocked(runRestoreSelectingLua);
 
-    authService.restoreSeatSelection.mockImplementation(
-      async (_sid: string, options: TransitionOptionsFixture) => {
-        const isValid = await options.validate?.(transactionRedis, createContext(2));
-        if (isValid === false) {
-          return null;
-        }
-
-        await options.mutate?.(multi, createContext(2));
-        return successfulTransition('restoreSeatSelection');
-      },
-    );
-
-    await expectInvalidState(() => service.restoreInBookingFromReconnecting(1, 'sid-1'));
-
-    expect(transactionRedis.zscore).not.toHaveBeenCalled();
-    expect(multi.zrem).not.toHaveBeenCalled();
+  beforeEach(() => {
+    runMarkReconnectingLuaMock.mockReset();
+    runRestoreSelectingLuaMock.mockReset();
   });
 
-  it('returns false without reconnecting zadd when transaction targetEvent changed', async () => {
-    const { authService, service } = createService();
-    const transactionRedis = createRedisMock();
-    const multi = createMultiMock();
+  it('재연결 표시는 세션 키와 재연결 풀 키를 Lua runner에 넘김', async () => {
+    const { redis, service } = createService();
+    runMarkReconnectingLuaMock.mockResolvedValue(markOkResult());
 
-    authService.markReconnectingSelection.mockImplementation(
-      async (_sid: string, options: TransitionOptionsFixture) => {
-        const isValid = await options.validate?.(transactionRedis, createContext(2));
-        if (isValid === false) {
-          return null;
-        }
+    await expect(service.markReconnectingFromSeat(42, 'sid-1')).resolves.toBe(true);
 
-        await options.mutate?.(multi, createContext(2));
-        return successfulTransition('markReconnectingSelection');
-      },
+    expect(runMarkReconnectingLuaMock).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      reconnectingKey: 'reconnecting:42',
+      eventId: 42,
+      sid: 'sid-1',
+      nowMs: expect.any(Number),
+    });
+  });
+
+  it('재연결 표시가 실패하면 슬롯 누수 가능성을 경고 로그로 남기고 false를 반환함', async () => {
+    const { logger, service } = createService();
+    runMarkReconnectingLuaMock.mockResolvedValue(markFailedResult('STATE_MISMATCH'));
+
+    await expect(service.markReconnectingFromSeat(42, 'sid-1')).resolves.toBe(false);
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('STATE_MISMATCH'));
+  });
+
+  it('재연결 복원은 세션 키와 재연결 풀 키를 Lua runner에 넘김', async () => {
+    const { redis, service } = createService();
+    runRestoreSelectingLuaMock.mockResolvedValue(restoreOkResult());
+
+    await expect(service.restoreInBookingFromReconnecting(42, 'sid-1')).resolves.toBeUndefined();
+
+    expect(runRestoreSelectingLuaMock).toHaveBeenCalledWith(redis, {
+      sessionKey: 'user:sid-1',
+      reconnectingKey: 'reconnecting:42',
+      eventId: 42,
+      sid: 'sid-1',
+    });
+  });
+
+  it('재연결 풀 멤버가 아니면 INVALID_STATE로 변환함', async () => {
+    const { service } = createService();
+    runRestoreSelectingLuaMock.mockResolvedValue(restoreFailedResult('NOT_RECONNECTING'));
+
+    await expectInvalidState(() => service.restoreInBookingFromReconnecting(42, 'sid-1'));
+  });
+
+  it('재연결 경로는 WATCH 기반 AuthService 콜백으로 회귀하지 않음', () => {
+    const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
+    const restoreBody = extractMethodBody(
+      source,
+      'async restoreInBookingFromReconnecting',
+      'async markReconnectingFromSeat',
     );
+    const markBody = extractMethodBody(source, 'async markReconnectingFromSeat', 'async isAdmission');
 
-    await expect(service.markReconnectingFromSeat(1, 'sid-1')).resolves.toBe(false);
-
-    expect(multi.zadd).not.toHaveBeenCalled();
+    expect(markBody).toContain('runMarkReconnectingLua(this.redis');
+    expect(restoreBody).toContain('runRestoreSelectingLua(this.redis');
+    for (const body of [markBody, restoreBody]) {
+      expect(body).not.toContain('watchKeys');
+      expect(body).not.toContain('this.authService.markReconnectingSelection');
+      expect(body).not.toContain('this.authService.restoreSeatSelection');
+    }
   });
 });
 
