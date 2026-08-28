@@ -89,20 +89,6 @@ export class InBookingService {
     return true;
   }
 
-  async setBookingAmount(eventId: number, sid: string, amount: number): Promise<number> {
-    const session = await this.getSession(eventId, sid);
-
-    session.bookingAmount = amount;
-    await this.setSession(eventId, session);
-
-    return amount;
-  }
-
-  async getBookingAmount(eventId: number, sid: string): Promise<number> {
-    const session = await this.getSession(eventId, sid);
-    return session.bookingAmount;
-  }
-
   async addBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
     await runAddBookedSeatLua(this.redis, {
       inBookingSessionsKey: this.getEventKey(eventId),
@@ -112,14 +98,6 @@ export class InBookingService {
     });
   }
 
-  async getBookedSeats(eventId: number, sid: string): Promise<[number, number][]> {
-    const session = await this.getSession(eventId, sid);
-    if (!session) {
-      return [];
-    }
-    return session.bookedSeats;
-  }
-
   async removeBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
     await runRemoveBookedSeatLua(this.redis, {
       inBookingSessionsKey: this.getEventKey(eventId),
@@ -127,17 +105,6 @@ export class InBookingService {
       seat,
       requireBooked: false,
     });
-  }
-
-  async removeBookedSeats(eventId: number, sid: string) {
-    const session = await this.getSession(eventId, sid);
-    session.bookedSeats = [];
-    await this.setSession(eventId, session);
-  }
-
-  async getIsSaved(eventId: number, sid: string) {
-    const session = await this.getSession(eventId, sid);
-    return session.saved;
   }
 
   async setIsSaved(eventId: number, sid: string, saved: boolean) {
