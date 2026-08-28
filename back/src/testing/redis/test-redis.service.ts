@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 
 import { installAdmissionCapacityCommandMock } from './admission-capacity-command-mock';
+import { installInBookingSessionCommandMock } from './in-booking-session-command-mock';
 import { installReconnectingTransitionCommandMock } from './reconnecting-transition-command-mock';
 import { installStartSeatSelectionCommandMock } from './start-seat-selection-command-mock';
 import { installUserStateTransitionCommandMock } from './user-state-transition-command-mock';
@@ -17,6 +18,7 @@ export class TestRedisService {
     this.redisClient = new RedisMock() as unknown as Redis;
     this.pubsubClient = new RedisMock() as unknown as Redis;
     installAdmissionCapacityCommandMock(this.redisClient);
+    installInBookingSessionCommandMock(this.redisClient);
     installReconnectingTransitionCommandMock(this.redisClient);
     installStartSeatSelectionCommandMock(this.redisClient);
     installUserStateTransitionCommandMock(this.redisClient);
