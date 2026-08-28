@@ -77,11 +77,12 @@ function createService() {
     startSeatSelection: jest.fn(),
   };
   const bookingSeatsService = {
-    updateSeatDeleted: jest.fn(),
+    updateSeatDeleted: jest.fn().mockResolvedValue(undefined),
   };
   const inBookingService = {
     emitSession: jest.fn(),
     flushAndSetBookingAmount: jest.fn(),
+    flushUnsavedBookedSeats: jest.fn().mockResolvedValue([]),
     getSession: jest.fn(),
     isInBooking: jest.fn(),
     setSession: jest.fn(),
@@ -115,6 +116,8 @@ function createService() {
 
   return {
     authService,
+    bookingSeatsService,
+    inBookingService,
     logger,
     openBookingService,
     redis,
@@ -709,5 +712,68 @@ describe('BookingService 대기 순번 조회', () => {
     });
 
     expect(redis.lrange).toHaveBeenCalledWith('waiting-queue:42', 0, -1);
+  });
+});
+
+describe('BookingService 미확정 좌석 회수', () => {
+  const runWaitingHeadPromotionLuaMock = jest.mocked(runWaitingHeadPromotionLua);
+
+  beforeEach(() => {
+    runWaitingHeadPromotionLuaMock.mockReset();
+    // SSE 종료 정리는 대기열 승격까지 이어지므로 빈 큐로 고정함
+    runWaitingHeadPromotionLuaMock.mockResolvedValue(promotionFailedResult('QUEUE_EMPTY'));
+  });
+
+  it('한 번의 회수 연산이 돌려준 좌석만 반납하고 세션을 다시 쓰지 않음', async () => {
+    const { authService, bookingSeatsService, inBookingService, openBookingService, service } =
+      createService();
+    authService.getUserEventTarget.mockResolvedValue(42);
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    inBookingService.flushUnsavedBookedSeats.mockResolvedValue([
+      [0, 1],
+      [2, 3],
+    ]);
+
+    await service.onSeatsSseDisconnected({ sid: 'sid-1' });
+
+    expect(inBookingService.flushUnsavedBookedSeats).toHaveBeenCalledWith(42, 'sid-1');
+    expect(bookingSeatsService.updateSeatDeleted).toHaveBeenCalledTimes(2);
+    expect(bookingSeatsService.updateSeatDeleted).toHaveBeenCalledWith(42, [0, 1]);
+    expect(bookingSeatsService.updateSeatDeleted).toHaveBeenCalledWith(42, [2, 3]);
+    expect(inBookingService.setSession).not.toHaveBeenCalled();
+  });
+
+  it('회수할 좌석이 없으면 반납을 시도하지 않음', async () => {
+    const { authService, bookingSeatsService, inBookingService, openBookingService, service } =
+      createService();
+    authService.getUserEventTarget.mockResolvedValue(42);
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    inBookingService.flushUnsavedBookedSeats.mockResolvedValue([]);
+
+    await service.onSeatsSseDisconnected({ sid: 'sid-1' });
+
+    expect(bookingSeatsService.updateSeatDeleted).not.toHaveBeenCalled();
+  });
+
+  it('좌석 반납이 실패해도 나머지 정리를 계속하고 경고를 남김', async () => {
+    const { authService, bookingSeatsService, inBookingService, logger, openBookingService, service } =
+      createService();
+    authService.getUserEventTarget.mockResolvedValue(42);
+    openBookingService.isEventOpened.mockResolvedValue(true);
+    inBookingService.flushUnsavedBookedSeats.mockResolvedValue([[0, 1]]);
+    bookingSeatsService.updateSeatDeleted.mockRejectedValue(new Error('이미 반납된 좌석'));
+
+    await expect(service.onSeatsSseDisconnected({ sid: 'sid-1' })).resolves.toBeUndefined();
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('좌석 반납 실패'));
+    expect(inBookingService.emitSession).toHaveBeenCalledWith(42, 'sid-1');
+  });
+
+  it('좌석 회수 경로가 세션 전체 덮어쓰기로 회귀하지 않음', () => {
+    const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
+
+    expect(source).toContain('flushUnsavedBookedSeats');
+    expect(source).not.toContain('inBookingService.setSession');
+    expect(source).not.toContain('bookedSeats.forEach');
   });
 });
