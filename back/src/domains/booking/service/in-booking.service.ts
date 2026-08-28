@@ -14,6 +14,13 @@ import {
   RECONNECTING_SELECTING_GC_INTERVAL,
 } from '../const/seatsSseRetryTime.const';
 import { BookingErrorCode } from '../exception/booking-error-code';
+import {
+  runAddBookedSeatLua,
+  runFlushBookedSeatsLua,
+  runRemoveBookedSeatLua,
+  runSetInBookingSavedLua,
+  runSetSubscribedSectionLua,
+} from '../luaScripts/inBookingSessionLua';
 
 type InBookingSession = {
   sid: string;
@@ -97,9 +104,12 @@ export class InBookingService {
   }
 
   async addBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
-    const session = await this.getSession(eventId, sid);
-    session.bookedSeats.push(seat);
-    await this.setSession(eventId, session);
+    await runAddBookedSeatLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      seat,
+      enforceQuota: false,
+    });
   }
 
   async getBookedSeats(eventId: number, sid: string): Promise<[number, number][]> {
@@ -111,9 +121,12 @@ export class InBookingService {
   }
 
   async removeBookedSeat(eventId: number, sid: string, seat: [number, number]): Promise<void> {
-    const session = await this.getSession(eventId, sid);
-    session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== seat[0] || s[1] !== seat[1]);
-    await this.setSession(eventId, session);
+    await runRemoveBookedSeatLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      seat,
+      requireBooked: false,
+    });
   }
 
   async removeBookedSeats(eventId: number, sid: string) {
@@ -128,9 +141,19 @@ export class InBookingService {
   }
 
   async setIsSaved(eventId: number, sid: string, saved: boolean) {
-    const session = await this.getSession(eventId, sid);
-    session.saved = saved;
-    await this.setSession(eventId, session);
+    await runSetInBookingSavedLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      saved,
+    });
+  }
+
+  async setSubscribedSection(eventId: number, sid: string, sectionIndex: number | null) {
+    await runSetSubscribedSectionLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      sectionIndex,
+    });
   }
 
   async emitSession(eventId: number, sid: string) {
@@ -170,27 +193,35 @@ export class InBookingService {
   }
 
   async validateAndAddBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
-    const session = await this.getSession(eventId, sid);
-    if (!session) {
+    const { code } = await runAddBookedSeatLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      seat: target,
+      enforceQuota: true,
+    });
+
+    if (code === 'SESSION_NOT_FOUND') {
       throw new AppException(BookingErrorCode.SEAT_SESSION_NOT_FOUND);
     }
-    if (session.bookingAmount <= session.bookedSeats.length) {
+    if (code === 'QUOTA_EXCEEDED') {
       throw new AppException(BookingErrorCode.SEAT_QUOTA_EXCEEDED);
     }
-    session.bookedSeats.push(target);
-    await this.setSession(eventId, session);
   }
 
   async validateAndRemoveBookedSeat(eventId: number, sid: string, target: [number, number]): Promise<void> {
-    const session = await this.getSession(eventId, sid);
-    if (!session || session.bookedSeats.length === 0) {
+    const { code } = await runRemoveBookedSeatLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      seat: target,
+      requireBooked: true,
+    });
+
+    if (code === 'CANCEL_EMPTY') {
       throw new AppException(BookingErrorCode.SEAT_CANCEL_EMPTY);
     }
-    if (!session.bookedSeats.some((seat) => seat[0] === target[0] && seat[1] === target[1])) {
+    if (code === 'SEAT_NOT_BOOKED') {
       throw new AppException(BookingErrorCode.SEAT_NOT_BOOKED);
     }
-    session.bookedSeats = session.bookedSeats.filter((s) => s[0] !== target[0] || s[1] !== target[1]);
-    await this.setSession(eventId, session);
   }
 
   async flushAndSetBookingAmount(
@@ -198,15 +229,23 @@ export class InBookingService {
     sid: string,
     amount: number,
   ): Promise<{ flushedSeats: [number, number][] }> {
-    const session = await this.getSession(eventId, sid);
-    if (!session) {
-      return { flushedSeats: [] };
-    }
-    const flushedSeats = [...session.bookedSeats];
-    session.bookedSeats = [];
-    session.bookingAmount = amount;
-    await this.setSession(eventId, session);
-    return { flushedSeats };
+    const { seats } = await runFlushBookedSeatsLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      bookingAmount: amount,
+    });
+
+    return { flushedSeats: seats };
+  }
+
+  async flushUnsavedBookedSeats(eventId: number, sid: string): Promise<[number, number][]> {
+    const { seats } = await runFlushBookedSeatsLua(this.redis, {
+      inBookingSessionsKey: this.getEventKey(eventId),
+      sid,
+      onlyWhenUnsaved: true,
+    });
+
+    return seats;
   }
 
   async getAllInBookingSids(eventId: number): Promise<string[]> {

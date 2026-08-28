@@ -352,8 +352,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     }
 
     // SSE 풀 조작 성공 후에만 세션의 subscribedSection 갱신 (D-01)
-    session.subscribedSection = sectionIndex;
-    await this.inBookingService.setSession(eventId, session);
+    await this.inBookingService.setSubscribedSection(eventId, sid, sectionIndex);
 
     return { sectionIndex, seatStatus: seats ?? [] };
   }
