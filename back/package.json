@@ -16,6 +16,7 @@
     "start:prod:debug": "cross-env NODE_ENV=production EXEC_MODE=dev nest start --debug 0.0.0.0:9229 --watch",
     "test": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json",
     "test:unit": "cross-env NODE_ENV=test jest",
+    "test:lua": "cross-env NODE_ENV=test jest --testRegex \".*\\.real-spec\\.ts$\"",
     "test:watch": "cross-env NODE_ENV=test EXEC_MODE=test jest --config ./test/jest-e2e.json --watch",
     "test:cov": "cross-env NODE_ENV=test jest --coverage",
     "test:debug": "cross-env NODE_ENV=test node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
