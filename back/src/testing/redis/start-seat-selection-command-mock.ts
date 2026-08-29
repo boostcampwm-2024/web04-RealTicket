@@ -1,7 +1,5 @@
 import Redis from 'ioredis';
 
-import { USER_STATUS } from '../../auth/fsm/user-state.fsm';
-
 type StartSeatSelectionRawResult = Array<string | number | null>;
 
 type RedisWithStartSeatSelectionCommand = Redis & {
@@ -14,6 +12,8 @@ type RedisWithStartSeatSelectionCommand = Redis & {
     sid: string,
     inBookingSessionPrefix: string,
     inBookingSessionSuffix: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<StartSeatSelectionRawResult>;
 };
 
@@ -27,6 +27,8 @@ async function emulateStartSeatSelectionFromEntering(
   sid: string,
   inBookingSessionPrefix: string,
   inBookingSessionSuffix: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<StartSeatSelectionRawResult> {
   const raw = await redis.get(sessionKey);
   if (!raw) {
@@ -35,7 +37,7 @@ async function emulateStartSeatSelectionFromEntering(
 
   const session = JSON.parse(raw) as Record<string, unknown>;
 
-  if (session.userStatus !== USER_STATUS.ENTERING) {
+  if (session.userStatus !== expectedFrom) {
     return ['STATE_MISMATCH', session.userStatus as string];
   }
 
@@ -53,7 +55,7 @@ async function emulateStartSeatSelectionFromEntering(
     bookingAmount = Math.floor(parsedBookingAmount);
   }
 
-  session.userStatus = USER_STATUS.SELECTING_SEAT;
+  session.userStatus = nextTo;
 
   const ttl = await redis.pttl(sessionKey);
   if (ttl === -2 || ttl === 0 || ttl < -1) {

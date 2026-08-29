@@ -4,10 +4,11 @@ import { join } from 'path';
 import Redis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 
-import { USER_STATUS } from '../../../auth/fsm/user-state.fsm';
+import { USER_STATE_TRANSITIONS, USER_STATUS } from '../../../auth/fsm/user-state.fsm';
 import { installStartSeatSelectionCommandMock } from '../../../testing/redis/start-seat-selection-command-mock';
 
 import {
+  START_SEAT_SELECTION_TRANSITION,
   buildInBookingSessionFragments,
   runStartSeatSelectionLua,
   startSeatSelectionLua,
@@ -183,9 +184,17 @@ describe('좌석 선택 진입 Lua 정적 계약', () => {
     );
   });
 
-  it('상태 문자열을 FSM 상수에서 주입해 literal 드리프트를 막음', () => {
-    expect(startSeatSelectionLua).toContain(`session.userStatus ~= '${USER_STATUS.ENTERING}'`);
-    expect(startSeatSelectionLua).toContain(`session.userStatus = '${USER_STATUS.SELECTING_SEAT}'`);
+  it('from/to를 스크립트에 적어두지 않고 FSM 전이 테이블에서 유도함', () => {
+    expect(USER_STATE_TRANSITIONS).toContainEqual(START_SEAT_SELECTION_TRANSITION);
+    expect(START_SEAT_SELECTION_TRANSITION.from).toBe(USER_STATUS.ENTERING);
+  });
+
+  it('Lua 본문에 상태 문자열을 박아두지 않고 ARGV로 받음', () => {
+    expect(startSeatSelectionLua).toContain('session.userStatus ~= expectedFrom');
+    expect(startSeatSelectionLua).toContain('session.userStatus = nextTo');
+    for (const state of Object.values(USER_STATUS)) {
+      expect(startSeatSelectionLua).not.toContain(`'${state}'`);
+    }
   });
 
   it('entering 멤버십을 ZREM 반환값으로 확인해 별도 조회를 하지 않음', () => {

@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 import {
   mapLuaUserStateTransitionResult,
+  resolveUserStateTransition,
   type LuaUserStateTransitionRawResult,
   type LuaUserStateTransitionResult,
 } from '../../../auth/fsm/user-state-transition.contract';
@@ -13,6 +14,11 @@ export type StartSeatSelectionBusinessCode = 'NOT_ENTERING';
 export const START_SEAT_SELECTION_BUSINESS_CODES = [
   'NOT_ENTERING',
 ] as const satisfies readonly StartSeatSelectionBusinessCode[];
+
+export const START_SEAT_SELECTION_TRANSITION = resolveUserStateTransition(
+  'startSeatSelection',
+  USER_STATUS.ENTERING,
+);
 
 export type StartSeatSelectionLuaResult = LuaUserStateTransitionResult<StartSeatSelectionBusinessCode>;
 
@@ -49,6 +55,8 @@ export const startSeatSelectionLua = `
   local sid = ARGV[2]
   local inBookingSessionPrefix = ARGV[3]
   local inBookingSessionSuffix = ARGV[4]
+  local expectedFrom = ARGV[5]
+  local nextTo = ARGV[6]
 
   local raw = redis.call('GET', sessionKey)
   if not raw then
@@ -56,7 +64,7 @@ export const startSeatSelectionLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= '${USER_STATUS.ENTERING}' then
+  if session.userStatus ~= expectedFrom then
     return {'STATE_MISMATCH', session.userStatus}
   end
 
@@ -75,7 +83,7 @@ export const startSeatSelectionLua = `
     bookingAmount = math.floor(parsedBookingAmount)
   end
 
-  session.userStatus = '${USER_STATUS.SELECTING_SEAT}'
+  session.userStatus = nextTo
 
   local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
   if prepareCode ~= 'OK' then
@@ -108,6 +116,8 @@ type RedisWithStartSeatSelectionCommand = Redis & {
     sid: string,
     inBookingSessionPrefix: string,
     inBookingSessionSuffix: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult<StartSeatSelectionBusinessCode>>;
 };
 
@@ -129,9 +139,9 @@ export function mapStartSeatSelectionLuaResult(
   raw: LuaUserStateTransitionRawResult<StartSeatSelectionBusinessCode>,
 ): StartSeatSelectionLuaResult {
   return mapLuaUserStateTransitionResult(raw, {
-    action: 'startSeatSelection',
-    expectedFrom: USER_STATUS.ENTERING,
-    nextTo: USER_STATUS.SELECTING_SEAT,
+    action: START_SEAT_SELECTION_TRANSITION.action,
+    expectedFrom: START_SEAT_SELECTION_TRANSITION.from,
+    nextTo: START_SEAT_SELECTION_TRANSITION.to,
     businessCodes: START_SEAT_SELECTION_BUSINESS_CODES,
   });
 }
@@ -151,6 +161,8 @@ export async function runStartSeatSelectionLua(
     input.sid,
     prefix,
     suffix,
+    START_SEAT_SELECTION_TRANSITION.from,
+    START_SEAT_SELECTION_TRANSITION.to,
   );
 
   return mapStartSeatSelectionLuaResult(rawResult);

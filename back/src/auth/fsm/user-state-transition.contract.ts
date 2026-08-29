@@ -127,6 +127,28 @@ function parseRawLuaResult<TBusinessCode extends string>(
   throw new TypeError('Lua user state transition result must include a string code');
 }
 
+export type ResolvedUserStateTransition = {
+  action: UserStateTransitionAction;
+  from: BookingUserState;
+  to: BookingUserState;
+};
+
+export function resolveUserStateTransition(
+  action: UserStateTransitionAction,
+  expectedFrom: BookingUserState,
+): ResolvedUserStateTransition {
+  const result = transitionUserState(action, expectedFrom);
+
+  // strictNullChecks가 꺼져 있어 ok 판별만으로는 좁혀지지 않으므로 reason 유무로 실패를 가른다.
+  if ('reason' in result) {
+    throw new TypeError(
+      `상태 전이 테이블이 허용하지 않는 전이입니다: ${action} (from=${expectedFrom}, reason=${result.reason})`,
+    );
+  }
+
+  return { action, from: result.from, to: result.to };
+}
+
 export function buildLuaUserStateTransitionInput(
   params: BuildLuaUserStateTransitionInputParams,
 ): TransitionResult | LuaUserStateTransitionInput {

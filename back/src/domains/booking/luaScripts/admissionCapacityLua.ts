@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 import {
   mapLuaUserStateTransitionResult,
+  resolveUserStateTransition,
   type LuaUserStateTransitionRawResult,
   type LuaUserStateTransitionResult,
 } from '../../../auth/fsm/user-state-transition.contract';
@@ -28,6 +29,16 @@ export const WAITING_HEAD_PROMOTION_BUSINESS_CODES = [
   'STALE_STATE_MISMATCH',
   'STALE_TARGET_EVENT_MISMATCH',
 ] as const satisfies readonly WaitingHeadPromotionBusinessCode[];
+
+export const IMMEDIATE_ADMISSION_TRANSITION = resolveUserStateTransition(
+  'enterBookingGate',
+  USER_STATUS.LOGIN,
+);
+
+export const WAITING_HEAD_PROMOTION_TRANSITION = resolveUserStateTransition(
+  'enterBookingGate',
+  USER_STATUS.WAITING,
+);
 
 export type ImmediateAdmissionLuaResult = LuaUserStateTransitionResult<ImmediateAdmissionBusinessCode>;
 
@@ -113,6 +124,8 @@ export const immediateAdmissionLua = `
   local defaultMaxSizeKey = ARGV[2]
   local defaultMaxSizeFallback = ARGV[3]
   local nowMs = tonumber(ARGV[4])
+  local expectedFrom = ARGV[5]
+  local nextTo = ARGV[6]
 
   local raw = redis.call('GET', sessionKey)
   if not raw then
@@ -120,7 +133,7 @@ export const immediateAdmissionLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= 'LOGIN' then
+  if session.userStatus ~= expectedFrom then
     return {'STATE_MISMATCH', session.userStatus}
   end
 
@@ -139,7 +152,7 @@ export const immediateAdmissionLua = `
     return {'CAPACITY_FULL'}
   end
 
-  session.userStatus = 'ENTERING'
+  session.userStatus = nextTo
   session.targetEvent = eventId
 
   local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
@@ -168,6 +181,8 @@ export const waitingHeadPromotionLua = `
   local userKeyPrefix = ARGV[2]
   local defaultMaxSizeFallback = ARGV[3]
   local nowMs = tonumber(ARGV[4])
+  local expectedFrom = ARGV[5]
+  local nextTo = ARGV[6]
 
   local head = redis.call('LINDEX', waitingQueueKey, 0)
   if not head then
@@ -196,7 +211,7 @@ export const waitingHeadPromotionLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= 'WAITING' then
+  if session.userStatus ~= expectedFrom then
     redis.call('LPOP', waitingQueueKey)
     return {'STALE_STATE_MISMATCH', session.userStatus}
   end
@@ -206,7 +221,7 @@ export const waitingHeadPromotionLua = `
     return {'STALE_TARGET_EVENT_MISMATCH', session.targetEvent}
   end
 
-  session.userStatus = 'ENTERING'
+  session.userStatus = nextTo
   local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
   if prepareCode ~= 'OK' then
     return {prepareCode}
@@ -229,6 +244,8 @@ type RedisWithAdmissionCapacityCommands = Redis & {
     defaultMaxSizeKey: string,
     defaultMaxSize: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult<ImmediateAdmissionBusinessCode>>;
 
   promoteWaitingQueueHead(
@@ -242,6 +259,8 @@ type RedisWithAdmissionCapacityCommands = Redis & {
     userKeyPrefix: string,
     defaultMaxSize: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult<WaitingHeadPromotionBusinessCode>>;
 };
 
@@ -267,9 +286,9 @@ export function mapImmediateAdmissionLuaResult(
   raw: LuaUserStateTransitionRawResult<ImmediateAdmissionBusinessCode>,
 ): ImmediateAdmissionLuaResult {
   return mapLuaUserStateTransitionResult(raw, {
-    action: 'enterBookingGate',
-    expectedFrom: USER_STATUS.LOGIN,
-    nextTo: USER_STATUS.ENTERING,
+    action: IMMEDIATE_ADMISSION_TRANSITION.action,
+    expectedFrom: IMMEDIATE_ADMISSION_TRANSITION.from,
+    nextTo: IMMEDIATE_ADMISSION_TRANSITION.to,
     businessCodes: IMMEDIATE_ADMISSION_BUSINESS_CODES,
   });
 }
@@ -278,9 +297,9 @@ export function mapWaitingHeadPromotionLuaResult(
   raw: LuaUserStateTransitionRawResult<WaitingHeadPromotionBusinessCode>,
 ): WaitingHeadPromotionLuaResult {
   return mapLuaUserStateTransitionResult(raw, {
-    action: 'enterBookingGate',
-    expectedFrom: USER_STATUS.WAITING,
-    nextTo: USER_STATUS.ENTERING,
+    action: WAITING_HEAD_PROMOTION_TRANSITION.action,
+    expectedFrom: WAITING_HEAD_PROMOTION_TRANSITION.from,
+    nextTo: WAITING_HEAD_PROMOTION_TRANSITION.to,
     businessCodes: WAITING_HEAD_PROMOTION_BUSINESS_CODES,
   });
 }
@@ -300,6 +319,8 @@ export async function runImmediateAdmissionLua(
     input.keys.defaultMaxSizeKey,
     String(input.defaultMaxSize),
     String(input.nowMs),
+    IMMEDIATE_ADMISSION_TRANSITION.from,
+    IMMEDIATE_ADMISSION_TRANSITION.to,
   );
 
   return mapImmediateAdmissionLuaResult(rawResult);
@@ -321,6 +342,8 @@ export async function runWaitingHeadPromotionLua(
     input.userKeyPrefix,
     String(input.defaultMaxSize),
     String(input.nowMs),
+    WAITING_HEAD_PROMOTION_TRANSITION.from,
+    WAITING_HEAD_PROMOTION_TRANSITION.to,
   );
 
   return mapWaitingHeadPromotionLuaResult(rawResult);

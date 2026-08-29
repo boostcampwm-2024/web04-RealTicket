@@ -4,10 +4,12 @@ import { join } from 'path';
 import Redis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 
-import { USER_STATUS } from '../../../auth/fsm/user-state.fsm';
+import { USER_STATE_TRANSITIONS, USER_STATUS } from '../../../auth/fsm/user-state.fsm';
 import { installReconnectingTransitionCommandMock } from '../../../testing/redis/reconnecting-transition-command-mock';
 
 import {
+  MARK_RECONNECTING_TRANSITION,
+  RESTORE_SELECTING_TRANSITION,
   mapMarkReconnectingLuaResult,
   mapRestoreSelectingLuaResult,
   markReconnectingLua,
@@ -195,11 +197,21 @@ describe('재연결 전이 Lua 결과 매핑', () => {
 });
 
 describe('재연결 전이 Lua 정적 계약', () => {
-  it('상태 문자열을 FSM 상수에서 주입해 literal 드리프트를 막음', () => {
-    expect(markReconnectingLua).toContain(`session.userStatus ~= '${USER_STATUS.SELECTING_SEAT}'`);
-    expect(markReconnectingLua).toContain(`session.userStatus = '${USER_STATUS.RECONNECTING_SELECTING}'`);
-    expect(restoreSelectingLua).toContain(`session.userStatus ~= '${USER_STATUS.RECONNECTING_SELECTING}'`);
-    expect(restoreSelectingLua).toContain(`session.userStatus = '${USER_STATUS.SELECTING_SEAT}'`);
+  it('from/to를 스크립트에 적어두지 않고 FSM 전이 테이블에서 유도함', () => {
+    expect(USER_STATE_TRANSITIONS).toContainEqual(MARK_RECONNECTING_TRANSITION);
+    expect(USER_STATE_TRANSITIONS).toContainEqual(RESTORE_SELECTING_TRANSITION);
+    expect(MARK_RECONNECTING_TRANSITION.from).toBe(USER_STATUS.SELECTING_SEAT);
+    expect(RESTORE_SELECTING_TRANSITION.from).toBe(USER_STATUS.RECONNECTING_SELECTING);
+  });
+
+  it('Lua 본문에 상태 문자열을 박아두지 않고 ARGV로 받음', () => {
+    for (const script of [markReconnectingLua, restoreSelectingLua]) {
+      expect(script).toContain('session.userStatus ~= expectedFrom');
+      expect(script).toContain('session.userStatus = nextTo');
+      for (const state of Object.values(USER_STATUS)) {
+        expect(script).not.toContain(`'${state}'`);
+      }
+    }
   });
 
   it('세션 쓰기 전에 재연결 풀 변경을 끝내 부분 반영을 만들지 않음', () => {
