@@ -412,14 +412,14 @@ describe('admissionCapacityLua 계약', () => {
     );
   });
 
-  it('Lua는 Redis TIME 대신 app-provided nowMs를 entering score로 사용함', () => {
+  it('Lua 모듈은 시각을 직접 읽지 않고 app-provided nowMs를 entering score로 사용함', () => {
     const source = readFileSync(join(__dirname, 'admissionCapacityLua.ts'), 'utf8');
 
-    expect(source).toContain('Date.now()');
     expect(source).toContain('local nowMs = tonumber(ARGV[4])');
     expect(source).toContain("redis.call('ZADD', enteringKey, nowMs,");
     expect(source).not.toContain("redis.call('TIME'");
     expect(source).not.toContain('redis.call("TIME"');
+    expect(source).not.toContain('Date.now()');
   });
 
   it('즉시 입장 성공 경로는 entering zset 쓰기 이후 세션을 최종 저장함', () => {
