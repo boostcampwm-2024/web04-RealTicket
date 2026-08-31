@@ -1,0 +1,109 @@
+name: PR Greenlight
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-greenlight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix front
+
+      - name: Run frontend tests
+        run: npm run test:front
+
+      - name: Build frontend
+        run: npm run build:front
+
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: back/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix back
+
+      - name: Run backend unit tests
+        run: npm run test:back:unit
+
+      - name: Run backend E2E tests
+        run: npm run test:e2e
+
+      - name: Run backend Redis Lua tests
+        run: npm run test:back:lua
+        env:
+          LUA_TEST_REDIS_HOST: 127.0.0.1
+          LUA_TEST_REDIS_PORT: 6379
+          LUA_TEST_REDIS_DB: 15
+
+      - name: Build backend
+        run: npm run build:back
+
+  greenlight:
+    name: PR Greenlight Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [frontend, backend]
+    if: ${{ always() }}
+
+    steps:
+      - name: Verify required jobs
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: |
+          if [ "$FRONTEND_RESULT" != "success" ] || [ "$BACKEND_RESULT" != "success" ]; then
+            echo "Frontend checks: $FRONTEND_RESULT"
+            echo "Backend checks: $BACKEND_RESULT"
+            exit 1
+          fi

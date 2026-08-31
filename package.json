@@ -4,10 +4,15 @@
   "description": "예매 서비스",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run test:front && npm run test:back",
     "test:front": "npm --prefix front run test -- --run",
+    "test:back": "npm run test:back:unit && npm run test:e2e",
+    "test:back:unit": "npm --prefix back run test:unit",
     "test:e2e": "npm --prefix back run test",
-    "greenlight": "npm run test:front && npm run test:e2e && node -e \"const{execSync}=require('child_process'),crypto=require('crypto');const hash=crypto.createHash('sha256').update(execSync('git diff HEAD').toString()).digest('hex');require('fs').writeFileSync('.greenlight-stamp',hash);\" && echo '✅ Greenlight 발급: 모든 테스트 통과'",
+    "test:back:lua": "npm --prefix back run test:lua",
+    "build": "npm run build:front && npm run build:back",
+    "build:front": "npm --prefix front run build",
+    "build:back": "npm --prefix back run build",
     "lint-staged": "lint-staged",
     "prepare": "husky",
     "branch": "node ./scripts/makeLinkedBranch.js"

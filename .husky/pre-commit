@@ -1,28 +1,2 @@
 #!/bin/sh
 npm run lint-staged
-
-# ── Greenlight 검증 ──────────────────────────────────────────
-STAMP=".greenlight-stamp"
-
-if [ ! -f "$STAMP" ]; then
-  echo ""
-  echo "❌  E2E Greenlight 없음. 커밋 전 아래 명령을 실행하세요:"
-  echo "    npm run greenlight"
-  echo ""
-  exit 1
-fi
-
-STAMP_HASH=$(cat "$STAMP")
-CURRENT_HASH=$(git diff HEAD | sha256sum | cut -d' ' -f1)
-
-if [ "$STAMP_HASH" != "$CURRENT_HASH" ]; then
-  echo ""
-  echo "❌  Greenlight 발급 이후 코드가 변경됐습니다."
-  echo "    npm run greenlight 재실행 후 커밋하세요."
-  echo ""
-  rm "$STAMP"
-  exit 1
-fi
-
-echo "✅  Greenlight 검증 통과"
-rm "$STAMP"
