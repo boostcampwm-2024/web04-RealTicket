@@ -97,17 +97,25 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async collectSeatsIfNotSaved(eventId: number, sid: string) {
-    const inBookingSession = await this.inBookingService.getSession(eventId, sid);
     if (process.env.BENCHMARK_MODE === 'true' && eventId === 1) {
       return;
     }
-    if (inBookingSession && !inBookingSession.saved) {
-      const bookedSeats = inBookingSession.bookedSeats;
-      bookedSeats.forEach((seat) => {
-        this.bookingSeatsService.updateSeatDeleted(eventId, seat);
-      });
-      inBookingSession.bookedSeats = [];
-      await this.inBookingService.setSession(eventId, inBookingSession);
+
+    const flushedSeats = await this.inBookingService.flushUnsavedBookedSeats(eventId, sid);
+
+    await Promise.all(flushedSeats.map((seat) => this.releaseSeatQuietly(eventId, sid, seat)));
+  }
+
+  private async releaseSeatQuietly(eventId: number, sid: string, seat: [number, number]) {
+    try {
+      await this.bookingSeatsService.updateSeatDeleted(eventId, seat);
+    } catch (error) {
+      // 반납 실패가 나머지 정리(세션 회수, 대기열 승격)를 막지 않도록 흡수하되 남겨 둠
+      this.logger.warn(
+        `좌석 반납 실패: eventId=${eventId} sid=${sid} seat=${JSON.stringify(seat)} — ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
     }
   }
 
