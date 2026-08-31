@@ -50,43 +50,14 @@ export class EnterBookingService {
     }
   }
 
-  async addEnteringSession(eventId: number, sid: string) {
-    const timestamp = Date.now();
-    await this.redis.zadd(`entering:${eventId}`, timestamp, sid);
-    return true;
-  }
-
-  async removeEnteringSession(eventId: number, sid: string) {
-    await this.redis.zrem(`entering:${eventId}`, sid);
-    await this.removeBookingAmount(sid);
-    return true;
-  }
-
   async isEntering(eventId: number, sid: string) {
     const isMember = await this.redis.zscore(`entering:${eventId}`, sid);
     return isMember !== null;
   }
 
-  async getEnteringSessionCount(eventId: number) {
-    return this.redis.zcard(`entering:${eventId}`);
-  }
-
   async setBookingAmount(sid: string, bookingAmount: number) {
     await this.redis.set(`entering:${sid}:temp-booking-amount`, bookingAmount);
     return bookingAmount;
-  }
-
-  async getBookingAmount(sid: string) {
-    const bookingAmountData = await this.redis.get(`entering:${sid}:temp-booking-amount`);
-    if (!bookingAmountData) {
-      return 0;
-    }
-    return parseInt(bookingAmountData);
-  }
-
-  async removeBookingAmount(sid: string) {
-    await this.redis.del(`entering:${sid}:temp-booking-amount`);
-    return true;
   }
 
   private async removeExpiredSessions(eventId: number) {

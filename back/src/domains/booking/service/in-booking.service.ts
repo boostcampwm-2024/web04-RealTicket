@@ -140,16 +140,6 @@ export class InBookingService {
     }
   }
 
-  async getInBookingSessionsMaxSize(eventId: number) {
-    const raw = await this.redis.get(`in-booking:${eventId}:max-size`);
-    if (!raw) return await this.getInBookingSessionsDefaultMaxSize();
-    return parseInt(raw);
-  }
-
-  async getInBookingSessionCount(eventId: number): Promise<number> {
-    return this.redis.hlen(this.getEventKey(eventId));
-  }
-
   private getEventKey(eventId: number) {
     return `in-booking:${eventId}:sessions`;
   }
@@ -260,19 +250,9 @@ export class InBookingService {
     }
   }
 
-  async addReconnectingSession(eventId: number, sid: string) {
-    const timestamp = Date.now();
-    await this.redis.zadd(`reconnecting:${eventId}`, timestamp, sid);
-    return true;
-  }
-
   async removeReconnectingSession(eventId: number, sid: string) {
     await this.redis.zrem(`reconnecting:${eventId}`, sid);
     return true;
-  }
-
-  async getReconnectingSessionCount(eventId: number) {
-    return this.redis.zcard(`reconnecting:${eventId}`);
   }
 
   private async removeExpiredReconnectingSessions(eventId: number) {

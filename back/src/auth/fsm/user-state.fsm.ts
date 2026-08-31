@@ -26,7 +26,7 @@ export type UserStateTransitionAction =
   | 'resetToLogin';
 
 export type TransitionResult =
-  | { ok: true; action: UserStateTransitionAction; from: BookingUserState; to: BookingUserState }
+  | { ok: true; action: UserStateTransitionAction; from?: BookingUserState; to: BookingUserState }
   | {
       ok: false;
       action: UserStateTransitionAction;
@@ -81,11 +81,15 @@ export function getAllowedTransitions(): readonly UserStateTransition[] {
   return USER_STATE_TRANSITIONS;
 }
 
+export function getUserStateTransitionTarget(action: UserStateTransitionAction): BookingUserState {
+  return TRANSITION_DEFAULT_TARGETS[action];
+}
+
 export function transitionUserState(
   action: UserStateTransitionAction,
   current: SessionUserStatus | string,
 ): TransitionResult {
-  const to = TRANSITION_DEFAULT_TARGETS[action];
+  const to = getUserStateTransitionTarget(action);
 
   if (!isSessionUserStatus(current)) {
     return { ok: false, action, from: current, to, reason: 'UNKNOWN_STATE' };

@@ -88,22 +88,20 @@ describe('booking abnormal flows', () => {
       expect(sessionAfter.targetEvent).toBe(eventId);
     });
 
-    it('ABN-01b: admission CAS loss does not leak targetEvent or entering slot', async () => {
+    it('ABN-01b: admission Lua write failure does not leak targetEvent or entering slot', async () => {
       await openEventReservation(app, adminSid, eventId).expect(201);
       const userSid = await loginAsUser(app, 'abn01buser1', 'pass1234');
-      const enterSpy = jest.spyOn(authService, 'enterBookingGate').mockResolvedValueOnce(null);
+      const redis = getRedisService(app).getOrThrow();
+      await redis.set(`entering:${eventId}`, 'wrong-type');
 
       const res = await requestPermission(app, userSid, eventId);
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(500);
       const sessionAfter = await authService.getUserSession(userSid);
       expect(sessionAfter.userStatus).toBe('LOGIN');
       expect(sessionAfter.targetEvent).toBeNull();
 
-      const redis = getRedisService(app).getOrThrow();
-      expect(await redis.zscore(`entering:${eventId}`, userSid)).toBeNull();
-
-      enterSpy.mockRestore();
+      expect(await redis.get(`entering:${eventId}`)).toBe('wrong-type');
     });
 
     it('ABN-02: SELECTING_SEAT cross-event permission returns 400 without mutation', async () => {
@@ -286,15 +284,15 @@ describe('booking abnormal flows', () => {
       await requestPermission(app, userSid, eventId).expect(200);
       await setBookingCount(app, userSid, 1).expect(201);
 
-      const startSpy = jest.spyOn(authService, 'startSeatSelection').mockResolvedValueOnce(null);
+      // entering 풀에서 사라진 상태(예: GC 회수)를 만들어 전이가 fail-closed 되는지 확인함
+      const redis = getRedisService(app).getOrThrow();
+      await redis.zrem(`entering:${eventId}`, userSid);
 
       await expect(bookingService.setInBookingFromEntering(userSid)).rejects.toThrow();
 
       const sessionAfter = await authService.getUserSession(userSid);
       expect(sessionAfter.userStatus).toBe('ENTERING');
       expect(await inBookingService.getSession(eventId, userSid)).toBeNull();
-
-      startSpy.mockRestore();
     });
   });
 });
