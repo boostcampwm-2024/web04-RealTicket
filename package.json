@@ -4,9 +4,15 @@
   "description": "예매 서비스",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run test:front && npm run test:back",
     "test:front": "npm --prefix front run test -- --run",
+    "test:back": "npm run test:back:unit && npm run test:e2e",
+    "test:back:unit": "npm --prefix back run test:unit",
     "test:e2e": "npm --prefix back run test",
+    "test:back:lua": "npm --prefix back run test:lua",
+    "build": "npm run build:front && npm run build:back",
+    "build:front": "npm --prefix front run build",
+    "build:back": "npm --prefix back run build",
     "lint-staged": "lint-staged",
     "prepare": "husky",
     "branch": "node ./scripts/makeLinkedBranch.js"
