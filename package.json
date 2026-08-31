@@ -7,7 +7,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:front": "npm --prefix front run test -- --run",
     "test:e2e": "npm --prefix back run test",
-    "greenlight": "npm run test:front && npm run test:e2e && node -e \"const{execSync}=require('child_process'),crypto=require('crypto');const hash=crypto.createHash('sha256').update(execSync('git diff HEAD').toString()).digest('hex');require('fs').writeFileSync('.greenlight-stamp',hash);\" && echo '✅ Greenlight 발급: 모든 테스트 통과'",
     "lint-staged": "lint-staged",
     "prepare": "husky",
     "branch": "node ./scripts/makeLinkedBranch.js"
