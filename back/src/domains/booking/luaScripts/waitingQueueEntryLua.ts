@@ -2,11 +2,14 @@ import Redis from 'ioredis';
 
 import {
   mapLuaUserStateTransitionResult,
+  resolveUserStateTransition,
   type LuaUserStateTransitionRawResult,
   type LuaUserStateTransitionResult,
 } from '../../../auth/fsm/user-state-transition.contract';
 import { USER_STATUS } from '../../../auth/fsm/user-state.fsm';
 import { sessionWriteLuaHelpers } from '../../../auth/luaScripts/sessionLuaHelpers';
+
+export const ENTER_WAITING_TRANSITION = resolveUserStateTransition('enterWaiting', USER_STATUS.LOGIN);
 
 export type WaitingQueueEntryLuaInput = {
   sessionKey: string;
@@ -30,6 +33,8 @@ export const waitingQueueEntryLua = `
 
   local eventId = tonumber(ARGV[1])
   local sid = ARGV[2]
+  local expectedFrom = ARGV[3]
+  local nextTo = ARGV[4]
 
   local raw = redis.call('GET', sessionKey)
   if not raw then
@@ -37,7 +42,7 @@ export const waitingQueueEntryLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= '${USER_STATUS.LOGIN}' then
+  if session.userStatus ~= expectedFrom then
     return {'STATE_MISMATCH', session.userStatus}
   end
 
@@ -47,7 +52,7 @@ export const waitingQueueEntryLua = `
 
   local order = redis.call('INCR', waitingOrderKey)
 
-  session.userStatus = '${USER_STATUS.WAITING}'
+  session.userStatus = nextTo
   session.targetEvent = eventId
   session.waitingOrder = order
 
@@ -69,6 +74,8 @@ type RedisWithWaitingQueueEntryCommand = Redis & {
     waitingOrderKey: string,
     eventId: string,
     sid: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult>;
 };
 
@@ -90,9 +97,9 @@ export function mapWaitingQueueEntryLuaResult(
   raw: LuaUserStateTransitionRawResult,
 ): WaitingQueueEntryLuaResult {
   const transition = mapLuaUserStateTransitionResult(raw, {
-    action: 'enterWaiting',
-    expectedFrom: USER_STATUS.LOGIN,
-    nextTo: USER_STATUS.WAITING,
+    action: ENTER_WAITING_TRANSITION.action,
+    expectedFrom: ENTER_WAITING_TRANSITION.from,
+    nextTo: ENTER_WAITING_TRANSITION.to,
   });
 
   if (!transition.ok) {
@@ -120,6 +127,8 @@ export async function runWaitingQueueEntryLua(
     input.waitingOrderKey,
     String(input.eventId),
     input.sid,
+    ENTER_WAITING_TRANSITION.from,
+    ENTER_WAITING_TRANSITION.to,
   );
 
   return mapWaitingQueueEntryLuaResult(rawResult);

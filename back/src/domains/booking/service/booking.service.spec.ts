@@ -68,13 +68,8 @@ function createService() {
   };
 
   const authService = {
-    enterWaiting: jest.fn(),
-    enterBookingGate: jest.fn(),
     getUserSession: jest.fn(),
     getUserEventTarget: jest.fn(),
-    markReconnectingSelection: jest.fn(),
-    restoreSeatSelection: jest.fn(),
-    startSeatSelection: jest.fn(),
   };
   const bookingSeatsService = {
     updateSeatDeleted: jest.fn().mockResolvedValue(undefined),
@@ -482,7 +477,6 @@ describe('BookingService immediate admission Lua integration', () => {
       defaultMaxSize: IN_BOOKING_DEFAULT_MAX_SIZE,
       nowMs: expect.any(Number),
     });
-    expect(authService.enterBookingGate).not.toHaveBeenCalled();
   });
 
   it('즉시 입장 Lua CAPACITY_FULL 결과는 INVALID_STATE가 아니라 기존 대기열 DTO로 이어짐', async () => {
@@ -505,7 +499,6 @@ describe('BookingService immediate admission Lua integration', () => {
       userOrder: 1,
     });
 
-    expect(authService.enterBookingGate).not.toHaveBeenCalled();
     expect(runWaitingQueueEntryLuaMock).toHaveBeenCalledWith(redis, {
       sessionKey: 'user:sid-1',
       waitingQueueKey: 'waiting-queue:42',
@@ -530,7 +523,6 @@ describe('BookingService immediate admission Lua integration', () => {
 
     await expectInvalidState(() => service.isAdmission(42, 'sid-1'));
 
-    expect(authService.enterBookingGate).not.toHaveBeenCalled();
     expect(runWaitingQueueEntryLuaMock).not.toHaveBeenCalled();
   });
 
@@ -583,7 +575,7 @@ describe('BookingService waiting-head promotion Lua integration', () => {
   });
 
   it('대기열 head 승격 OK면 정원이 찰 때까지 Lua 호출을 반복함', async () => {
-    const { authService, redis, service } = createService();
+    const { redis, service } = createService();
     runWaitingHeadPromotionLuaMock
       .mockResolvedValueOnce(promotionOkResult())
       .mockResolvedValueOnce(promotionOkResult())
@@ -606,7 +598,6 @@ describe('BookingService waiting-head promotion Lua integration', () => {
       defaultMaxSize: IN_BOOKING_DEFAULT_MAX_SIZE,
       nowMs: expect.any(Number),
     });
-    expect(authService.enterBookingGate).not.toHaveBeenCalled();
   });
 
   it('stale head 결과면 다음 후보를 위해 Lua 호출을 계속함', async () => {

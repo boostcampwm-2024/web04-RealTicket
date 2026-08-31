@@ -4,15 +4,19 @@ import { join } from 'path';
 import Redis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 
-import { USER_STATUS } from '../../../auth/fsm/user-state.fsm';
+import { USER_STATE_TRANSITIONS, USER_STATUS } from '../../../auth/fsm/user-state.fsm';
 
 import {
   IMMEDIATE_ADMISSION_BUSINESS_CODES,
+  IMMEDIATE_ADMISSION_TRANSITION,
   WAITING_HEAD_PROMOTION_BUSINESS_CODES,
+  WAITING_HEAD_PROMOTION_TRANSITION,
+  immediateAdmissionLua,
   mapImmediateAdmissionLuaResult,
   mapWaitingHeadPromotionLuaResult,
   runImmediateAdmissionLua,
   runWaitingHeadPromotionLua,
+  waitingHeadPromotionLua,
 } from './admissionCapacityLua';
 
 type RedisWithAdmissionCommands = Redis & {
@@ -30,6 +34,8 @@ type ImmediateAdmissionCommandArgs = [
   defaultMaxSizeKey: string,
   defaultMaxSize: string,
   nowMs: string,
+  expectedFrom: string,
+  nextTo: string,
 ];
 
 type WaitingHeadPromotionCommandArgs = [
@@ -43,6 +49,8 @@ type WaitingHeadPromotionCommandArgs = [
   userKeyPrefix: string,
   defaultMaxSize: string,
   nowMs: string,
+  expectedFrom: string,
+  nextTo: string,
 ];
 
 const admissionKeys = {
@@ -99,6 +107,8 @@ async function emulateImmediateAdmissionCommand(
     defaultMaxSizeKey,
     defaultMaxSize,
     nowMs,
+    expectedFrom,
+    nextTo,
   ]: ImmediateAdmissionCommandArgs
 ) {
   const raw = await redis.get(sessionKey);
@@ -107,7 +117,7 @@ async function emulateImmediateAdmissionCommand(
   }
 
   const session = JSON.parse(raw) as Record<string, unknown>;
-  if (session.userStatus !== USER_STATUS.LOGIN) {
+  if (session.userStatus !== expectedFrom) {
     return ['STATE_MISMATCH', session.userStatus];
   }
 
@@ -124,7 +134,7 @@ async function emulateImmediateAdmissionCommand(
     return ['CAPACITY_FULL'];
   }
 
-  session.userStatus = USER_STATUS.ENTERING;
+  session.userStatus = nextTo;
   session.targetEvent = Number(eventId);
 
   const ttl = await redis.pttl(sessionKey);
@@ -157,6 +167,8 @@ async function emulateWaitingHeadPromotionCommand(
     userKeyPrefix,
     defaultMaxSize,
     nowMs,
+    expectedFrom,
+    nextTo,
   ]: WaitingHeadPromotionCommandArgs
 ) {
   const head = await redis.lindex(waitingQueueKey, 0);
@@ -184,7 +196,7 @@ async function emulateWaitingHeadPromotionCommand(
   }
 
   const session = JSON.parse(raw) as Record<string, unknown>;
-  if (session.userStatus !== USER_STATUS.WAITING) {
+  if (session.userStatus !== expectedFrom) {
     await redis.lpop(waitingQueueKey);
     return ['STALE_STATE_MISMATCH', session.userStatus];
   }
@@ -194,7 +206,7 @@ async function emulateWaitingHeadPromotionCommand(
     return ['STALE_TARGET_EVENT_MISMATCH', session.targetEvent];
   }
 
-  session.userStatus = USER_STATUS.ENTERING;
+  session.userStatus = nextTo;
 
   const ttl = await redis.pttl(sessionKey);
   if (ttl === -2 || ttl === 0) {
@@ -383,6 +395,8 @@ describe('admissionCapacityLua 계약', () => {
       'in-booking:default-max-size',
       '500',
       '1700000000123',
+      USER_STATUS.LOGIN,
+      USER_STATUS.ENTERING,
     );
   });
 
@@ -409,6 +423,8 @@ describe('admissionCapacityLua 계약', () => {
       'user:',
       '500',
       '1700000000456',
+      USER_STATUS.WAITING,
+      USER_STATUS.ENTERING,
     );
   });
 
@@ -738,5 +754,26 @@ describe('runWaitingHeadPromotionLua 대기열 head 승격 동작', () => {
     await expect(runWaitingHeadPromotion()).rejects.toThrow();
     expect(await redis.lindex('waiting-queue:42', 0)).toBe(JSON.stringify(head));
     expect(JSON.parse((await redis.get('user:sid-1')) ?? '{}')).toEqual(waitingSession);
+  });
+});
+
+describe('admissionCapacityLua 전이 출처', () => {
+  it('from/to를 스크립트에 적어두지 않고 FSM 전이 테이블에서 유도함', () => {
+    expect(USER_STATE_TRANSITIONS).toContainEqual(IMMEDIATE_ADMISSION_TRANSITION);
+    expect(USER_STATE_TRANSITIONS).toContainEqual(WAITING_HEAD_PROMOTION_TRANSITION);
+    expect(IMMEDIATE_ADMISSION_TRANSITION.from).toBe(USER_STATUS.LOGIN);
+    expect(WAITING_HEAD_PROMOTION_TRANSITION.from).toBe(USER_STATUS.WAITING);
+  });
+
+  it('Lua 본문에 상태 문자열을 박아두지 않고 ARGV로 받음', () => {
+    for (const script of [immediateAdmissionLua, waitingHeadPromotionLua]) {
+      expect(script).toContain('local expectedFrom = ARGV[5]');
+      expect(script).toContain('local nextTo = ARGV[6]');
+      expect(script).toContain('session.userStatus ~= expectedFrom');
+      expect(script).toContain('session.userStatus = nextTo');
+      for (const state of Object.values(USER_STATUS)) {
+        expect(script).not.toContain(`'${state}'`);
+      }
+    }
   });
 });

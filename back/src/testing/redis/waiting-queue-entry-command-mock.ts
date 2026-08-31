@@ -1,7 +1,5 @@
 import Redis from 'ioredis';
 
-import { USER_STATUS } from '../../auth/fsm/user-state.fsm';
-
 type WaitingQueueEntryRawResult = Array<string | number | null>;
 
 type RedisWithWaitingQueueEntryCommand = Redis & {
@@ -11,6 +9,8 @@ type RedisWithWaitingQueueEntryCommand = Redis & {
     waitingOrderKey: string,
     eventId: string,
     sid: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<WaitingQueueEntryRawResult>;
 };
 
@@ -21,6 +21,8 @@ async function emulateEnterWaitingQueue(
   waitingOrderKey: string,
   eventId: string,
   sid: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<WaitingQueueEntryRawResult> {
   const raw = await redis.get(sessionKey);
   if (!raw) {
@@ -29,7 +31,7 @@ async function emulateEnterWaitingQueue(
 
   const session = JSON.parse(raw) as Record<string, unknown>;
 
-  if (session.userStatus !== USER_STATUS.LOGIN) {
+  if (session.userStatus !== expectedFrom) {
     return ['STATE_MISMATCH', session.userStatus as string];
   }
 
@@ -39,7 +41,7 @@ async function emulateEnterWaitingQueue(
 
   const order = await redis.incr(waitingOrderKey);
 
-  session.userStatus = USER_STATUS.WAITING;
+  session.userStatus = nextTo;
   session.targetEvent = Number(eventId);
   session.waitingOrder = order;
 

@@ -136,42 +136,13 @@ export class AuthService {
     }
   }
 
-  private async runSemanticUserStateTransition(
-    sid: string,
-    action: UserStateTransitionAction,
-    targetEvent?: number | null,
-    options?: TransitionOptions,
-  ): Promise<SemanticTransitionResult> {
+  async resetToLogin(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
     return this.runLuaBackedUserStateTransition(
       sid,
-      action,
+      'resetToLogin',
       this.buildTargetEventPatch(targetEvent),
       options,
     );
-  }
-
-  async enterWaiting(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'enterWaiting', targetEvent, options);
-  }
-
-  async enterBookingGate(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'enterBookingGate', targetEvent, options);
-  }
-
-  async startSeatSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'startSeatSelection', undefined, options);
-  }
-
-  async markReconnectingSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'markReconnectingSelection', undefined, options);
-  }
-
-  async restoreSeatSelection(sid: string, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'restoreSeatSelection', undefined, options);
-  }
-
-  async resetToLogin(sid: string, targetEvent?: number | null, options?: TransitionOptions) {
-    return this.runSemanticUserStateTransition(sid, 'resetToLogin', targetEvent, options);
   }
 
   async getUserIdFromSession(sid: string): Promise<[number | null, string | null]> {

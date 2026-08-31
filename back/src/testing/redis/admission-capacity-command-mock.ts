@@ -1,7 +1,5 @@
 import Redis from 'ioredis';
 
-import { USER_STATUS } from '../../auth/fsm/user-state.fsm';
-
 type AdmissionRawResult = Array<string | number | null>;
 
 type RedisWithAdmissionCommands = Redis & {
@@ -15,6 +13,8 @@ type RedisWithAdmissionCommands = Redis & {
     defaultMaxSizeKey: string,
     defaultMaxSize: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<AdmissionRawResult>;
   promoteWaitingQueueHead?: (
     waitingQueueKey: string,
@@ -27,6 +27,8 @@ type RedisWithAdmissionCommands = Redis & {
     userKeyPrefix: string,
     defaultMaxSize: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<AdmissionRawResult>;
 };
 
@@ -87,6 +89,8 @@ async function emulateImmediateAdmission(
   defaultMaxSizeKey: string,
   defaultMaxSize: string,
   nowMs: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<AdmissionRawResult> {
   const raw = await redis.get(sessionKey);
   if (!raw) {
@@ -94,7 +98,7 @@ async function emulateImmediateAdmission(
   }
 
   const session = JSON.parse(raw) as Record<string, unknown>;
-  if (session.userStatus !== USER_STATUS.LOGIN) {
+  if (session.userStatus !== expectedFrom) {
     return ['STATE_MISMATCH', session.userStatus as string];
   }
 
@@ -116,7 +120,7 @@ async function emulateImmediateAdmission(
     return ['CAPACITY_FULL'];
   }
 
-  session.userStatus = USER_STATUS.ENTERING;
+  session.userStatus = nextTo;
   session.targetEvent = Number(eventId);
   const ttl = await redis.pttl(sessionKey);
   if (ttl === -2 || ttl === 0) {
@@ -145,6 +149,8 @@ async function emulateWaitingHeadPromotion(
   userKeyPrefix: string,
   defaultMaxSize: string,
   nowMs: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<AdmissionRawResult> {
   const head = await redis.lindex(waitingQueueKey, 0);
   if (!head) {
@@ -176,7 +182,7 @@ async function emulateWaitingHeadPromotion(
   }
 
   const session = JSON.parse(raw) as Record<string, unknown>;
-  if (session.userStatus !== USER_STATUS.WAITING) {
+  if (session.userStatus !== expectedFrom) {
     await redis.lpop(waitingQueueKey);
     return ['STALE_STATE_MISMATCH', session.userStatus as string];
   }
@@ -186,7 +192,7 @@ async function emulateWaitingHeadPromotion(
     return ['STALE_TARGET_EVENT_MISMATCH', session.targetEvent as number | string];
   }
 
-  session.userStatus = USER_STATUS.ENTERING;
+  session.userStatus = nextTo;
   const ttl = await redis.pttl(sessionKey);
   if (ttl === -2 || ttl === 0) {
     return ['SESSION_EXPIRED_DURING_WRITE'];

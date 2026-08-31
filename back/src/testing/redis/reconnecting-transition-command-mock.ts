@@ -1,7 +1,5 @@
 import Redis from 'ioredis';
 
-import { USER_STATUS } from '../../auth/fsm/user-state.fsm';
-
 type ReconnectingRawResult = Array<string | number | null>;
 
 type RedisWithReconnectingTransitionCommands = Redis & {
@@ -11,12 +9,16 @@ type RedisWithReconnectingTransitionCommands = Redis & {
     eventId: string,
     sid: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<ReconnectingRawResult>;
   restoreSelectingSeat?: (
     sessionKey: string,
     reconnectingKey: string,
     eventId: string,
     sid: string,
+    expectedFrom: string,
+    nextTo: string,
   ) => Promise<ReconnectingRawResult>;
 };
 
@@ -82,13 +84,15 @@ async function emulateMarkReconnectingSelecting(
   eventId: string,
   sid: string,
   nowMs: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<ReconnectingRawResult> {
-  const read = await readTransitionableSession(redis, sessionKey, USER_STATUS.SELECTING_SEAT, eventId);
+  const read = await readTransitionableSession(redis, sessionKey, expectedFrom, eventId);
   if ('denial' in read) {
     return read.denial;
   }
 
-  read.session.userStatus = USER_STATUS.RECONNECTING_SELECTING;
+  read.session.userStatus = nextTo;
 
   const prepared = await prepareSessionWrite(redis, sessionKey, read.session);
   if (prepared.code !== 'OK') {
@@ -107,18 +111,15 @@ async function emulateRestoreSelectingSeat(
   reconnectingKey: string,
   eventId: string,
   sid: string,
+  expectedFrom: string,
+  nextTo: string,
 ): Promise<ReconnectingRawResult> {
-  const read = await readTransitionableSession(
-    redis,
-    sessionKey,
-    USER_STATUS.RECONNECTING_SELECTING,
-    eventId,
-  );
+  const read = await readTransitionableSession(redis, sessionKey, expectedFrom, eventId);
   if ('denial' in read) {
     return read.denial;
   }
 
-  read.session.userStatus = USER_STATUS.SELECTING_SEAT;
+  read.session.userStatus = nextTo;
 
   const prepared = await prepareSessionWrite(redis, sessionKey, read.session);
   if (prepared.code !== 'OK') {

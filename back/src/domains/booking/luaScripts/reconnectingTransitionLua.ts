@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 import {
   mapLuaUserStateTransitionResult,
+  resolveUserStateTransition,
   type LuaUserStateTransitionRawResult,
   type LuaUserStateTransitionResult,
 } from '../../../auth/fsm/user-state-transition.contract';
@@ -13,6 +14,16 @@ export type RestoreSelectingBusinessCode = 'NOT_RECONNECTING';
 export const RESTORE_SELECTING_BUSINESS_CODES = [
   'NOT_RECONNECTING',
 ] as const satisfies readonly RestoreSelectingBusinessCode[];
+
+export const MARK_RECONNECTING_TRANSITION = resolveUserStateTransition(
+  'markReconnectingSelection',
+  USER_STATUS.SELECTING_SEAT,
+);
+
+export const RESTORE_SELECTING_TRANSITION = resolveUserStateTransition(
+  'restoreSeatSelection',
+  USER_STATUS.RECONNECTING_SELECTING,
+);
 
 export type MarkReconnectingLuaResult = LuaUserStateTransitionResult;
 
@@ -42,6 +53,8 @@ export const markReconnectingLua = `
   local eventId = tonumber(ARGV[1])
   local sid = ARGV[2]
   local nowMs = tonumber(ARGV[3])
+  local expectedFrom = ARGV[4]
+  local nextTo = ARGV[5]
 
   local raw = redis.call('GET', sessionKey)
   if not raw then
@@ -49,7 +62,7 @@ export const markReconnectingLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= '${USER_STATUS.SELECTING_SEAT}' then
+  if session.userStatus ~= expectedFrom then
     return {'STATE_MISMATCH', session.userStatus}
   end
 
@@ -57,7 +70,7 @@ export const markReconnectingLua = `
     return {'TARGET_EVENT_MISMATCH', session.targetEvent}
   end
 
-  session.userStatus = '${USER_STATUS.RECONNECTING_SELECTING}'
+  session.userStatus = nextTo
 
   local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
   if prepareCode ~= 'OK' then
@@ -78,6 +91,8 @@ export const restoreSelectingLua = `
 
   local eventId = tonumber(ARGV[1])
   local sid = ARGV[2]
+  local expectedFrom = ARGV[3]
+  local nextTo = ARGV[4]
 
   local raw = redis.call('GET', sessionKey)
   if not raw then
@@ -85,7 +100,7 @@ export const restoreSelectingLua = `
   end
 
   local session = cjson.decode(raw)
-  if session.userStatus ~= '${USER_STATUS.RECONNECTING_SELECTING}' then
+  if session.userStatus ~= expectedFrom then
     return {'STATE_MISMATCH', session.userStatus}
   end
 
@@ -93,7 +108,7 @@ export const restoreSelectingLua = `
     return {'TARGET_EVENT_MISMATCH', session.targetEvent}
   end
 
-  session.userStatus = '${USER_STATUS.SELECTING_SEAT}'
+  session.userStatus = nextTo
 
   local encodedSession, ttl, prepareCode = prepareSessionWrite(sessionKey, session)
   if prepareCode ~= 'OK' then
@@ -116,6 +131,8 @@ type RedisWithReconnectingTransitionCommands = Redis & {
     eventId: string,
     sid: string,
     nowMs: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult>;
 
   restoreSelectingSeat(
@@ -123,6 +140,8 @@ type RedisWithReconnectingTransitionCommands = Redis & {
     reconnectingKey: string,
     eventId: string,
     sid: string,
+    expectedFrom: string,
+    nextTo: string,
   ): Promise<LuaUserStateTransitionRawResult<RestoreSelectingBusinessCode>>;
 };
 
@@ -148,9 +167,9 @@ export function mapMarkReconnectingLuaResult(
   raw: LuaUserStateTransitionRawResult,
 ): MarkReconnectingLuaResult {
   return mapLuaUserStateTransitionResult(raw, {
-    action: 'markReconnectingSelection',
-    expectedFrom: USER_STATUS.SELECTING_SEAT,
-    nextTo: USER_STATUS.RECONNECTING_SELECTING,
+    action: MARK_RECONNECTING_TRANSITION.action,
+    expectedFrom: MARK_RECONNECTING_TRANSITION.from,
+    nextTo: MARK_RECONNECTING_TRANSITION.to,
   });
 }
 
@@ -158,9 +177,9 @@ export function mapRestoreSelectingLuaResult(
   raw: LuaUserStateTransitionRawResult<RestoreSelectingBusinessCode>,
 ): RestoreSelectingLuaResult {
   return mapLuaUserStateTransitionResult(raw, {
-    action: 'restoreSeatSelection',
-    expectedFrom: USER_STATUS.RECONNECTING_SELECTING,
-    nextTo: USER_STATUS.SELECTING_SEAT,
+    action: RESTORE_SELECTING_TRANSITION.action,
+    expectedFrom: RESTORE_SELECTING_TRANSITION.from,
+    nextTo: RESTORE_SELECTING_TRANSITION.to,
     businessCodes: RESTORE_SELECTING_BUSINESS_CODES,
   });
 }
@@ -176,6 +195,8 @@ export async function runMarkReconnectingLua(
     String(input.eventId),
     input.sid,
     String(input.nowMs),
+    MARK_RECONNECTING_TRANSITION.from,
+    MARK_RECONNECTING_TRANSITION.to,
   );
 
   return mapMarkReconnectingLuaResult(rawResult);
@@ -191,6 +212,8 @@ export async function runRestoreSelectingLua(
     input.reconnectingKey,
     String(input.eventId),
     input.sid,
+    RESTORE_SELECTING_TRANSITION.from,
+    RESTORE_SELECTING_TRANSITION.to,
   );
 
   return mapRestoreSelectingLuaResult(rawResult);
