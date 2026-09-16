@@ -31,11 +31,7 @@ export type StartSeatSelectionLuaInput = {
   sid: string;
 };
 
-/**
- * in-booking 세션 JSON을 Lua에서 cjson으로 만들지 않는 이유:
- * Redis cjson은 빈 테이블을 배열이 아닌 객체(`{}`)로 인코딩해 `bookedSeats: []`가 깨진다.
- * 형태는 TypeScript가 정의하고 Lua는 조회한 예매 수량만 끼워 넣는다.
- */
+/** cjson의 빈 배열 변형을 피하려고 JSON 형태는 TypeScript에서 만든다. */
 export function buildInBookingSessionFragments(sid: string): { prefix: string; suffix: string } {
   return {
     prefix: `{"sid":${JSON.stringify(sid)},"bookingAmount":`,
@@ -77,7 +73,7 @@ export const startSeatSelectionLua = `
   if rawBookingAmount then
     local parsedBookingAmount = tonumber(rawBookingAmount)
     if not parsedBookingAmount then
-      -- 우리 코드만 쓰는 키이므로 숫자가 아니면 업무 거부가 아니라 시스템 불변식 위반으로 다룸.
+      -- 내부 키의 비숫자 값은 시스템 불변식 위반이다.
       return {'CORRUPTED_BOOKING_AMOUNT'}
     end
     bookingAmount = math.floor(parsedBookingAmount)

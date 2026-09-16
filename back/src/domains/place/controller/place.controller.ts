@@ -29,8 +29,8 @@ import { SessionAuthGuard } from 'src/auth/guard/session.guard';
 import { ErrorResponseDto } from 'src/common/dto/error-response.dto';
 import { SuccessResponseDto } from 'src/common/dto/success-response.dto';
 import { AppException } from 'src/common/exception/app.exception';
-import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 import { USER_ROLE } from 'src/domains/user/const/userRole';
+import { CommonErrorCode } from 'src/domains/user/exception/user-error-code';
 
 import { PlaceCreationDto } from '../dto/placeCreation.dto';
 import { PlaceIdDto } from '../dto/placeId.dto';
@@ -59,7 +59,6 @@ export class PlaceController {
   @ApiBadRequestResponse({ type: ErrorResponseDto, description: 'PLACE_NOT_FOUND' })
   @ApiForbiddenResponse({ type: ErrorResponseDto, description: 'AUTH_FORBIDDEN' })
   @ApiInternalServerErrorResponse({ type: ErrorResponseDto, description: 'COMMON_UNKNOWN_ERROR' })
-  //@UseGuards(SessionAuthGuard(USER_STATUS.SELECTING_SEAT))
   @Get('seat/:placeId')
   async getSeats(@Param() placeIdDto: PlaceIdDto) {
     return await this.placeService.getSeats(placeIdDto.placeId);

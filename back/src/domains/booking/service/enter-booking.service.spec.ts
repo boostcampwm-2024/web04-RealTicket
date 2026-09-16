@@ -38,8 +38,8 @@ function createService(
   return { service, redis, multi, authService };
 }
 
-describe('EnterBookingService entering GC', () => {
-  it('resets expired entering sessions to LOGIN/null and deletes temp booking amount keys', async () => {
+describe('EnterBookingService 만료된 입장 세션 정리', () => {
+  it('만료된 입장 세션을 LOGIN과 null 이벤트로 초기화하고 임시 예매 수량을 삭제함', async () => {
     const { service, redis, authService } = createService(['expired-sid']);
 
     await service.removeExpiredSessions(42);
@@ -48,7 +48,7 @@ describe('EnterBookingService entering GC', () => {
     expect(authService.resetToLogin).toHaveBeenCalledWith('expired-sid', null);
   });
 
-  it('does not delete temp booking amount for non-expired entering sessions', async () => {
+  it('만료되지 않은 입장 세션의 임시 예매 수량을 삭제하지 않음', async () => {
     const { service, redis, authService } = createService(['expired-sid']);
 
     await service.removeExpiredSessions(42);
@@ -57,7 +57,7 @@ describe('EnterBookingService entering GC', () => {
     expect(authService.resetToLogin).not.toHaveBeenCalledWith('fresh-sid', null);
   });
 
-  it('does not reset sessions when expired entering removal fails', async () => {
+  it('만료된 입장 풀 항목 삭제가 실패하면 세션을 초기화하지 않음', async () => {
     const removalError = new Error('zremrangebyscore failed');
     const { service, redis, authService } = createService(
       ['expired-sid'],

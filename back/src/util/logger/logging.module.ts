@@ -30,11 +30,6 @@ export const FullRequestLoggingInterceptor = RequestLoggingInterceptor.instantia
   ],
   exports: [
     WinstonModule,
-    //-로거 사용법-
-    //중요!:
-    //import { Logger as WinstonLogger } from 'winston';
-    //의존성 주입 단계에서:
-    //@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: WinstonLogger,
 
     RequestLoggingService,
     RequestLoggingInterceptor,

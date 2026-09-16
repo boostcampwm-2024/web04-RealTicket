@@ -1,5 +1,5 @@
-import { USER_STATUS } from '../const/userStatus.const';
 import { USER_ROLE } from '../../domains/user/const/userRole';
+import { USER_STATUS } from '../const/userStatus.const';
 
 import {
   DEFAULT_SESSION_REQUIREMENT_EVALUATORS,
@@ -18,8 +18,8 @@ function createSession(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('session auth requirement router', () => {
-  it('allows USER role requirements through explicit USER membership regardless of booking state', () => {
+describe('세션 인증 요구사항 판정', () => {
+  it('예매 상태와 관계없이 명시적인 USER 역할로 접근을 허용함', () => {
     expect(
       canAccessSessionRequirements(
         createSession({ userStatus: USER_STATUS.SELECTING_SEAT, roles: [USER_ROLE.USER] }),
@@ -28,7 +28,7 @@ describe('session auth requirement router', () => {
     ).toBe(true);
   });
 
-  it('allows ADMIN role requirements only through explicit ADMIN membership', () => {
+  it('명시적인 ADMIN 역할이 있을 때만 관리자 접근을 허용함', () => {
     expect(
       canAccessSessionRequirements(
         createSession({ roles: [USER_ROLE.USER, USER_ROLE.ADMIN] }),
@@ -40,16 +40,16 @@ describe('session auth requirement router', () => {
     );
   });
 
-  it('treats LOGIN as an exact state requirement', () => {
-    expect(canAccessSessionRequirements(createSession({ userStatus: USER_STATUS.LOGIN }), USER_STATUS.LOGIN)).toBe(
-      true,
-    );
+  it('LOGIN 요구사항은 현재 상태가 정확히 일치해야 허용함', () => {
+    expect(
+      canAccessSessionRequirements(createSession({ userStatus: USER_STATUS.LOGIN }), USER_STATUS.LOGIN),
+    ).toBe(true);
     expect(
       canAccessSessionRequirements(createSession({ userStatus: USER_STATUS.WAITING }), USER_STATUS.LOGIN),
     ).toBe(false);
   });
 
-  it('treats SELECTING_SEAT as an exact state requirement only', () => {
+  it('SELECTING_SEAT 요구사항은 좌석 선택 상태만 허용함', () => {
     expect(
       canAccessSessionRequirements(
         createSession({ userStatus: USER_STATUS.SELECTING_SEAT }),
@@ -64,7 +64,7 @@ describe('session auth requirement router', () => {
     }
   });
 
-  it('uses OR semantics for mixed exact state and explicit role requirements', () => {
+  it('상태와 역할 요구사항 중 하나를 만족하면 접근을 허용함', () => {
     const requirements = [USER_STATUS.SELECTING_SEAT, USER_ROLE.ADMIN];
 
     expect(
@@ -87,13 +87,13 @@ describe('session auth requirement router', () => {
     ).toBe(false);
   });
 
-  it('does not let ADMIN pass USER through hierarchy', () => {
+  it('ADMIN 역할만으로 USER 역할 요구사항을 통과하지 못함', () => {
     expect(canAccessSessionRequirements(createSession({ roles: [USER_ROLE.ADMIN] }), USER_ROLE.USER)).toBe(
       false,
     );
   });
 
-  it('routes the ADMIN runtime token as role semantics, not state semantics', () => {
+  it('ADMIN 요구사항은 상태가 아닌 역할로 판정함', () => {
     const staleAdminState = USER_ROLE.ADMIN;
 
     expect(
@@ -110,18 +110,20 @@ describe('session auth requirement router', () => {
     ).toBe(true);
   });
 
-  it('normalizes legacy sessions without roles through narrow compatibility rules', () => {
-    const { roles: _roles, ...legacyUserSession } = createSession({ userStatus: USER_STATUS.WAITING });
+  it('역할이 없는 기존 세션에는 제한된 호환 규칙을 적용함', () => {
+    const legacyUserSession = createSession({ userStatus: USER_STATUS.WAITING });
+    delete legacyUserSession.roles;
 
     expect(canAccessSessionRequirements(legacyUserSession, USER_ROLE.USER)).toBe(true);
     expect(canAccessSessionRequirements(legacyUserSession, USER_ROLE.ADMIN)).toBe(false);
   });
 
-  it('fails closed for stale admin state sessions even when role data is present', () => {
+  it('역할이 있어도 폐기된 ADMIN 상태의 세션은 거부함', () => {
     const staleAdminState = USER_ROLE.ADMIN;
-    const { roles: _roles, ...staleSessionWithoutRoles } = createSession({
+    const staleSessionWithoutRoles = createSession({
       userStatus: staleAdminState,
     });
+    delete staleSessionWithoutRoles.roles;
 
     expect(canAccessSessionRequirements(staleSessionWithoutRoles, USER_ROLE.ADMIN)).toBe(false);
     expect(
@@ -145,11 +147,11 @@ describe('session auth requirement router', () => {
     [USER_ROLE.USER, createSession({ roles: 'USER' })],
     [USER_ROLE.USER, createSession({ roles: [USER_ROLE.USER, 'ROOT'] })],
     [USER_ROLE.USER, createSession({ userStatus: 'BROKEN_STATE' })],
-  ])('fails closed for requirement=%p session=%p', (requirements, session) => {
+  ])('잘못된 요구사항 %p 또는 세션 %p의 접근을 거부함', (requirements, session) => {
     expect(canAccessSessionRequirements(session, requirements as never)).toBe(false);
   });
 
-  it('accepts a fake evaluator extension without changing guard call sites', () => {
+  it('가드 호출부를 바꾸지 않고 테스트용 판정기를 확장함', () => {
     const fakeEvaluator: SessionRequirementEvaluator = {
       name: 'feature-flag',
       supports: jest.fn((requirement) => requirement.startsWith('feature:')),

@@ -438,7 +438,7 @@ describe('BookingService 재연결 전이 Lua 연동', () => {
   });
 });
 
-describe('BookingService immediate admission Lua integration', () => {
+describe('BookingService 즉시 입장 Lua 연동', () => {
   const runImmediateAdmissionLuaMock = jest.mocked(runImmediateAdmissionLua);
   const runWaitingQueueEntryLuaMock = jest.mocked(runWaitingQueueEntryLua);
 
@@ -554,7 +554,7 @@ describe('BookingService immediate admission Lua integration', () => {
   });
 });
 
-describe('BookingService immediate admission static regression gates', () => {
+describe('BookingService 즉시 입장 정적 회귀 검증', () => {
   it('즉시 입장 경로는 Lua runner를 사용하고 hot admission WATCH로 회귀하지 않음', () => {
     const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
     const immediateAdmissionBody = extractTryEnterBookingGateBody(source);
@@ -567,7 +567,7 @@ describe('BookingService immediate admission static regression gates', () => {
   });
 });
 
-describe('BookingService waiting-head promotion Lua integration', () => {
+describe('BookingService 대기열 선두 입장 Lua 연동', () => {
   const runWaitingHeadPromotionLuaMock = jest.mocked(runWaitingHeadPromotionLua);
 
   beforeEach(() => {
@@ -653,7 +653,7 @@ describe('BookingService waiting-head promotion Lua integration', () => {
   });
 });
 
-describe('BookingService Phase 2 final static gates', () => {
+describe('BookingService 입장 경로 정적 계약', () => {
   it('입장 대상 경로 전체에서 hot admission WATCH helper와 AuthService enterBookingGate를 제거함', () => {
     const source = readFileSync(join(__dirname, 'booking.service.ts'), 'utf8');
 

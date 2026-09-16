@@ -185,22 +185,25 @@ describe('Lua 사용자 상태 전이 계약', () => {
     ).toThrow('Unknown Lua user state transition code');
   });
 
-  it.each(getAllowedTransitions())('$action 전이에 대해 $from에서 $to로 가는 Lua 입력을 정확히 도출함', (row) => {
-    expect(
-      buildLuaUserStateTransitionInput({
-        sid: 'sid-1',
+  it.each(getAllowedTransitions())(
+    '$action 전이에 대해 $from에서 $to로 가는 Lua 입력을 정확히 도출함',
+    (row) => {
+      expect(
+        buildLuaUserStateTransitionInput({
+          sid: 'sid-1',
+          action: row.action,
+          expectedFrom: row.from,
+          targetEventPatch: { mode: 'preserve' },
+        }),
+      ).toMatchObject({
+        sessionKey: 'user:sid-1',
         action: row.action,
         expectedFrom: row.from,
+        nextTo: row.to,
         targetEventPatch: { mode: 'preserve' },
-      }),
-    ).toMatchObject({
-      sessionKey: 'user:sid-1',
-      action: row.action,
-      expectedFrom: row.from,
-      nextTo: row.to,
-      targetEventPatch: { mode: 'preserve' },
-    });
-  });
+      });
+    },
+  );
 
   it('즉시 입장과 대기열 선두 입장을 위한 enterBookingGate 시작 상태를 정확히 지원함', () => {
     expect(

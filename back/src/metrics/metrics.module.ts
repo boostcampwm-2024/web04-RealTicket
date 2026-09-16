@@ -37,8 +37,6 @@ export class MetricsModule implements OnApplicationShutdown {
   ) {}
 
   onApplicationShutdown(): void {
-    // collectDefaultMetrics가 등록한 setInterval 타이머를 정리한다.
-    // 테스트 환경에서 app.close() 반복 호출 시 타이머 누적을 방지한다 (WR-03).
     this.registry.clear();
   }
 }

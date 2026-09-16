@@ -42,8 +42,8 @@ function createService(
   return { service, eventEmitter };
 }
 
-describe('InBookingService reconnecting GC', () => {
-  it('emits close events for expired reconnecting sessions after removal succeeds', async () => {
+describe('InBookingService 만료된 재연결 세션 정리', () => {
+  it('만료된 재연결 풀 항목 삭제가 성공하면 종료 이벤트를 발행함', async () => {
     const { service, eventEmitter } = createService(['expired-sid']);
 
     await service.removeExpiredReconnectingSessions(42);
@@ -51,7 +51,7 @@ describe('InBookingService reconnecting GC', () => {
     expect(eventEmitter.emit).toHaveBeenCalledWith('seats-sse-close', { sid: 'expired-sid' });
   });
 
-  it('does not emit close events when expired reconnecting removal fails', async () => {
+  it('만료된 재연결 풀 항목 삭제가 실패하면 종료 이벤트를 발행하지 않음', async () => {
     const removalError = new Error('zremrangebyscore failed');
     const { service, eventEmitter } = createService(
       ['expired-sid'],

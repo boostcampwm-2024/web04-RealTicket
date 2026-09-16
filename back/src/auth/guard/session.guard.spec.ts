@@ -66,7 +66,7 @@ async function expectAuthCode(promise: Promise<unknown>, code: AuthErrorCode) {
   }
 }
 
-describe('SessionAuthGuard requirement router', () => {
+describe('SessionAuthGuard 세션 요구사항 판정', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-26T00:00:00.000Z'));
   });
@@ -75,15 +75,15 @@ describe('SessionAuthGuard requirement router', () => {
     jest.useRealTimers();
   });
 
-  it('requires explicit requirements at guard factory creation', () => {
+  it('가드 생성 시 세션 요구사항을 명시해야 함', () => {
     expect(() => {
-      // @ts-expect-error callers must provide an explicit USER_ROLE or USER_STATUS requirement.
+      // @ts-expect-error 역할 또는 상태 요구사항은 필수다.
       SessionAuthGuard();
     }).toThrow('SessionAuthGuard requires explicit session requirements');
     expect(() => SessionAuthGuard([])).toThrow('SessionAuthGuard requires explicit session requirements');
   });
 
-  it('allows USER role requirements for authenticated booking-state sessions', async () => {
+  it('예매 상태의 인증 세션은 USER 역할로 접근할 수 있음', async () => {
     const { guard, redis } = createGuard(USER_ROLE.USER);
     redis.get.mockResolvedValue(
       JSON.stringify({ userStatus: USER_STATUS.SELECTING_SEAT, roles: [USER_ROLE.USER] }),
@@ -97,7 +97,7 @@ describe('SessionAuthGuard requirement router', () => {
     );
   });
 
-  it('denies exact LOGIN state requirements for WAITING sessions without refreshing session TTL', async () => {
+  it('WAITING 세션은 LOGIN 접근을 거부하고 TTL을 갱신하지 않음', async () => {
     const { guard, redis } = createGuard(USER_STATUS.LOGIN);
     redis.get.mockResolvedValue(JSON.stringify({ userStatus: USER_STATUS.WAITING, roles: [USER_ROLE.USER] }));
 
@@ -106,7 +106,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('allows ADMIN role requirements only for explicit ADMIN role sessions', async () => {
+  it('명시적인 ADMIN 역할을 가진 세션만 관리자 접근을 허용함', async () => {
     const allowed = createGuard(USER_ROLE.ADMIN);
     allowed.redis.get.mockResolvedValue(
       JSON.stringify({
@@ -127,7 +127,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(denied.redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('allows mixed requirements through exact state or explicit role membership', async () => {
+  it('명시한 상태나 역할 중 하나를 만족하면 접근을 허용함', async () => {
     const requirements = [USER_STATUS.SELECTING_SEAT, USER_ROLE.ADMIN];
     const selectingSeat = createGuard(requirements);
     selectingSeat.redis.get.mockResolvedValue(
@@ -155,7 +155,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(denied.redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('denies unknown current statuses without refreshing session TTL', async () => {
+  it('알 수 없는 상태는 접근을 거부하고 TTL을 갱신하지 않음', async () => {
     const { guard, redis } = createGuard(USER_STATUS.LOGIN);
     redis.get.mockResolvedValue(JSON.stringify({ userStatus: 'BROKEN_STATE', roles: [USER_ROLE.USER] }));
 
@@ -164,7 +164,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('denies unknown requirements without refreshing session TTL', async () => {
+  it('알 수 없는 요구사항은 접근을 거부하고 TTL을 갱신하지 않음', async () => {
     const { guard, redis } = createGuard('BROKEN_REQUIREMENT');
     redis.get.mockResolvedValue(JSON.stringify({ userStatus: USER_STATUS.LOGIN, roles: [USER_ROLE.USER] }));
 
@@ -173,7 +173,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('denies stale admin status for selecting-seat-only requirements without refreshing session TTL', async () => {
+  it('폐기된 ADMIN 상태는 좌석 선택 접근을 거부하고 TTL을 갱신하지 않음', async () => {
     const { guard, redis } = createGuard(USER_STATUS.SELECTING_SEAT);
     const staleAdminState = USER_ROLE.ADMIN;
     redis.get.mockResolvedValue(
@@ -185,7 +185,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('fails closed for malformed session JSON', async () => {
+  it('손상된 세션 JSON은 접근을 거부함', async () => {
     const { guard, redis } = createGuard(USER_STATUS.LOGIN);
     redis.get.mockResolvedValue('{not-json');
 
@@ -194,7 +194,7 @@ describe('SessionAuthGuard requirement router', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('preserves missing-session forbidden behavior', async () => {
+  it('세션이 없으면 기존 FORBIDDEN 오류를 반환함', async () => {
     const { guard, redis } = createGuard(USER_STATUS.LOGIN);
     redis.get.mockResolvedValue(null);
 
@@ -204,9 +204,9 @@ describe('SessionAuthGuard requirement router', () => {
   });
 });
 
-describe('SeatsGateway explicit state access policy', () => {
+describe('SeatsGateway 상태별 접근 정책', () => {
   it.each([USER_STATUS.ENTERING, USER_STATUS.SELECTING_SEAT])(
-    'allows exact %s sessions for the matching event and refreshes TTL',
+    '%s 상태와 이벤트가 일치하면 접근을 허용하고 TTL을 갱신함',
     async (userStatus) => {
       const { gateway, redis } = createGateway();
       redis.get.mockResolvedValue(JSON.stringify({ userStatus, roles: [USER_ROLE.USER], targetEvent: 1 }));
@@ -217,7 +217,7 @@ describe('SeatsGateway explicit state access policy', () => {
     },
   );
 
-  it('denies role-only admin sessions for benchmark seat authorization', async () => {
+  it('ADMIN 역할만 가진 세션은 벤치마크 좌석 접근을 거부함', async () => {
     const { gateway, redis } = createGateway();
     redis.get.mockResolvedValue(
       JSON.stringify({
@@ -232,7 +232,7 @@ describe('SeatsGateway explicit state access policy', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('denies stale admin status sessions for benchmark seat authorization', async () => {
+  it('폐기된 ADMIN 상태는 벤치마크 좌석 접근을 거부함', async () => {
     const { gateway, redis } = createGateway();
     const staleAdminState = USER_ROLE.ADMIN;
     redis.get.mockResolvedValue(JSON.stringify({ userStatus: staleAdminState, targetEvent: 1 }));
@@ -242,7 +242,7 @@ describe('SeatsGateway explicit state access policy', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('denies matching state when targetEvent differs', async () => {
+  it('상태가 일치해도 targetEvent가 다르면 접근을 거부함', async () => {
     const { gateway, redis } = createGateway();
     redis.get.mockResolvedValue(JSON.stringify({ userStatus: USER_STATUS.SELECTING_SEAT, targetEvent: 2 }));
 
@@ -251,7 +251,7 @@ describe('SeatsGateway explicit state access policy', () => {
     expect(redis.expireat).not.toHaveBeenCalled();
   });
 
-  it('fails closed for malformed session JSON', async () => {
+  it('손상된 세션 JSON은 접근을 거부함', async () => {
     const { gateway, redis } = createGateway();
     redis.get.mockResolvedValue('{not-json');
 
