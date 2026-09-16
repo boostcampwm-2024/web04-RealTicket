@@ -18,7 +18,22 @@ const initSectionSeatLua = `
   return 1
   `;
 
+type RedisWithInitSectionSeatCommand = Redis & {
+  initSectionSeat(key: string, seatBitMap: string): Promise<number>;
+};
+
+const commandRegisteredRedisSet = new WeakSet<object>();
+
+function getInitSectionSeatCommandRedis(redis: Redis): RedisWithInitSectionSeatCommand {
+  if (!commandRegisteredRedisSet.has(redis)) {
+    redis.defineCommand('initSectionSeat', { numberOfKeys: 1, lua: initSectionSeatLua });
+    commandRegisteredRedisSet.add(redis);
+  }
+
+  return redis as RedisWithInitSectionSeatCommand;
+}
+
 export async function runInitSectionSeatLua(redis: Redis, key: string, seatBitMap: string): Promise<number> {
-  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
-  return redis.eval(initSectionSeatLua, 1, key, seatBitMap);
+  const commandRedis = getInitSectionSeatCommandRedis(redis);
+  return commandRedis.initSectionSeat(key, seatBitMap);
 }

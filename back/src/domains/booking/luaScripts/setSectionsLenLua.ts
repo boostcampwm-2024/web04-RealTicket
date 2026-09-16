@@ -9,11 +9,26 @@ const setSectionsLenLua = `
   return 'OK'
   `;
 
+type RedisWithSetSectionsLenCommand = Redis & {
+  setSectionsLen(eventId: string, sectionsLen: string): Promise<number>;
+};
+
+const commandRegisteredRedisSet = new WeakSet<object>();
+
+function getSetSectionsLenCommandRedis(redis: Redis): RedisWithSetSectionsLenCommand {
+  if (!commandRegisteredRedisSet.has(redis)) {
+    redis.defineCommand('setSectionsLen', { numberOfKeys: 2, lua: setSectionsLenLua });
+    commandRegisteredRedisSet.add(redis);
+  }
+
+  return redis as RedisWithSetSectionsLenCommand;
+}
+
 export async function runSetSectionsLenLua(
   redis: Redis,
   eventId: number,
   sectionsLen: number,
 ): Promise<number> {
-  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
-  return redis.eval(setSectionsLenLua, 2, eventId, sectionsLen.toString());
+  const commandRedis = getSetSectionsLenCommandRedis(redis);
+  return commandRedis.setSectionsLen(String(eventId), sectionsLen.toString());
 }
