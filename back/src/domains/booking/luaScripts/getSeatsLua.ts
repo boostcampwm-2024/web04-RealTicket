@@ -27,13 +27,28 @@ const getSectionSeatsLua = `
   return sectionResult
 `;
 
+type RedisWithGetSectionSeatsCommand = Redis & {
+  getSectionSeats(eventId: string, sectionIndex: string): Promise<number[] | null>;
+};
+
+const commandRegisteredRedisSet = new WeakSet<object>();
+
+function getSectionSeatsCommandRedis(redis: Redis): RedisWithGetSectionSeatsCommand {
+  if (!commandRegisteredRedisSet.has(redis)) {
+    redis.defineCommand('getSectionSeats', { numberOfKeys: 2, lua: getSectionSeatsLua });
+    commandRegisteredRedisSet.add(redis);
+  }
+
+  return redis as RedisWithGetSectionSeatsCommand;
+}
+
 export async function runGetSectionSeatsLua(
   redis: Redis,
   eventId: number,
   sectionIndex: number,
 ): Promise<number[] | null> {
-  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
-  return redis.eval(getSectionSeatsLua, 2, eventId, sectionIndex);
+  const commandRedis = getSectionSeatsCommandRedis(redis);
+  return commandRedis.getSectionSeats(String(eventId), String(sectionIndex));
 }
 
 /** @deprecated 섹션별 조회에는 runGetSectionSeatsLua를 사용한다. */

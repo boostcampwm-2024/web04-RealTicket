@@ -19,12 +19,27 @@ const updateSeatLua = `
     return 0
   `;
 
+type RedisWithUpdateSeatCommand = Redis & {
+  updateSeat(sectionKey: string, seatIndex: string, value: string): Promise<number | 'nil'>;
+};
+
+const commandRegisteredRedisSet = new WeakSet<object>();
+
+function getUpdateSeatCommandRedis(redis: Redis): RedisWithUpdateSeatCommand {
+  if (!commandRegisteredRedisSet.has(redis)) {
+    redis.defineCommand('updateSeat', { numberOfKeys: 1, lua: updateSeatLua });
+    commandRegisteredRedisSet.add(redis);
+  }
+
+  return redis as RedisWithUpdateSeatCommand;
+}
+
 export async function runUpdateSeatLua(
   redis: Redis,
   sectionKey: string,
   seatIndex: number,
   value: 0 | 1,
 ): Promise<number | 'nil'> {
-  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
-  return redis.eval(updateSeatLua, 1, sectionKey, seatIndex, value);
+  const commandRedis = getUpdateSeatCommandRedis(redis);
+  return commandRedis.updateSeat(sectionKey, String(seatIndex), String(value));
 }

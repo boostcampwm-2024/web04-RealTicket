@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import Redis from 'ioredis';
 
 import { USER_STATUS } from '../../auth/fsm/user-state.fsm';
@@ -6,6 +8,7 @@ import {
   runImmediateAdmissionLua,
   runWaitingHeadPromotionLua,
 } from '../../domains/booking/luaScripts/admissionCapacityLua';
+import { runGetSeatsLua, runGetSectionSeatsLua } from '../../domains/booking/luaScripts/getSeatsLua';
 import {
   runAddBookedSeatLua,
   runFlushBookedSeatsLua,
@@ -13,11 +16,14 @@ import {
   runSetInBookingSavedLua,
   runSetSubscribedSectionLua,
 } from '../../domains/booking/luaScripts/inBookingSessionLua';
+import { runInitSectionSeatLua } from '../../domains/booking/luaScripts/initSectionSeatLua';
 import {
   runMarkReconnectingLua,
   runRestoreSelectingLua,
 } from '../../domains/booking/luaScripts/reconnectingTransitionLua';
+import { runSetSectionsLenLua } from '../../domains/booking/luaScripts/setSectionsLenLua';
 import { runStartSeatSelectionLua } from '../../domains/booking/luaScripts/startSeatSelectionLua';
+import { runUpdateSeatLua } from '../../domains/booking/luaScripts/updateSeatLua';
 import { runWaitingQueueEntryLua } from '../../domains/booking/luaScripts/waitingQueueEntryLua';
 
 /** command mock에서 검증할 수 없는 cjson 동작을 실제 Redis로 확인한다. */
@@ -501,5 +507,106 @@ describe('실제 Redis - in-booking 세션 필드 Lua', () => {
     });
 
     expect(await readInBooking()).toMatchObject({ subscribedSection: null });
+  });
+});
+
+describe('실제 Redis - 좌석 비트맵 Lua', () => {
+  const sectionKey = `event:${EVENT_ID}:section:0:seats`;
+
+  it('초기화한 비트맵을 바이트 경계 너머까지 좌석 수에 맞춰 조회함', async () => {
+    await expect(runInitSectionSeatLua(redis, sectionKey, '101001011')).resolves.toBe(1);
+
+    expect(await redis.get(`${sectionKey}:len`)).toBe('9');
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual([1, 0, 1, 0, 0, 1, 0, 1, 1]);
+  });
+
+  it('더 짧은 비트맵으로 초기화하면 이전 비트와 길이를 제거함', async () => {
+    await runInitSectionSeatLua(redis, sectionKey, '111111111');
+    await runInitSectionSeatLua(redis, sectionKey, '01');
+
+    expect(await redis.get(`${sectionKey}:len`)).toBe('2');
+    expect(await redis.getbit(sectionKey, 8)).toBe(0);
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual([0, 1]);
+  });
+
+  it('빈 비트맵으로 초기화하면 길이 0과 빈 좌석 목록을 유지함', async () => {
+    await runInitSectionSeatLua(redis, sectionKey, '111');
+    await expect(runInitSectionSeatLua(redis, sectionKey, '')).resolves.toBe(1);
+
+    expect(await redis.exists(sectionKey)).toBe(0);
+    expect(await redis.get(`${sectionKey}:len`)).toBe('0');
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual([]);
+  });
+
+  it('길이가 없는 섹션은 null을 반환하고 비트맵이 없으면 0으로 채움', async () => {
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toBeNull();
+    await redis.set(`${sectionKey}:len`, '9');
+
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual(Array(9).fill(0));
+  });
+
+  it('좌석 상태 변경은 1을 반환하고 같은 값 재요청은 0을 반환함', async () => {
+    await runInitSectionSeatLua(redis, sectionKey, '101001011');
+
+    await expect(runUpdateSeatLua(redis, sectionKey, 8, 0)).resolves.toBe(1);
+    await expect(runUpdateSeatLua(redis, sectionKey, 8, 0)).resolves.toBe(0);
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual([1, 0, 1, 0, 0, 1, 0, 1, 0]);
+    await expect(runUpdateSeatLua(redis, sectionKey, 8, 1)).resolves.toBe(1);
+    await expect(runUpdateSeatLua(redis, sectionKey, 8, 1)).resolves.toBe(0);
+  });
+
+  it('범위를 벗어난 좌석 갱신은 null을 반환하고 비트맵을 바꾸지 않음', async () => {
+    await runInitSectionSeatLua(redis, sectionKey, '101');
+
+    await expect(runUpdateSeatLua(redis, sectionKey, -1, 0)).resolves.toBeNull();
+    await expect(runUpdateSeatLua(redis, sectionKey, 3, 0)).resolves.toBeNull();
+    await expect(runGetSectionSeatsLua(redis, EVENT_ID, 0)).resolves.toEqual([1, 0, 1]);
+  });
+
+  it('섹션 수 저장은 기존 키와 OK 반환값을 유지하고 전체 조회 순서도 보존함', async () => {
+    await runInitSectionSeatLua(redis, sectionKey, '10');
+    await runInitSectionSeatLua(redis, `event:${EVENT_ID}:section:1:seats`, '011');
+
+    await expect(runSetSectionsLenLua(redis, EVENT_ID, 2)).resolves.toBe('OK');
+    expect(await redis.get(`event:${EVENT_ID}:sections:len`)).toBe('2');
+    await expect(runGetSeatsLua(redis, EVENT_ID)).resolves.toEqual([
+      [1, 0],
+      [0, 1, 1],
+    ]);
+    await runSetSectionsLenLua(redis, EVENT_ID, 0);
+    await expect(runGetSeatsLua(redis, EVENT_ID)).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['조회', (client: Redis) => runGetSectionSeatsLua(client, EVENT_ID, 0)],
+    ['갱신', (client: Redis) => runUpdateSeatLua(client, sectionKey, 0, 0)],
+    ['초기화', (client: Redis) => runInitSectionSeatLua(client, sectionKey, '101')],
+    ['섹션 수 저장', (client: Redis) => runSetSectionsLenLua(client, EVENT_ID, 1)],
+  ] as const)('%s 명령은 첫 전송 이후 Lua 전문 대신 SHA를 전송함', async (_commandDescription, invoke) => {
+    await runInitSectionSeatLua(redis, sectionKey, '101');
+    const testClient = redis.duplicate({ lazyConnect: true });
+
+    try {
+      await testClient.connect();
+      const sendCommandSpy = jest.spyOn(testClient, 'sendCommand');
+      const evalSpy = jest.spyOn(testClient, 'eval');
+
+      await invoke(testClient);
+      await invoke(testClient);
+
+      expect(sendCommandSpy).toHaveBeenCalledTimes(2);
+      const firstCommand = sendCommandSpy.mock.calls[0][0];
+      const secondCommand = sendCommandSpy.mock.calls[1][0];
+      expect(firstCommand.name).toBe('eval');
+      expect(firstCommand.args[0]).toContain('redis.call(');
+      expect(secondCommand.name).toBe('evalsha');
+      expect(secondCommand.args[0]).toBe(
+        createHash('sha1').update(String(firstCommand.args[0])).digest('hex'),
+      );
+      expect(secondCommand.args.slice(1)).toEqual(firstCommand.args.slice(1));
+      expect(evalSpy).not.toHaveBeenCalled();
+    } finally {
+      testClient.disconnect();
+    }
   });
 });
