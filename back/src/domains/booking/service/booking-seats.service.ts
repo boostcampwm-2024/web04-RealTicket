@@ -78,7 +78,6 @@ export class BookingSeatsService implements OnModuleDestroy {
     }
     await runSetSectionsLenLua(this.redis, eventId, seatsCopy.length);
 
-    // 이미 구독 중인 섹션이 있으면 기존 구독 정리 (재초기화 지원)
     const existingPrefix = `${eventId}:`;
     const existingKeys = Array.from(this.seatsSubscriptionMap.keys()).filter((k) =>
       k.startsWith(existingPrefix),
@@ -171,7 +170,6 @@ export class BookingSeatsService implements OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
-    // VAL-01: 구독 섹션 검증 (subscribedSection null 포함)
     const [sectionIndex] = target;
     const inBookingSession = await this.inBookingService.getSession(eventId, sid);
     if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
@@ -195,7 +193,6 @@ export class BookingSeatsService implements OnModuleDestroy {
       throw new AppException(BookingErrorCode.SESSION_EVENT_NOT_FOUND);
     }
 
-    // VAL-02: 구독 섹션 검증
     const [sectionIndex] = target;
     const inBookingSession = await this.inBookingService.getSession(eventId, sid);
     if ((inBookingSession?.subscribedSection ?? null) !== sectionIndex) {
@@ -255,7 +252,6 @@ export class BookingSeatsService implements OnModuleDestroy {
   }
 
   getSeatsObservable(eventId: number) {
-    // Phase 2에서 섹션별 라우팅으로 교체 예정 — 현재는 첫 섹션 구독 반환
     const key = `${eventId}:0`;
     const subscription = this.seatsSubscriptionMap.get(key);
     if (!subscription) {
@@ -266,10 +262,9 @@ export class BookingSeatsService implements OnModuleDestroy {
 
   async addSseClient(eventId: number, res: Response, sid: string): Promise<void> {
     const initKey = `${eventId}:init`;
-    // startBroadcast 없음 — SSE 헤더만 전송, 좌석 데이터 없음 (SSE-02)
+    // 섹션 선택 전에는 좌석 방송을 시작하지 않는다.
     this.sseBroadcaster.addClient(initKey, res, sid);
 
-    // Phase 4: bookedSeats 복원 전송 — session 있고 bookedSeats 비어있지 않을 때만 (D-03)
     const session = await this.inBookingService.getSession(eventId, sid);
     if (session && session.bookedSeats.length > 0) {
       const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
@@ -299,7 +294,7 @@ export class BookingSeatsService implements OnModuleDestroy {
     }
     this.sseBroadcaster.addClient(key, res, sid);
 
-    // Phase 4: 재연결 복원 — session 있으면 항상 occupiedSeats 전송 (빈 배열 포함, D-03)
+    // 재연결 시 빈 목록도 보내 클라이언트의 이전 점유를 지운다.
     const session = await this.inBookingService.getSession(eventId, sid);
     if (session) {
       const payload: SeatsSseDto = { sectionIndex: -1, seatStatus: [], occupiedSeats: session.bookedSeats };
@@ -322,22 +317,18 @@ export class BookingSeatsService implements OnModuleDestroy {
     }
     const currentSection = session.subscribedSection ?? null;
 
-    // idempotent: 동일 섹션 재요청 — Pitfall 3 방어 (removeClient 호출 전에 체크)
+    // 같은 섹션을 재요청하면 기존 SSE 연결을 유지한다.
     if (currentSection === sectionIndex) {
       const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
       return { sectionIndex, seatStatus: seats ?? [] };
     }
 
-    // 신규 섹션 최신 상태 조회 (SSE-05)
     const seats = await runGetSectionSeatsLua(this.redis, eventId, sectionIndex);
 
-    // res가 있을 때만 SSE 풀 조작 수행 (res=null이면 세션 갱신만)
     if (res !== null) {
-      // 현재 풀에서 제거
       const currentKey = currentSection !== null ? `${eventId}:${currentSection}` : `${eventId}:init`;
       this.sseBroadcaster.removeClient(currentKey, res);
 
-      // 신규 섹션 풀에 등록 (미구독 섹션이면 lazy init) — 실패 시 기존 풀에 롤백
       const newKey = `${eventId}:${sectionIndex}`;
       try {
         if (!this.seatsSubscriptionMap.has(newKey)) {
@@ -345,13 +336,12 @@ export class BookingSeatsService implements OnModuleDestroy {
         }
         this.sseBroadcaster.addClient(newKey, res, sid);
       } catch (error) {
-        // 롤백: 기존 풀에 재등록
         this.sseBroadcaster.addClient(currentKey, res, sid);
         throw error;
       }
     }
 
-    // SSE 풀 조작 성공 후에만 세션의 subscribedSection 갱신 (D-01)
+    // SSE 풀 이동이 성공한 뒤 구독 섹션을 저장한다.
     await this.inBookingService.setSubscribedSection(eventId, sid, sectionIndex);
 
     return { sectionIndex, seatStatus: seats ?? [] };

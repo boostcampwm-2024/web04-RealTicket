@@ -33,7 +33,6 @@ function inBookingSession(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-/** 운영 Lua와 같은 계약을 emulate하는 테스트용 command mock을 그대로 사용함. */
 function createCommandRedis(): Redis {
   const redis = new RedisMock() as unknown as Redis;
   installInBookingSessionCommandMock(redis);

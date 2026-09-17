@@ -19,6 +19,6 @@ const initSectionSeatLua = `
   `;
 
 export async function runInitSectionSeatLua(redis: Redis, key: string, seatBitMap: string): Promise<number> {
-  // @ts-expect-error Lua 스크립트 실행 결과 타입의 자동 추론이 불가능하여, 직접 명시하기 위함.
+  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
   return redis.eval(initSectionSeatLua, 1, key, seatBitMap);
 }

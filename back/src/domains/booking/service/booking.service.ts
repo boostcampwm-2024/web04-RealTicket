@@ -110,7 +110,7 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.bookingSeatsService.updateSeatDeleted(eventId, seat);
     } catch (error) {
-      // 반납 실패가 나머지 정리(세션 회수, 대기열 승격)를 막지 않도록 흡수하되 남겨 둠
+      // 반납 실패를 기록하고 세션 회수와 대기열 승격을 계속한다.
       this.logger.warn(
         `좌석 반납 실패: eventId=${eventId} sid=${sid} seat=${JSON.stringify(seat)} — ${
           error instanceof Error ? error.message : 'unknown error'
@@ -204,7 +204,6 @@ export class BookingService implements OnModuleInit, OnModuleDestroy {
     return result.ok;
   }
 
-  // 함수 이름 생각하기
   async isAdmission(eventId: number, sid: string): Promise<BookingAdmissionStatusDto> {
     const isOpened = await this.openBookingService.isEventOpened(eventId);
     if (!isOpened) {

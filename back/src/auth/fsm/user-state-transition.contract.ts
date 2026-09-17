@@ -139,7 +139,7 @@ export function resolveUserStateTransition(
 ): ResolvedUserStateTransition {
   const result = transitionUserState(action, expectedFrom);
 
-  // strictNullChecks가 꺼져 있어 ok 판별만으로는 좁혀지지 않으므로 reason 유무로 실패를 가른다.
+  // strictNullChecks가 꺼져 있어 reason으로 실패 타입을 좁힌다.
   if ('reason' in result) {
     throw new TypeError(
       `상태 전이 테이블이 허용하지 않는 전이입니다: ${action} (from=${expectedFrom}, reason=${result.reason})`,

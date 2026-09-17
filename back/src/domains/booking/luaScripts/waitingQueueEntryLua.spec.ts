@@ -36,7 +36,6 @@ const entryInput = {
   sid: SID,
 };
 
-/** 운영 Lua와 같은 계약을 emulate하는 테스트용 command mock을 그대로 사용함. */
 function createCommandRedis(): Redis {
   const redis = new RedisMock() as unknown as Redis;
   installWaitingQueueEntryCommandMock(redis);
@@ -174,7 +173,7 @@ describe('대기열 진입 Lua 정적 계약', () => {
   });
 
   it('세션 쓰기 전에 큐 적재를 끝내 부분 반영을 만들지 않음', () => {
-    // 공용 helper 정의가 앞에 붙으므로 호출 지점은 마지막 등장 위치로 찾음.
+    // helper 정의를 제외하려고 마지막 호출 위치를 찾는다.
     const rpushIndex = waitingQueueEntryLua.indexOf("redis.call('RPUSH', waitingQueueKey");
     const writeIndex = waitingQueueEntryLua.lastIndexOf('writePreparedSessionPreservingTtl(sessionKey');
 

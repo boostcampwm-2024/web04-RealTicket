@@ -234,12 +234,12 @@ export class InBookingService {
       try {
         const acquired = await this.redis.set(lockKey, '1', 'EX', lockTtlSeconds, 'NX');
         if (acquired !== 'OK') {
-          // 다른 레플리카가 이미 GC 실행 중 — 현재 사이클 skip
+          // 다른 레플리카가 GC를 실행 중이면 건너뛴다.
           return;
         }
         await this.removeExpiredReconnectingSessions(eventId);
       } catch {
-        // 락/GC 실패: 다음 사이클에 재시도. 예외가 interval을 죽이지 않도록 흡수.
+        // GC 실패가 주기 실행을 중단하지 않도록 다음 주기에 재시도한다.
       }
     }, RECONNECTING_SELECTING_GC_INTERVAL);
 

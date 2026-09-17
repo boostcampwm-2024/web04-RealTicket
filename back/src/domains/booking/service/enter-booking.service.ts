@@ -27,13 +27,13 @@ export class EnterBookingService {
       try {
         const acquired = await this.redis.set(lockKey, '1', 'EX', lockTtlSeconds, 'NX');
         if (acquired !== 'OK') {
-          // 다른 레플리카가 이미 GC 실행 중 — 현재 사이클 skip
+          // 다른 레플리카가 GC를 실행 중이면 건너뛴다.
           return;
         }
         await this.removeExpiredSessions(eventId);
         await this.redis.publish('booking:events', JSON.stringify({ type: 'entering-sessions-gc', eventId }));
       } catch {
-        // 락/GC 실패: 다음 사이클에 재시도. 예외가 interval을 죽이지 않도록 흡수.
+        // GC 실패가 주기 실행을 중단하지 않도록 다음 주기에 재시도한다.
       }
     }, ENTERING_GC_INTERVAL);
 
@@ -91,16 +91,13 @@ export class EnterBookingService {
   async clearEnteringPool(eventId: number) {
     this.clearGCInterval(eventId);
 
-    // 해당 이벤트의 entering sorted set에서 sid 목록 먼저 획득
     const sids = await this.getAllEnteringSids(eventId);
 
-    // 각 sid의 temp-booking-amount 키 개별 삭제 (다른 이벤트의 키 건드리지 않음)
     if (sids.length > 0) {
       const amountKeys = sids.map((sid) => `entering:${sid}:temp-booking-amount`);
       await this.redis.unlink(...amountKeys);
     }
 
-    // 이벤트의 entering sorted set 키 삭제
     await this.redis.unlink(`entering:${eventId}`);
   }
 }

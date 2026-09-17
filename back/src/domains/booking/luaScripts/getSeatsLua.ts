@@ -32,11 +32,11 @@ export async function runGetSectionSeatsLua(
   eventId: number,
   sectionIndex: number,
 ): Promise<number[] | null> {
-  // @ts-expect-error Lua 스크립트 실행 결과 타입의 자동 추론이 불가능하여, 직접 명시하기 위함.
+  // @ts-expect-error eval 반환 타입을 Lua 계약에 맞춘다.
   return redis.eval(getSectionSeatsLua, 2, eventId, sectionIndex);
 }
 
-/** @deprecated Plan 01-03에서 제거 예정 — booking-seats.service.ts 임시 호환용 */
+/** @deprecated 섹션별 조회에는 runGetSectionSeatsLua를 사용한다. */
 export async function runGetSeatsLua(redis: Redis, eventId: number): Promise<number[][] | null> {
   const sectionsLenRaw = await redis.get(`event:${eventId}:sections:len`);
   if (!sectionsLenRaw) return null;

@@ -38,7 +38,6 @@ const startInput = {
   sid: SID,
 };
 
-/** 운영 Lua와 같은 계약을 emulate하는 테스트용 command mock을 그대로 사용함. */
 function createCommandRedis(): Redis {
   const redis = new RedisMock() as unknown as Redis;
   installStartSeatSelectionCommandMock(redis);
@@ -213,7 +212,7 @@ describe('좌석 선택 진입 Lua 정적 계약', () => {
   });
 
   it('세션 쓰기는 예매 자료구조 변경 뒤에 마지막으로 수행함', () => {
-    // 공용 helper 정의가 앞에 붙으므로 호출 지점은 마지막 등장 위치로 찾음.
+    // helper 정의를 제외하려고 마지막 호출 위치를 찾는다.
     const hsetIndex = startSeatSelectionLua.indexOf("'HSET',");
     const writeIndex = startSeatSelectionLua.lastIndexOf('writePreparedSessionPreservingTtl(sessionKey');
 

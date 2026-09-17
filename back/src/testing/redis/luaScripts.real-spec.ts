@@ -20,13 +20,7 @@ import {
 import { runStartSeatSelectionLua } from '../../domains/booking/luaScripts/startSeatSelectionLua';
 import { runWaitingQueueEntryLua } from '../../domains/booking/luaScripts/waitingQueueEntryLua';
 
-/**
- * 실제 Redis에서 Lua 스크립트 본문을 실행해 검증한다.
- * `ioredis-mock`에는 cjson이 없어 다른 테스트는 계약을 흉내 낸 command mock으로만 검증하므로,
- * 스크립트가 실제로 도는지는 이 파일에서만 확인된다.
- *
- * 실행: npm --prefix back run test:lua   (VM Redis가 켜져 있어야 함)
- */
+/** command mock에서 검증할 수 없는 cjson 동작을 실제 Redis로 확인한다. */
 const REDIS_HOST = process.env.LUA_TEST_REDIS_HOST ?? '192.168.138.2';
 const REDIS_PORT = Number(process.env.LUA_TEST_REDIS_PORT ?? 6379);
 const REDIS_DB = Number(process.env.LUA_TEST_REDIS_DB ?? 15);

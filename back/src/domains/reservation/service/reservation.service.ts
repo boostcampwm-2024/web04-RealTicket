@@ -233,9 +233,7 @@ export class ReservationService {
         sectionName: section.name,
         sectionIndex: seat.sectionIndex,
         colLen: section.colLen,
-        // 1행부터 시작하도록 행에 +1
         row: Math.floor(seat.seatIndex / section.colLen) + 1,
-        // 1열부터 시작하도록 열에 +1
         col: (seat.seatIndex % section.colLen) + 1,
         reservation: { id: reservationResult.id },
       };

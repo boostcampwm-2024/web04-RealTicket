@@ -139,12 +139,10 @@ export class BookingController {
 
     if (session.userStatus === USER_STATUS.ENTERING) {
       await this.bookingService.setInBookingFromEntering(sid);
-      // ENTERING: init 풀에 등록 (SSE-02)
       await this.bookingSeatsService.addSseClient(eventId, res, sid);
     } else if (session.userStatus === USER_STATUS.RECONNECTING_SELECTING) {
       await this.bookingService.restoreInBookingFromReconnecting(eventId, sid);
 
-      // 재연결 복원: 저장된 섹션으로 자동 복원 (SSE-07)
       const inBookingSession = await this.inBookingService.getSession(eventId, sid);
       if ((inBookingSession?.subscribedSection ?? null) !== null) {
         await this.bookingSeatsService.addSseClientToSection(
@@ -154,11 +152,9 @@ export class BookingController {
           sid,
         );
       } else {
-        // 섹션 미선택 상태였으면 init 풀에 등록 (SSE-02)
         await this.bookingSeatsService.addSseClient(eventId, res, sid);
       }
     } else {
-      // SELECTING_SEAT (정상 진입): init 풀에 등록 (SSE-02)
       await this.bookingSeatsService.addSseClient(eventId, res, sid);
     }
 
